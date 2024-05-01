@@ -22,20 +22,18 @@ if(ODBC_FOUND)
     message(STATUS "Found ODBCINST_LIB: " ${ODBCINST_LIB})
   endif()
 
-  if(WIN32)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-    add_subdirectory(winsetup)
-    list(APPEND LINK_LIB_LIST $<$<PLATFORM_ID:Windows>:odbccp32>)
-    list(APPEND LINK_LIB_LIST
-         $<$<PLATFORM_ID:Windows>:legacy_stdio_definitions>)
-  endif()
+#  if(WIN32)
+#    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+#    add_subdirectory(winsetup)
+#    list(APPEND LINK_LIB_LIST $<$<PLATFORM_ID:Windows>:odbccp32>)
+#    list(APPEND LINK_LIB_LIST
+#         $<$<PLATFORM_ID:Windows>:legacy_stdio_definitions>)
+#  endif()
 endif()
 
 
 if(NOT MSVC)
-  set(CMAKE_CXX_FLAGS_DEBUG
-      "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Wno-unused-parameter -Wno-redundant-move"
-  )
+  set(LIB_DL -ldl)
 endif()
 
 if(OSX_BUILD_UNIVERSAL)
@@ -53,8 +51,8 @@ set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} src/duckdb/ub_src_catalog.cpp src/duckd
 add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
-target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
-target_link_libraries(duckdb_odbc Threads::Threads)
+target_link_libraries(duckdb_odbc )
+target_link_libraries(duckdb_odbc Threads::Threads ${LIB_DL})
 
 if(NOT CLANG_TIDY)
   add_subdirectory(test)
