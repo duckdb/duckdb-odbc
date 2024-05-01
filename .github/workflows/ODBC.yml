@@ -148,6 +148,9 @@ jobs:
   odbc-osx-universal:
     name: ODBC OSX (Universal)
     runs-on: macos-14
+    env:
+      GEN: ninja
+      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
 #    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
@@ -162,6 +165,12 @@ jobs:
         with:
           key: ${{ github.job }}
           save: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install UnixODBC
+        shell: bash
+        run: |
+          CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
+
       - name: Build
         shell: bash
         run: make release
