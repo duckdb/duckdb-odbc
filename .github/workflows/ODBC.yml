@@ -62,6 +62,7 @@ jobs:
     env:
       GEN: ninja
       DUCKDB_PLATFORM: linux_arm64
+      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
     steps:
       - uses: actions/checkout@v3
         with:
@@ -72,6 +73,15 @@ jobs:
         with:
           ccache: 1
           aarch64_cross_compile: 1
+
+      - name: Install unixODBC
+        shell: bash
+        run: | # we need an x86 odbc_config tool to run cmake. fun.
+          apt-get remove -y unixodbc unixodbc-dev
+          CC=gcc ./scripts/install_unixodbc.sh
+          cp build/unixodbc/build/bin/odbc_config .
+          CC=aarch64-linux-gnu-gcc ./scripts/install_unixodbc.sh --host aarch64-linux-gnu
+          cp odbc_config build/unixodbc/build/bin/odbc_config
 
       - name: Build
         shell: bash
