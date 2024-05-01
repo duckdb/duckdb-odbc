@@ -2,7 +2,7 @@
 
 set -e
 
-#echo -e "[ODBC]\nTrace = yes\nTraceFile = /tmp/odbctrace\n\n[DuckDB Driver]\nDriver = "$(pwd)"/build/debug/tools/odbc/libduckdb_odbc.so" > ~/.odbcinst.ini
+#echo -e "[ODBC]\nTrace = yes\nTraceFile = /tmp/odbctrace\n\n[DuckDB Driver]\nDriver = "$(pwd)"/build/debug/libduckdb_odbc.so" > ~/.odbcinst.ini
 #echo -e "[DuckDB]\nDriver = DuckDB Driver\nDatabase=:memory:\n" > ~/.odbc.ini
 
 BASE_DIR=$(dirname $0)
@@ -22,7 +22,7 @@ case "$(uname -s)" in
         ;;
 esac
 
-$BASE_DIR/../linux_setup/unixodbc_setup.sh -u -D $(pwd)/build/debug/tools/odbc/libduckdb_odbc.${extension}
+$BASE_DIR/../linux_setup/unixodbc_setup.sh -u -D $(pwd)/build/debug/libduckdb_odbc.${extension}
 
 export NANODBC_TEST_CONNSTR_ODBC="DRIVER=DuckDB Driver;"
 export ASAN_OPTIONS=verify_asan_link_order=0

@@ -190,7 +190,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          zip -j duckdb_odbc-osx-universal.zip build/release/tools/odbc/libduckdb_odbc.dylib
+          zip -j duckdb_odbc-osx-universal.zip build/release/libduckdb_odbc.dylib
           ./scripts/upload-assets-to-staging.sh github_release libduckdb-osx-universal.zip duckdb_cli-osx-universal.zip duckdb_odbc-osx-universal.zip
 
       - uses: actions/upload-artifact@v3
