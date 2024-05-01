@@ -1,4 +1,4 @@
-add_library_unity(
+add_library(
   odbc_common
   OBJECT
   duckdb_odbc.cpp
