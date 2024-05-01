@@ -62,7 +62,7 @@ jobs:
     env:
       GEN: ninja
       DUCKDB_PLATFORM: linux_arm64
-      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+      ODBC_CONFIG: ./build/unixodbc/build/bin/odbc_config
     steps:
       - uses: actions/checkout@v3
         with:
@@ -150,7 +150,7 @@ jobs:
     runs-on: macos-14
     env:
       GEN: ninja
-      ODBC_CONFIG: build/unixodbc/build/bin/odbc_config
+      ODBC_CONFIG: ./build/unixodbc/build/bin/odbc_config
 #    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
@@ -171,9 +171,7 @@ jobs:
 
       - name: Install UnixODBC
         shell: bash
-        run: |
-          CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
-          ls -R .
+        run: CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
       - name: Build
         shell: bash
         run: make release
