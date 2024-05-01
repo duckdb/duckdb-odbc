@@ -152,6 +152,7 @@ jobs:
     env:
       GEN: ninja
       ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+      OSX_BUILD_UNIVERSAL: 1
 #    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
