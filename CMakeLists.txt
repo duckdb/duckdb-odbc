@@ -51,7 +51,7 @@ set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} src/duckdb/ub_src_catalog.cpp src/duckd
 add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
-target_link_libraries(duckdb_odbc )
+target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
 target_link_libraries(duckdb_odbc Threads::Threads ${LIB_DL})
 
 if(NOT CLANG_TIDY)
