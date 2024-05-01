@@ -173,7 +173,7 @@ jobs:
         shell: bash
         run: |
           CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
-
+          ls -R .
       - name: Build
         shell: bash
         run: make release
