@@ -33,11 +33,12 @@ jobs:
       - name: Build
         shell: bash
         run: make release
+
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
         run: make test
-
+        
       - name: Deploy
         shell: bash
         env:
