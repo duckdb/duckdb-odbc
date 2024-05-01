@@ -1,7 +1,8 @@
 #ifndef DUCKDB_UTILS_H
 #define DUCKDB_UTILS_H
 
-#include "common.h"
+#include "odbc_test_common.h"
+
 
 using namespace odbc_test;
 

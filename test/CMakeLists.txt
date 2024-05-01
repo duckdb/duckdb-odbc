@@ -1,6 +1,5 @@
 include_directories(../include)
 include_directories(./include)
-include_directories(../../../third_party/catch/)
 include_directories(${ODBC_INCLUDE_DIRS})
 
 add_executable(

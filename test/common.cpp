@@ -1,5 +1,5 @@
 #define CATCH_CONFIG_MAIN
-#include "include/common.h"
+#include "include/odbc_test_common.h"
 
 namespace odbc_test {
 

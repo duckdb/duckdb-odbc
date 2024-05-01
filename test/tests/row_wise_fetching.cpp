@@ -1,4 +1,5 @@
-#include "common.h"
+#include "odbc_test_common.h"
+
 
 using namespace odbc_test;
 
