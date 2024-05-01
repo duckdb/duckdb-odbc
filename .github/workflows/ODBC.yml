@@ -62,7 +62,7 @@ jobs:
     env:
       GEN: ninja
       DUCKDB_PLATFORM: linux_arm64
-      ODBC_CONFIG: ./build/unixodbc/build/bin/odbc_config
+      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
     steps:
       - uses: actions/checkout@v3
         with:
@@ -93,14 +93,14 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          cp build/release/duckdb_jdbc.jar duckdb_jdbc-linux-aarch64.jar
-         # ./scripts/upload-assets-to-staging.sh github_release duckdb_jdbc-linux-aarch64.jar
+          zip -j duckdb_odbc-linux-aarch64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-aarch64.zip
 
       - uses: actions/upload-artifact@v3
         with:
-          name: java-linux-aarch64
+          name: odbc-linux-aarch64
           path: |
-            build/release/duckdb_jdbc.jar
+            duckdb_odbc-linux-aarch64.zip
 
 
   odbc-windows-amd64:
@@ -136,8 +136,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          cp build/release/duckdb_jdbc.jar duckdb_jdbc-windows-amd64.jar
-          ./scripts/upload-assets-to-staging.sh github_release duckdb_jdbc-windows-amd64.jar
+          zip -j duckdb_odbc-windows-amd64.zip bin/Release/*
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
+
       - uses: actions/upload-artifact@v3
         with:
           name: java-windows-amd64
@@ -150,7 +151,7 @@ jobs:
     runs-on: macos-14
     env:
       GEN: ninja
-      ODBC_CONFIG: ./build/unixodbc/build/bin/odbc_config
+      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
 #    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
@@ -188,14 +189,14 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          cp build/release/duckdb_jdbc.jar duckdb_jdbc-osx-universal.jar
-          ./scripts/upload-assets-to-staging.sh github_release duckdb_jdbc-osx-universal.jar
+          zip -j duckdb_odbc-osx-universal.zip build/release/tools/odbc/libduckdb_odbc.dylib
+          ./scripts/upload-assets-to-staging.sh github_release libduckdb-osx-universal.zip duckdb_cli-osx-universal.zip duckdb_odbc-osx-universal.zip
+
       - uses: actions/upload-artifact@v3
         with:
           name: java-osx-universal
           path: |
-            build/release/duckdb_jdbc.jar
-  
+            duckdb_odbc-osx-universal.zip
 
   debug:
     name: ODBC Tests
