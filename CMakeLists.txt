@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.12.0)
 
 project(duckdb-odbc)
 find_package(ODBC)
+find_package(Threads REQUIRED)
 
 set(CMAKE_CXX_STANDARD "11" CACHE STRING "C++ standard to enforce")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
@@ -53,6 +54,7 @@ add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
 target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
+target_link_libraries(duckdb_odbc Threads::Threads)
 
 if(NOT CLANG_TIDY)
   add_subdirectory(test)
