@@ -22,13 +22,13 @@ if(ODBC_FOUND)
     message(STATUS "Found ODBCINST_LIB: " ${ODBCINST_LIB})
   endif()
 
-#  if(WIN32)
-#    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+  if(WIN32)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 #    add_subdirectory(winsetup)
-#    list(APPEND LINK_LIB_LIST $<$<PLATFORM_ID:Windows>:odbccp32>)
-#    list(APPEND LINK_LIB_LIST
-#         $<$<PLATFORM_ID:Windows>:legacy_stdio_definitions>)
-#  endif()
+    list(APPEND LINK_LIB_LIST $<$<PLATFORM_ID:Windows>:odbccp32>)
+    list(APPEND LINK_LIB_LIST
+         $<$<PLATFORM_ID:Windows>:legacy_stdio_definitions>)
+  endif()
 endif()
 
 
@@ -40,7 +40,7 @@ if(OSX_BUILD_UNIVERSAL)
   SET(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build architectures for Mac OS X" FORCE)
 endif()
 
-add_definitions(-DNO_FRAMEWORKS -DDUCKDB_EXTENSION_PARQUET_LINKED -DDUCKDB_EXTENSION_ICU_LINKED -DDUCKDB_EXTENSION_JSON_LINKED)
+add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS -DDUCKDB_EXTENSION_PARQUET_LINKED -DDUCKDB_EXTENSION_ICU_LINKED -DDUCKDB_EXTENSION_JSON_LINKED)
 
 include_directories(src/duckdb/src/include/ src/duckdb/src/include src/duckdb/third_party/concurrentqueue src/duckdb/third_party/fast_float src/duckdb/third_party/fastpforlib src/duckdb/third_party/fmt/include src/duckdb/third_party/fsst src/duckdb/third_party/httplib src/duckdb/third_party/hyperloglog src/duckdb/third_party/jaro_winkler src/duckdb/third_party/jaro_winkler/details src/duckdb/third_party/libpg_query src/duckdb/third_party/libpg_query/include src/duckdb/third_party/lz4 src/duckdb/third_party/mbedtls src/duckdb/third_party/mbedtls/include src/duckdb/third_party/mbedtls/library src/duckdb/third_party/miniz src/duckdb/third_party/pcg src/duckdb/third_party/re2 src/duckdb/third_party/skiplist src/duckdb/third_party/tdigest src/duckdb/third_party/utf8proc src/duckdb/third_party/utf8proc/include src/duckdb/extension/parquet/include src/duckdb/third_party/parquet src/duckdb/third_party/thrift src/duckdb/third_party/lz4 src/duckdb/third_party/snappy src/duckdb/third_party/zstd/include src/duckdb/third_party/mbedtls src/duckdb/third_party/mbedtls/include src/duckdb/extension/icu/include src/duckdb/extension/icu/third_party/icu/common src/duckdb/extension/icu/third_party/icu/i18n src/duckdb/extension/json/include src/duckdb/extension/json/yyjson/include ${ODBC_INCLUDE_DIRS} include)
 
