@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ubuntu:18.04
- #   needs: odbc-linux-amd64
+    needs: odbc-linux-amd64
     env:
       GEN: ninja
       DUCKDB_PLATFORM: linux_arm64
@@ -153,7 +153,7 @@ jobs:
       GEN: ninja
       ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
       OSX_BUILD_UNIVERSAL: 1
-#    needs: odbc-linux-amd64
+    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
         with:
@@ -203,7 +203,7 @@ jobs:
     name: ODBC Tests
     if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-22.04
- #   needs: linux-debug
+    needs: odbc-linux-amd64
     env:
       BUILD_ODBC: 1
       GEN: ninja
