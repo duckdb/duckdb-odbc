@@ -150,7 +150,7 @@ jobs:
     runs-on: macos-14
     env:
       GEN: ninja
-      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+      ODBC_CONFIG: build/unixodbc/build/bin/odbc_config
 #    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
