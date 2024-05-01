@@ -45,7 +45,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
           zip -j duckdb_odbc-linux-amd64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
-         ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-amd64.zip
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-amd64.zip
       - uses: actions/upload-artifact@v3
         with:
           name: odbc-linux-amd64
