@@ -29,6 +29,7 @@ jobs:
           ccache: 1
           python_alias: 1
           aws-cli: 1
+          odbc: 1
 
       - name: Build
         shell: bash
