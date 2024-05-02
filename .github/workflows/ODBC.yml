@@ -1,0 +1,279 @@
+name: JDBC
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  repository_dispatch:
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  OVERRIDE_GIT_DESCRIBE: ${{ inputs.override_git_describe }}
+
+jobs:
+  odbc-linux-amd64:
+    name: ODBC Linux (amd64)
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux2014_x86_64
+    env:
+      GEN: ninja
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.git_ref }}
+
+      - uses: ./.github/actions/manylinux_2014_setup
+        with:
+          ninja-build: 1
+          ccache: 1
+          python_alias: 1
+          aws-cli: 1
+          odbc: 1
+
+      - name: Build
+        shell: bash
+        run: make release
+
+      - name: ODBC Tests
+        shell: bash
+        if: ${{ inputs.skip_tests != 'true' }}
+        run: ./build/release/test/test_odbc
+      - name: Deploy
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
+        run: |
+          zip -j duckdb_odbc-linux-amd64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-amd64.zip
+      - uses: actions/upload-artifact@v3
+        with:
+          name: odbc-linux-amd64
+          path: |
+            duckdb_odbc-linux-amd64.zip
+
+  odbc-linux-aarch64:
+    name: ODBC Linux (aarch64)
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:18.04
+    needs: odbc-linux-amd64
+    env:
+      GEN: ninja
+      DUCKDB_PLATFORM: linux_arm64
+      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.git_ref }}
+
+      - uses: ./.github/actions/ubuntu_18_setup
+        with:
+          ccache: 1
+          aarch64_cross_compile: 1
+
+      - name: Install unixODBC
+        shell: bash
+        run: | # we need an x86 odbc_config tool to run cmake. fun.
+          apt-get remove -y unixodbc unixodbc-dev
+          CC=gcc ./scripts/install_unixodbc.sh
+          cp build/unixodbc/build/bin/odbc_config .
+          CC=aarch64-linux-gnu-gcc ./scripts/install_unixodbc.sh --host aarch64-linux-gnu
+          cp odbc_config build/unixodbc/build/bin/odbc_config
+
+      - name: Build
+        shell: bash
+        run: CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ make release
+
+      - name: Deploy
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
+        run: |
+          zip -j duckdb_odbc-linux-aarch64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-aarch64.zip
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: odbc-linux-aarch64
+          path: |
+            duckdb_odbc-linux-aarch64.zip
+
+
+  odbc-windows-amd64:
+    name: ODBC Windows (amd64)
+    runs-on: windows-latest
+    needs: odbc-linux-amd64
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.git_ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Setup Ccache
+        uses: hendrikmuhs/ccache-action@main
+        with:
+          key: ${{ github.job }}
+          save: ${{ github.ref == 'refs/heads/main' || github.repository != 'duckdb/duckdb-java' }}
+
+      - name: Build
+        shell: bash
+        run: make release
+
+      - name: ODBC Tests
+        if: ${{ inputs.skip_tests != 'true' }}
+        shell: bash
+        run: ./build/release/bin/Release/test_odbc.exe
+
+      - name: Deploy
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
+        run: |
+          choco install zip -y --force
+          zip -j duckdb_odbc-windows-amd64.zip ./build/release/bin/Release/duckdb_odbc.dll
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: odbc-windows-amd64
+          path: |
+            duckdb_odbc-windows-amd64.zip
+
+
+  odbc-osx-universal:
+    name: ODBC OSX (Universal)
+    runs-on: macos-14
+    env:
+      GEN: ninja
+      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+      OSX_BUILD_UNIVERSAL: 1
+    needs: odbc-linux-amd64
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.git_ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Setup Ccache
+        uses: hendrikmuhs/ccache-action@main
+        with:
+          key: ${{ github.job }}
+          save: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      - name: Install UnixODBC
+        shell: bash
+        run: CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
+      - name: Build
+        shell: bash
+        run: make release
+      - name: ODBC Tests
+        if: ${{ inputs.skip_tests != 'true' }}
+        shell: bash
+        run: ./build/release/test/test_odbc
+      - name: See if this actually universal
+        shell: bash
+        run: lipo -archs build/release/libduckdb_odbc.dylib | grep "x86_64 arm64"
+      - name: Deploy
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
+        run: |
+          zip -j duckdb_odbc-osx-universal.zip build/release/libduckdb_odbc.dylib
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-osx-universal.zip
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: java-osx-universal
+          path: |
+            duckdb_odbc-osx-universal.zip
+
+  debug:
+    name: ODBC Tests
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-22.04
+    needs: odbc-linux-amd64
+    env:
+      BUILD_ODBC: 1
+      GEN: ninja
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Dependencies
+        shell: bash
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get install -y -qq ninja-build unixodbc-dev
+          pip3 install pyodbc
+
+      - name: Install nanodbc
+        shell: bash
+        run: |
+          wget https://github.com/nanodbc/nanodbc/archive/refs/tags/v2.14.0.tar.gz -O nanodbc.tgz
+          mkdir nanodbc
+          tar xvf nanodbc.tgz -C nanodbc --strip-components=1
+          cd nanodbc
+          wget https://github.com/catchorg/Catch2/releases/download/v2.13.9/catch.hpp
+          cp catch.hpp test/catch/catch.hpp
+          sed -i -e "s/set(test_list/set(test_list odbc/" test/CMakeLists.txt
+          mkdir build
+          cd build
+          cmake -DNANODBC_DISABLE_TESTS=OFF ..
+          cmake --build .
+
+      - name: Setup Ccache
+        uses: hendrikmuhs/ccache-action@main
+        with:
+          key: ${{ github.job }}
+          save: ${{ github.ref == 'refs/heads/main' || github.repository != 'duckdb/duckdb' }}
+
+      - name: Build
+        shell: bash
+        run: make debug
+
+      - name: Test Standard ODBC tests
+        shell: bash
+        run:  build/debug/test/test_odbc
+
+      - name: Test Connection ODBC tests
+        shell: bash
+        run: |
+          chmod +x scripts/create_ini_file.sh
+          scripts/create_ini_file.sh
+          build/debug/test/test_connection_odbc
+
+      - name: Test nanodbc
+        shell: bash
+        run: ./test/run_nanodbc_tests.sh
+
+      - name: Test isql
+        shell: bash
+        run: ./test/run_isql_tests.sh
+
+      - name: Test R ODBC
+        shell: bash
+        run: R -f test/rodbc.R
+
+      - name: Test Python ODBC
+        shell: bash
+        run: ./test/run_pyodbc_tests.sh
+

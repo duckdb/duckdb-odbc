@@ -3,7 +3,7 @@
 using namespace odbc_test;
 
 // If running this test on macOS you need to run the following script before executing the test
-// tools/odbc/scripts/create_ini_file.sh
+// scripts/create_ini_file.sh
 
 // Connect to the database using the ini file
 TEST_CASE("Test SQLConnect with Ini File", "[odbc]") {

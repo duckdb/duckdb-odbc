@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.12.0)
 
 project(duckdb-odbc)
 find_package(ODBC)
+find_package(Threads REQUIRED)
 
 set(CMAKE_CXX_STANDARD "11" CACHE STRING "C++ standard to enforce")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
@@ -23,14 +24,23 @@ if(ODBC_FOUND)
 
   if(WIN32)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-    add_subdirectory(winsetup)
+#    add_subdirectory(winsetup)
     list(APPEND LINK_LIB_LIST $<$<PLATFORM_ID:Windows>:odbccp32>)
     list(APPEND LINK_LIB_LIST
          $<$<PLATFORM_ID:Windows>:legacy_stdio_definitions>)
   endif()
 endif()
 
-add_definitions(-DNO_FRAMEWORKS ${DEFINES})
+set(DUCKDB_SYSTEM_LIBS ${CMAKE_DL_LIBS})
+if(MSVC)
+  set(DUCKDB_SYSTEM_LIBS ${DUCKDB_SYSTEM_LIBS} ws2_32 rstrtmgr bcrypt)
+endif()
+
+if(OSX_BUILD_UNIVERSAL)
+  SET(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build architectures for Mac OS X" FORCE)
+endif()
+
+add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DEFINES})
 
 include_directories(src/duckdb/src/include/ ${INCLUDE_FILES} ${ODBC_INCLUDE_DIRS} include)
 
@@ -42,6 +52,7 @@ add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
 target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} ${LIBRARY_FILES})
+target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
 
 if(NOT CLANG_TIDY)
   add_subdirectory(test)
