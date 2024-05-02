@@ -128,9 +128,7 @@ jobs:
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
-        run: |
-          ls -R build/release
-          ./build/release/test/test_odbc
+        run: ./build/release/bin/Release/test_odbc.exe
 
       - name: Deploy
         shell: bash
@@ -138,7 +136,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          zip -j duckdb_odbc-windows-amd64.zip bin/Release/*
+          zip -j duckdb_odbc-windows-amd64.zip /build/release/bin/Release/duckdb_odbc.dll
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
 
       - uses: actions/upload-artifact@v3
