@@ -106,7 +106,7 @@ jobs:
   odbc-windows-amd64:
     name: ODBC Windows (amd64)
     runs-on: windows-latest
-  #  needs: odbc-linux-amd64
+#    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
         with:
@@ -128,7 +128,9 @@ jobs:
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
-        run: ./build/release/test/test_odbc
+        run: |
+          ls -R build/release
+          ./build/release/test/test_odbc
 
       - name: Deploy
         shell: bash
@@ -141,9 +143,9 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: java-windows-amd64
+          name: odbc-windows-amd64
           path: |
-            build/release/duckdb_jdbc.jar
+            duckdb_odbc-windows-amd64.zip
 
 
   odbc-osx-universal:
