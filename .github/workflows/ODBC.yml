@@ -136,6 +136,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
+          choco install zip -y --force
           zip -j duckdb_odbc-windows-amd64.zip /build/release/bin/Release/duckdb_odbc.dll
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
 
