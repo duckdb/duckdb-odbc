@@ -1,4 +1,4 @@
-#include "common.h"
+#include "odbc_test_common.h"
 
 #include <array>
 #include <vector>
