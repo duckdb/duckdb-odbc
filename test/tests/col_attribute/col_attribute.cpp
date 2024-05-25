@@ -23,13 +23,14 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 	                                   "'varchar string'::varchar as varcharcol, "
 	                                   "''::varchar as empty_varchar_col, "
 	                                   "'varchar-5-col'::varchar(5) as varchar5col, "
+	                                   "gen_random_uuid() as uuidcol, "
 	                                   "'5 days'::interval day to second"),
 	                  SQL_NTS);
 
 	// Get the number of columns
 	SQLSMALLINT num_cols;
 	EXECUTE_AND_CHECK("SQLNumResultCols", SQLNumResultCols, hstmt, &num_cols);
-	REQUIRE(num_cols == 6);
+	REQUIRE(num_cols == 7);
 
 	// Loop through the columns
 	for (int i = 1; i <= num_cols; i++) {
@@ -74,6 +75,11 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 			REQUIRE(STR_EQUAL(base_col_name, "varchar5col"));
 			break;
 		case 6:
+			REQUIRE(STR_EQUAL(buffer, "uuidcol"));
+			REQUIRE(STR_EQUAL(col_name, "uuidcol"));
+			REQUIRE(STR_EQUAL(base_col_name, "uuidcol"));
+			break;
+		case 7:
 			REQUIRE(STR_EQUAL(buffer, "CAST('5 days' AS INTERVAL)"));
 			REQUIRE(STR_EQUAL(col_name, "CAST('5 days' AS INTERVAL)"));
 			REQUIRE(STR_EQUAL(base_col_name, "CAST('5 days' AS INTERVAL)"));
@@ -94,16 +100,17 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		case 3:
 		case 4:
 		case 5:
+		case 6:
 			REQUIRE(STR_EQUAL(buffer, "VARCHAR"));
 			break;
-		case 6:
+		case 7:
 			REQUIRE(STR_EQUAL(buffer, "INTERVAL"));
 			break;
 		}
 	}
 
 	// SQLColAttribute should fail if the column number is out of bounds
-	ret = SQLColAttribute(hstmt, 7, SQL_DESC_TYPE_NAME, nullptr, 0, nullptr, nullptr);
+	ret = SQLColAttribute(hstmt, 8, SQL_DESC_TYPE_NAME, nullptr, 0, nullptr, nullptr);
 	REQUIRE(ret == SQL_ERROR);
 
 	// Create table and retrieve base table name using SQLColAttribute, should fail because the statement is not a

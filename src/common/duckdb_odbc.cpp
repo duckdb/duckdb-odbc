@@ -166,7 +166,12 @@ void OdbcHandleStmt::FillIRD() {
 			new_record.SetSqlDescType(sql_type);
 		}
 
-		new_record.sql_desc_type_name = duckdb::TypeIdToString(col_type.InternalType());
+		// Default cast unknown types (e.g. UUID) to VARCHAR. See api_info.cpp
+		if (sql_type == SQL_UNKNOWN_TYPE) {
+ 			new_record.sql_desc_type_name = duckdb::TypeIdToString(PhysicalType::VARCHAR);
+		} else {
+			new_record.sql_desc_type_name = duckdb::TypeIdToString(col_type.InternalType());
+		}
 		new_record.sql_desc_display_size = duckdb::ApiInfo::GetColumnSize(col_type);
 		new_record.SetDescUnsignedField(col_type);
 
