@@ -89,7 +89,29 @@ const std::unordered_set<SQLUSMALLINT> ApiInfo::ODBC3_EXTRA_SUPPORTED_FUNCTIONS 
     SQL_API_SQLSETDESCREC,    SQL_API_SQLSETPOS,         SQL_API_SQLTABLEPRIVILEGES};
 
 // clang-format off
+/*
+ * 1. TYPE_NAME
+ * 2. DATA_TYPE
+ * 3. COLUMN_SIZE
+ * 4. LITERAL_PREFIX
+ * 5. LITERAL_SUFFIX
+ * 6. CREATE_PARAMS
+ * 7. NULLABLE
+ * 8. CASE_SENSITIVE
+ * 9. SEARCHABLE
+ * 10. UNSIGNED_ATTRIBUTE
+ * 11. FIXED_PREC_SCALE
+ * 12. AUTO_UNIQUE_VALUE
+ * 13. LOCAL_TYPE_NAME
+ * 14. MINIMUM_SCALE
+ * 15. MAXIMUM_SCALE
+ * 16. SQL_DATA_TYPE
+ * 17. SQL_DATETIME_SUB
+ * 18. NUM_PREC_RADIX
+ * 19. INTERVAL_PRECISION
+ */
 const vector<duckdb::TypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
+// |          1               |               2              |  3|      4 |      5 |          6         |      7    |     8     |      9       |      10   |   11    |    12    |      13    |  14|  15|      16       |            17          | 18| 19|
 {                     "'CHAR'",                      SQL_CHAR,  1,  "''''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_SEARCHABLE,        -1, SQL_FALSE, SQL_FALSE,      "NULL", -1, -1,      SQL_CHAR,                        -1, -1, -1},
 {                  "'BOOLEAN'",                       SQL_BIT,  1,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,  SQL_TRUE,  SQL_TRUE, SQL_FALSE, "'boolean'", -1, -1,       SQL_BIT,                        -1, -1, -1},
 {                  "'TINYINT'",                   SQL_TINYINT,  3,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC, SQL_FALSE, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,   SQL_TINYINT,                        -1,  2, -1},
@@ -98,7 +120,7 @@ const vector<duckdb::TypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 {                   "'BIGINT'",                    SQL_BIGINT, 19,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC, SQL_FALSE, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,    SQL_BIGINT,                        -1,  2, -1},
 {                     "'DATE'",                 SQL_TYPE_DATE, 10,  "''''", "''''",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL", -1, -1,  SQL_TYPE_DATE,            SQL_CODE_DATE, -1, -1},
 {                     "'TIME'",                 SQL_TYPE_TIME,  8,  "''''", "''''",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,  SQL_TYPE_TIME,            SQL_CODE_TIME, -1, -1},
-{                "'TIMESTAMP'",            SQL_TYPE_TIMESTAMP, 26,  "''''", "''''",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,  SQL_TYPE_TIMESTAMP,       SQL_CODE_TIMESTAMP, -1, -1},
+{                "'TIMESTAMP'",            SQL_TYPE_TIMESTAMP, 26,  "''''", "''''",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,  SQL_TYPE_TIMESTAMP,  SQL_CODE_TIMESTAMP, -1, -1},
 {                  "'DECIMAL'",                   SQL_DECIMAL, 38,  "''''", "''''", "'precision,scale'", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL",  0, 38,   SQL_DECIMAL,                        -1, 10, -1},
 {                  "'NUMERIC'",                   SQL_NUMERIC, 38,  "''''", "''''", "'precision,scale'", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL",  0, 38,   SQL_NUMERIC,                        -1, 10, -1},
 {                    "'FLOAT'",                     SQL_FLOAT, 24,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC, SQL_FALSE, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,     SQL_FLOAT,                        -1,  2, -1},
