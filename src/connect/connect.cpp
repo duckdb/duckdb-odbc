@@ -139,7 +139,12 @@ SQLRETURN Connect::SetConnection() {
 	config.SetOptionsByName(config_map);
 
 	bool cache_instance = database != IN_MEMORY_PATH;
-	dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
+
+    try {
+	    dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
+    } catch (std::exception &ex) {
+        return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ex.what(), SQLStateType::ST_IM003, "");
+    }
 
 	if (!dbc->conn) {
 		dbc->conn = make_uniq<Connection>(*dbc->env->db);
