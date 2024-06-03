@@ -143,7 +143,8 @@ SQLRETURN Connect::SetConnection() {
     try {
 	    dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
     } catch (std::exception &ex) {
-        return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ex.what(), SQLStateType::ST_IM003, "");
+        ErrorData error(ex);
+        return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", error.Message(), SQLStateType::ST_IM003, "");
     }
 
 	if (!dbc->conn) {
