@@ -77,64 +77,102 @@ string OdbcUtils::ParseStringFilter(const string &filter_name, const string &fil
 string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const string &schema_filter,
                                         const string &table_filter, const string &column_filter) {
 	string sql_duckdb_columns = R"(
-		SELECT
-			NULL "TABLE_CAT",
-			schema_name "TABLE_SCHEM",
-			table_name "TABLE_NAME",
-			column_name "COLUMN_NAME",
-			data_type_id "DATA_TYPE",
-			data_type "TYPE_NAME",
-			CASE
-				WHEN data_type='DATE' THEN 12
-				WHEN data_type='TIME' THEN 15
-				WHEN data_type LIKE 'TIMESTAMP%' THEN 26
-				WHEN data_type='CHAR' OR data_type='BOOLEAN' THEN 1
-				WHEN data_type='VARCHAR' OR data_type='BLOB' THEN character_maximum_length
-				WHEN data_type LIKE '%INT%' THEN numeric_precision
-				WHEN data_type like 'DECIMAL%' THEN numeric_precision
-				WHEN data_type='FLOAT' OR data_type='DOUBLE' THEN numeric_precision
-				ELSE NULL
-			END as "COLUMN_SIZE",
-			CASE
-				WHEN data_type='DATE' THEN 4
-				WHEN data_type='TIME' THEN 8
-				WHEN data_type LIKE 'TIMESTAMP%' THEN 8
-				WHEN data_type='CHAR' OR data_type='BOOLEAN' THEN 1
-				WHEN data_type='VARCHAR' OR data_type='BLOB' THEN 16
-				WHEN data_type LIKE '%TINYINT' THEN 1
-				WHEN data_type LIKE '%SMALLINT' THEN 2
-				WHEN data_type LIKE '%INTEGER' THEN 4
-				WHEN data_type LIKE '%BIGINT' THEN 8
-				WHEN data_type='HUGEINT' THEN 16
-				WHEN data_type='FLOAT' THEN 4
-				WHEN data_type='DOUBLE' THEN 8
-				ELSE NULL
-			END as "BUFFER_LENGTH",
-			numeric_scale "DECIMAL_DIGITS",
-			numeric_precision_radix "NUM_PREC_RADIX",
-			CASE is_nullable
-				WHEN false THEN 0
-				WHEN true THEN 1
-				ELSE 2
-			END as "NULLABLE",
-			NULL "REMARKS",
-			column_default "COLUMN_DEF",
-			data_type_id  "SQL_DATA_TYPE",
-			CASE
-				WHEN data_type='DATE' OR data_type='TIME' OR data_type LIKE 'TIMESTAMP%' THEN data_type_id
-				ELSE NULL
-			END as "SQL_DATETIME_SUB",
-			CASE
-				WHEN data_type='%CHAR' OR data_type='BLOB' THEN character_maximum_length
-				ELSE NULL
-			END as "CHAR_OCTET_LENGTH",
-			column_index as "ORDINAL_POSITION",
-			CASE is_nullable
-				WHEN false THEN 'NO'
-				WHEN true THEN 'YES'
-				ELSE ''
-			END as "IS_NULLABLE"
-		FROM duckdb_columns
+        SELECT * EXCLUDE mapping
+        FROM (
+            SELECT NULL "TABLE_CAT",
+            SCHEMA_NAME "TABLE_SCHEM",
+            TABLE_NAME "TABLE_NAME",
+            COLUMN_NAME "COLUMN_NAME", MAP {
+                10: 1, -- BOOL -> SQL_CHAR
+                11: -6, -- TINYINT -> SQL_TINYINT
+                28: -6, -- UTINYINT -> SQL_TINYINT
+                12: 5, -- SMALLINT -> SQL_SMALLINT
+                29: 5, -- USMALLINT -> SQL_SMALLINT
+                13: 4, -- INTEGER -> SQL_INTEGER
+                30: 4, -- UINTEGER -> SQL_INTEGER
+                14: -5, -- BIGINT -> SQL_BIGINT
+                31: -5, -- UBIGINT -> SQL_BIGINT
+                22: 6, -- FLOAT -> SQL_FLOAT
+                50: 8, -- HUGEINT -> SQL_DOUBLE
+                23: 8, -- DOUBLE -> SQL_DOUBLE
+                15: 91, -- DATE -> SQL_TYPE_DATE
+                19: 93, -- TIMESTAMP -> SQL_TYPE_TIMESTAMP
+                16: 92, -- TIME -> SQL_TYPE_TIME
+                25: 12, -- VARCHAR -> SQL_VARCHAR
+                26: -3, -- BLOB -> SQL_VARBINARY
+                27: 10, -- INTERVAL -> SQL_INTERVAL
+                21: 8, -- DECIMAL -> SQL_DOUBLE
+                36: -7, -- BIT -> SQL_BIT
+                101: 12 -- LIST -> SQL_VARCHAR
+            } AS mapping,
+            CASE
+            WHEN len(mapping[data_type_id]) != 0 THEN mapping[data_type_id][1]::BIGINT
+            ELSE data_type_id
+            END AS "DATA_TYPE",
+            data_type "TYPE_NAME",
+            CASE
+            WHEN data_type='DATE' THEN 12
+            WHEN data_type='TIME' THEN 15
+            WHEN data_type LIKE 'TIMESTAMP%' THEN 26
+            WHEN data_type='CHAR'
+                OR data_type='BOOLEAN' THEN 1
+            WHEN data_type='VARCHAR'
+                OR data_type='BLOB' THEN character_maximum_length
+            WHEN data_type LIKE '%INT%' THEN numeric_precision
+            WHEN data_type like 'DECIMAL%' THEN numeric_precision
+            WHEN data_type='FLOAT'
+                OR data_type='DOUBLE' THEN numeric_precision
+            ELSE NULL
+            END AS "COLUMN_SIZE",
+            CASE
+            WHEN data_type='DATE' THEN 4
+            WHEN data_type='TIME' THEN 8
+            WHEN data_type LIKE 'TIMESTAMP%' THEN 8
+            WHEN data_type='CHAR'
+                OR data_type='BOOLEAN' THEN 1
+            WHEN data_type='VARCHAR'
+                OR data_type='BLOB' THEN 16
+            WHEN data_type LIKE '%TINYINT' THEN 1
+            WHEN data_type LIKE '%SMALLINT' THEN 2
+            WHEN data_type LIKE '%INTEGER' THEN 4
+            WHEN data_type LIKE '%BIGINT' THEN 8
+            WHEN data_type='HUGEINT' THEN 16
+            WHEN data_type='FLOAT' THEN 4
+            WHEN data_type='DOUBLE' THEN 8
+            ELSE NULL
+            END AS "BUFFER_LENGTH",
+            numeric_scale "DECIMAL_DIGITS",
+            numeric_precision_radix "NUM_PREC_RADIX",
+            CASE is_nullable
+            WHEN FALSE THEN 0
+            WHEN TRUE THEN 1
+            ELSE 2
+            END AS "NULLABLE",
+            NULL "REMARKS",
+            column_default "COLUMN_DEF",
+            CASE
+                WHEN len(mapping[data_type_id]) != 0 THEN mapping[data_type_id][1]::BIGINT
+                ELSE data_type_id
+            END AS "SQL_DATA_TYPE",
+            CASE
+                WHEN data_type='DATE'
+                     OR data_type='TIME'
+                     OR data_type LIKE 'TIMESTAMP%' THEN data_type_id
+                ELSE NULL
+            END AS "SQL_DATETIME_SUB",
+            CASE
+                WHEN data_type='%CHAR'
+                     OR data_type='BLOB' THEN character_maximum_length
+                ELSE NULL
+            END AS "CHAR_OCTET_LENGTH",
+            column_index AS "ORDINAL_POSITION",
+            CASE is_nullable
+                WHEN FALSE THEN 'NO'
+                WHEN TRUE THEN 'YES'
+                ELSE ''
+            END AS "IS_NULLABLE"
+            FROM duckdb_columns
+        )
 	)";
 
 	sql_duckdb_columns += " WHERE ";
