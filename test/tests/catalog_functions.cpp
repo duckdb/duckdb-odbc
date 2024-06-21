@@ -280,8 +280,8 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
 
-// SQLColumns DATA_TYPE and SQL_DATA_TYPE should return SQL types
-TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE", "[odbc]") {
+// SQLColumns DATA_TYPE and SQL_DATA_TYPE should return SQL types and shoud be the same as the column type in SQLDescribeCol
+TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescribeCol", "[odbc]") {
     SQLHANDLE env;
     SQLHANDLE dbc;
 
@@ -382,6 +382,19 @@ TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE", "[odbc]") {
 
         REQUIRE(data_type == SQL_types[i]);
         REQUIRE(sql_data_type == SQL_types[i]);
+    }
+
+    // Use SQLDescribeCol to assert that the data type is the same for each column
+    // Select * from the table
+    EXECUTE_AND_CHECK("SQLExecDirect (SELECT *)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"), SQL_NTS);
+
+    // Fetch the results
+    EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+
+    // Check the data types of the columns using METADATA_CHECK which calls SQLDescribeCol
+    for(int i = 0; i < SQL_types.size(); i++) {
+        std::string col_name = "c" + std::to_string(i);
+        METADATA_CHECK(hstmt, i + 1, col_name, col_name.size(), SQL_types[i], 0, 0, SQL_NULLABLE_UNKNOWN);
     }
 
     // Free the statement handle

@@ -265,6 +265,8 @@ SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb::LogicalTypeId type_id) {
 		return SQL_DOUBLE;
 	case LogicalTypeId::LIST:
 		return SQL_VARCHAR;
+    case LogicalTypeId::BIT:
+        return SQL_BIT;
 	default:
 		return SQL_UNKNOWN_TYPE;
 	}
