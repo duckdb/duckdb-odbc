@@ -106,47 +106,47 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
                 101: 12 -- LIST -> SQL_VARCHAR
             } AS mapping,
             CASE
-            WHEN len(mapping[data_type_id]) != 0 THEN mapping[data_type_id][1]::BIGINT
-            ELSE data_type_id
+                WHEN len(mapping[data_type_id]) != 0 THEN mapping[data_type_id][1]::BIGINT
+                ELSE data_type_id
             END AS "DATA_TYPE",
             data_type "TYPE_NAME",
             CASE
-            WHEN data_type='DATE' THEN 12
-            WHEN data_type='TIME' THEN 15
-            WHEN data_type LIKE 'TIMESTAMP%' THEN 26
-            WHEN data_type='CHAR'
-                OR data_type='BOOLEAN' THEN 1
-            WHEN data_type='VARCHAR'
-                OR data_type='BLOB' THEN character_maximum_length
-            WHEN data_type LIKE '%INT%' THEN numeric_precision
-            WHEN data_type like 'DECIMAL%' THEN numeric_precision
-            WHEN data_type='FLOAT'
-                OR data_type='DOUBLE' THEN numeric_precision
-            ELSE NULL
+                WHEN data_type='DATE' THEN 12
+                WHEN data_type='TIME' THEN 15
+                WHEN data_type LIKE 'TIMESTAMP%' THEN 26
+                WHEN data_type='CHAR'
+                    OR data_type='BOOLEAN' THEN 1
+                WHEN data_type='VARCHAR'
+                    OR data_type='BLOB' THEN character_maximum_length
+                WHEN data_type LIKE '%INT%' THEN numeric_precision
+                WHEN data_type like 'DECIMAL%' THEN numeric_precision
+                WHEN data_type='FLOAT'
+                    OR data_type='DOUBLE' THEN numeric_precision
+                ELSE NULL
             END AS "COLUMN_SIZE",
             CASE
-            WHEN data_type='DATE' THEN 4
-            WHEN data_type='TIME' THEN 8
-            WHEN data_type LIKE 'TIMESTAMP%' THEN 8
-            WHEN data_type='CHAR'
-                OR data_type='BOOLEAN' THEN 1
-            WHEN data_type='VARCHAR'
-                OR data_type='BLOB' THEN 16
-            WHEN data_type LIKE '%TINYINT' THEN 1
-            WHEN data_type LIKE '%SMALLINT' THEN 2
-            WHEN data_type LIKE '%INTEGER' THEN 4
-            WHEN data_type LIKE '%BIGINT' THEN 8
-            WHEN data_type='HUGEINT' THEN 16
-            WHEN data_type='FLOAT' THEN 4
-            WHEN data_type='DOUBLE' THEN 8
-            ELSE NULL
+                WHEN data_type='DATE' THEN 4
+                WHEN data_type='TIME' THEN 8
+                WHEN data_type LIKE 'TIMESTAMP%' THEN 8
+                WHEN data_type='CHAR'
+                    OR data_type='BOOLEAN' THEN 1
+                WHEN data_type='VARCHAR'
+                    OR data_type='BLOB' THEN 16
+                WHEN data_type LIKE '%TINYINT' THEN 1
+                WHEN data_type LIKE '%SMALLINT' THEN 2
+                WHEN data_type LIKE '%INTEGER' THEN 4
+                WHEN data_type LIKE '%BIGINT' THEN 8
+                WHEN data_type='HUGEINT' THEN 16
+                WHEN data_type='FLOAT' THEN 4
+                WHEN data_type='DOUBLE' THEN 8
+                ELSE NULL
             END AS "BUFFER_LENGTH",
             numeric_scale "DECIMAL_DIGITS",
             numeric_precision_radix "NUM_PREC_RADIX",
             CASE is_nullable
-            WHEN FALSE THEN 0
-            WHEN TRUE THEN 1
-            ELSE 2
+                WHEN FALSE THEN 0
+                WHEN TRUE THEN 1
+                ELSE 2
             END AS "NULLABLE",
             NULL "REMARKS",
             column_default "COLUMN_DEF",
