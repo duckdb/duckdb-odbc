@@ -82,31 +82,32 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             SELECT NULL "TABLE_CAT",
             SCHEMA_NAME "TABLE_SCHEM",
             TABLE_NAME "TABLE_NAME",
-            COLUMN_NAME "COLUMN_NAME", MAP {
-                10: 1, -- BOOL -> SQL_CHAR
-                11: -6, -- TINYINT -> SQL_TINYINT
-                28: -6, -- UTINYINT -> SQL_TINYINT
-                12: 5, -- SMALLINT -> SQL_SMALLINT
-                29: 5, -- USMALLINT -> SQL_SMALLINT
-                13: 4, -- INTEGER -> SQL_INTEGER
-                30: 4, -- UINTEGER -> SQL_INTEGER
-                14: -5, -- BIGINT -> SQL_BIGINT
-                31: -5, -- UBIGINT -> SQL_BIGINT
-                22: 6, -- FLOAT -> SQL_FLOAT
-                50: 8, -- HUGEINT -> SQL_DOUBLE
-                23: 8, -- DOUBLE -> SQL_DOUBLE
-                15: 91, -- DATE -> SQL_TYPE_DATE
-                19: 93, -- TIMESTAMP -> SQL_TYPE_TIMESTAMP
-                16: 92, -- TIME -> SQL_TYPE_TIME
-                25: 12, -- VARCHAR -> SQL_VARCHAR
-                26: -3, -- BLOB -> SQL_VARBINARY
-                27: 10, -- INTERVAL -> SQL_INTERVAL
-                21: 8, -- DECIMAL -> SQL_DOUBLE
-                36: -7, -- BIT -> SQL_BIT
-                101: 12 -- LIST -> SQL_VARCHAR
+            COLUMN_NAME "COLUMN_NAME",
+            MAP {
+                'BOOL': 1, -- SQL_CHAR
+                'TINYINT': -6, -- SQL_TINYINT
+                'UTINYINT': -6, -- SQL_TINYINT
+                'SMALLINT': 5, -- SQL_SMALLINT
+                'USMALLINT': 5, -- SQL_SMALLINT
+                'INTEGER': 4, -- SQL_INTEGER
+                'UINTEGER': 4, -- SQL_INTEGER
+                'BIGINT': -5, -- SQL_BIGINT
+                'UBIGINT': -5, -- SQL_BIGINT
+                'FLOAT': 6, -- SQL_FLOAT
+                'HUGEINT': 8, -- SQL_DOUBLE
+                'DOUBLE': 8, -- SQL_DOUBLE
+                'DATE': 91, -- SQL_TYPE_DATE
+                'TIMESTAMP': 93, -- SQL_TYPE_TIMESTAMP
+                'TIME': 92, -- SQL_TYPE_TIME
+                'VARCHAR': 12, -- SQL_VARCHAR
+                'BLOB': -3, -- SQL_VARBINARY
+                'INTERVAL': 10, -- SQL_INTERVAL
+                'DECIMAL': 8, -- SQL_DOUBLE
+                'BIT': -7, -- SQL_BIT
+                'LIST': 12 -- SQL_VARCHAR
             } AS mapping,
             CASE
-                WHEN len(mapping[data_type_id]) != 0 THEN mapping[data_type_id][1]::BIGINT
+                WHEN len(mapping[data_type]) != 0 THEN mapping[data_type][1]::BIGINT
                 ELSE data_type_id
             END AS "DATA_TYPE",
             data_type "TYPE_NAME",
@@ -151,7 +152,7 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             NULL "REMARKS",
             column_default "COLUMN_DEF",
             CASE
-                WHEN len(mapping[data_type_id]) != 0 THEN mapping[data_type_id][1]::BIGINT
+                WHEN len(mapping[data_type]) != 0 THEN mapping[data_type][1]::BIGINT
                 ELSE data_type_id
             END AS "SQL_DATA_TYPE",
             CASE
