@@ -106,7 +106,7 @@ jobs:
   odbc-windows-amd64:
     name: ODBC Windows (amd64)
     runs-on: windows-latest
-    needs: odbc-linux-amd64
+#    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
         with:
@@ -128,7 +128,7 @@ jobs:
       - name: Setup ODBC
         shell: bash
         run: |
-          tools/odbc/bin/Release/odbc_install.exe //CI //Install
+          bin/Release/odbc_install.exe //CI //Install
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
@@ -147,7 +147,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          tools/odbc/bin/Release/test_odbc.exe
+          bin/Release/test_odbc.exe
 
       - name: Setup Register For Connection Tests
         shell: bash
@@ -162,7 +162,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          tools/odbc/bin/Release/test_connection_odbc.exe
+          bin/Release/test_connection_odbc.exe
 
       - name: Print ODBC trace on failure
         if: ${{ failure() }}
@@ -172,7 +172,7 @@ jobs:
       - name: System.Data.ODBC tests
         shell: bash
         run: |
-          tools/odbc/bin/Release/SystemDataODBC_tests.exe
+          bin/Release/SystemDataODBC_tests.exe
 
       - name: Deploy
         shell: bash
