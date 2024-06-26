@@ -196,7 +196,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: java-osx-universal
+          name: odbc-osx-universal
           path: |
             duckdb_odbc-osx-universal.zip
 
