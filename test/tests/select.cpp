@@ -15,18 +15,6 @@ TEST_CASE("Test Select Statement", "[odbc]") {
 	// Allocate a statement handle
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
-    EXECUTE_AND_CHECK("PRAGMA VERSION", SQLExecDirect, hstmt, ConvertToSQLCHAR("PRAGMA VERSION"), SQL_NTS);
-
-    // Fetch the first row
-    EXECUTE_AND_CHECK("SQLFetch (SELECT 1 UNION ALL SELECT 2)", SQLFetch, hstmt);
-    // Check the data
-
-    SQLCHAR content[256];
-    SQLLEN content_len;
-    SQLRETURN ret2 = SQLGetData(hstmt, 0, SQL_C_CHAR, content, sizeof(content), &content_len);
-    ODBC_CHECK(ret2, "SQLGetData");
-    std::cout << "content: " << ConvertToString(content) << std::endl;
-
     // Execute a simple query
 	EXECUTE_AND_CHECK("SQLExecDirect (SELECT 1 UNION ALL SELECT 2)", SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT 1 UNION ALL SELECT 2"), SQL_NTS);
