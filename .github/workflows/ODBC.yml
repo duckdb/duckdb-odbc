@@ -132,7 +132,6 @@ jobs:
       - name: Setup ODBC
         shell: bash
         run: |
-          bin/Release/odbc_install.exe //CI //Install
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
@@ -151,7 +150,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          bin/Release/test_odbc.exe
+          ./build/release/bin/Release/test_odbc.exe
 
       - name: Setup Register For Connection Tests
         shell: bash
@@ -166,7 +165,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          bin/Release/test_connection_odbc.exe
+          ./build/release/bin/Release/test_connection_odbc.exe
 
       - name: Print ODBC trace on failure
         if: ${{ failure() }}
@@ -176,7 +175,7 @@ jobs:
       - name: System.Data.ODBC tests
         shell: bash
         run: |
-          bin/Release/SystemDataODBC_tests.exe
+          ./build/release/bin/Release/SystemDataODBC_tests.exe
 
       - name: Deploy
         shell: bash
