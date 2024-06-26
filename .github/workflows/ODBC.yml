@@ -132,7 +132,7 @@ jobs:
       - name: Setup ODBC
         shell: bash
         run: |
-          bin/Release/odbc_install.exe //CI //Install
+          ./build/release/bin/Release/odbc_install.exe //CI //Install
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
@@ -156,7 +156,7 @@ jobs:
       - name: Setup Register For Connection Tests
         shell: bash
         run: |
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\DuckDB" //v database //t REG_SZ //d "/d/a/duckdb/duckdb/test/sql/storage_version/storage_version.db"
+          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\DuckDB" //v database //t REG_SZ //d "/d/a/duckdb-odbc/duckdb-odbc/test/sql/storage_version/storage_version.db"
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\DuckDB" //v access_mode //t REG_SZ //d "READ_ONLY"
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\DuckDB" //v allow_unsigned_extensions //t REG_SZ //d "true"
           echo "----------------------------------------------------------------"
