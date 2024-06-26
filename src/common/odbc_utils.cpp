@@ -84,7 +84,7 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             TABLE_NAME "TABLE_NAME",
             COLUMN_NAME "COLUMN_NAME",
             MAP {
-                'BOOL': 1, -- SQL_CHAR
+                'BOOLEAN': 1, -- SQL_CHAR
                 'TINYINT': -6, -- SQL_TINYINT
                 'UTINYINT': -6, -- SQL_TINYINT
                 'SMALLINT': 5, -- SQL_SMALLINT
