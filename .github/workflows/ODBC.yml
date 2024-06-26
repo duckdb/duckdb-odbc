@@ -9,6 +9,10 @@ env:
   GH_TOKEN: ${{ secrets.GH_TOKEN }}
   OVERRIDE_GIT_DESCRIBE: ${{ inputs.override_git_describe }}
 
+concurrency:
+  group: ODBC-${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}-${{ inputs.override_git_describe }}
+  cancel-in-progress: true
+
 jobs:
   odbc-linux-amd64:
     name: ODBC Linux (amd64)
