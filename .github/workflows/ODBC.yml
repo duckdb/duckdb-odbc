@@ -132,6 +132,7 @@ jobs:
       - name: Setup ODBC
         shell: bash
         run: |
+          bin/Release/odbc_install.exe //CI //Install
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
