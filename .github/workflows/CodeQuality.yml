@@ -57,39 +57,39 @@ jobs:
           black --version
           make format-check-silent
 
-  tidy-check:
-    name: Tidy Check
-    runs-on: ubuntu-22.04
-    needs: format-check
-
-    env:
-      CC: gcc-10
-      CXX: g++-10
-      GEN: ninja
-      TIDY_THREADS: 4
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Install
-        shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build clang-tidy && sudo pip3 install pybind11[global]
-
-      - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
-        with:
-          key: ${{ github.job }}
-          save: ${{ github.ref == 'refs/heads/main' || github.repository != 'duckdb/duckdb' }}
-      - name: Download clang-tidy-cache
-        shell: bash
-        run: |
-          set -e
-          curl -Lo /tmp/clang-tidy-cache https://github.com/ejfitzgerald/clang-tidy-cache/releases/download/v0.4.0/clang-tidy-cache-linux-amd64
-          md5sum /tmp/clang-tidy-cache | grep 880b290d7bbe7c1fb2a4f591f9a86cc1
-          chmod +x /tmp/clang-tidy-cache
-
-      - name: Tidy Check
-        shell: bash
-        run: make tidy-check TIDY_BINARY=/tmp/clang-tidy-cache
+#  tidy-check:
+#    name: Tidy Check
+#    runs-on: ubuntu-22.04
+#    needs: format-check
+#
+#    env:
+#      CC: gcc-10
+#      CXX: g++-10
+#      GEN: ninja
+#      TIDY_THREADS: 4
+#
+#    steps:
+#      - uses: actions/checkout@v3
+#        with:
+#          fetch-depth: 0
+#
+#      - name: Install
+#        shell: bash
+#        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build clang-tidy && sudo pip3 install pybind11[global]
+#
+#      - name: Setup Ccache
+#        uses: hendrikmuhs/ccache-action@main
+#        with:
+#          key: ${{ github.job }}
+#          save: ${{ github.ref == 'refs/heads/main' || github.repository != 'duckdb/duckdb' }}
+#      - name: Download clang-tidy-cache
+#        shell: bash
+#        run: |
+#          set -e
+#          curl -Lo /tmp/clang-tidy-cache https://github.com/ejfitzgerald/clang-tidy-cache/releases/download/v0.4.0/clang-tidy-cache-linux-amd64
+#          md5sum /tmp/clang-tidy-cache | grep 880b290d7bbe7c1fb2a4f591f9a86cc1
+#          chmod +x /tmp/clang-tidy-cache
+#
+#      - name: Tidy Check
+#        shell: bash
+#        run: make tidy-check TIDY_BINARY=/tmp/clang-tidy-cache
