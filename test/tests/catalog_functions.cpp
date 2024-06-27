@@ -1,7 +1,6 @@
 #include "odbc_test_common.h"
 #include <iostream>
 
-
 #include <array>
 #include <vector>
 
@@ -205,13 +204,13 @@ static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_m
 	}
 
 	std::vector<std::array<std::string, 4>> expected_data = {
-	    {"bool_table", "id", "4", "INTEGER"},      {"bool_table", "t", "12", "VARCHAR"},
-	    {"bool_table", "b", "1", "BOOLEAN"},       {"bytea_table", "id", "4", "INTEGER"},
+	    {"bool_table", "id", "4", "INTEGER"},       {"bool_table", "t", "12", "VARCHAR"},
+	    {"bool_table", "b", "1", "BOOLEAN"},        {"bytea_table", "id", "4", "INTEGER"},
 	    {"bytea_table", "t", "-3", "BLOB"},         {"interval_table", "id", "4", "INTEGER"},
 	    {"interval_table", "iv", "10", "INTERVAL"}, {"interval_table", "d", "12", "VARCHAR"},
-	    {"lo_test_table", "id", "4", "INTEGER"},   {"lo_test_table", "large_data", "-3", "BLOB"},
-	    {"test_table_1", "id", "4", "INTEGER"},    {"test_table_1", "t", "12", "VARCHAR"},
-	    {"test_view", "id", "4", "INTEGER"},       {"test_view", "t", "12", "VARCHAR"}};
+	    {"lo_test_table", "id", "4", "INTEGER"},    {"lo_test_table", "large_data", "-3", "BLOB"},
+	    {"test_table_1", "id", "4", "INTEGER"},     {"test_table_1", "t", "12", "VARCHAR"},
+	    {"test_view", "id", "4", "INTEGER"},        {"test_view", "t", "12", "VARCHAR"}};
 
 	for (int i = 0; i < expected_data.size(); i++) {
 		SQLRETURN ret = SQLFetch(hstmt);
@@ -280,127 +279,122 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
 
-// SQLColumns DATA_TYPE and SQL_DATA_TYPE should return SQL types and shoud be the same as the column type in SQLDescribeCol
+// SQLColumns DATA_TYPE and SQL_DATA_TYPE should return SQL types and shoud be the same as the column type in
+// SQLDescribeCol
 TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescribeCol", "[odbc]") {
-    SQLHANDLE env;
-    SQLHANDLE dbc;
+	SQLHANDLE env;
+	SQLHANDLE dbc;
 
-    HSTMT hstmt = SQL_NULL_HSTMT;
+	HSTMT hstmt = SQL_NULL_HSTMT;
 
-    // Connect to the database using SQLConnect
-    CONNECT_TO_DATABASE(env, dbc);
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
 
-    // Allocate a statement handle
-    EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
-    std::vector<int> SQL_types = {
-        SQL_VARCHAR,
-        SQL_SMALLINT,
-        SQL_INTEGER,
-        SQL_FLOAT,
-        SQL_DOUBLE,
-        SQL_BIT,
-        SQL_TINYINT,
-        SQL_BIGINT,
-        SQL_VARBINARY,
-        SQL_TYPE_DATE,
-        SQL_TYPE_TIME,
-    };
+	std::vector<int> SQL_types = {
+	    SQL_VARCHAR, SQL_SMALLINT, SQL_INTEGER,   SQL_FLOAT,     SQL_DOUBLE,    SQL_BIT,
+	    SQL_TINYINT, SQL_BIGINT,   SQL_VARBINARY, SQL_TYPE_DATE, SQL_TYPE_TIME,
+	};
 
-    std::string query = "CREATE TABLE test_table (";
-    for(int i = 0; i < SQL_types.size(); i++) {
-        query += "c" + std::to_string(i) + " ";
-        switch(SQL_types[i]) {
-            case SQL_VARCHAR:
-                query += "VARCHAR";
-                break;
-            case SQL_SMALLINT:
-                query += "SMALLINT";
-                break;
-            case SQL_INTEGER:
-                query += "INTEGER";
-                break;
-            case SQL_FLOAT:
-                query += "FLOAT";
-                break;
-            case SQL_DOUBLE:
-                query += "DOUBLE";
-                break;
-            case SQL_BIT:
-                query += "BIT";
-                break;
-            case SQL_TINYINT:
-                query += "TINYINT";
-                break;
-            case SQL_BIGINT:
-                query += "BIGINT";
-                break;
-            case SQL_VARBINARY:
-                query += "BLOB";
-                break;
-            case SQL_TYPE_DATE:
-                query += "DATE";
-                break;
-            case SQL_TYPE_TIME:
-                query += "TIME";
-                break;
-        }
-        query += (i == SQL_types.size() - 1) ? ")" : ", ";
-    }
+	std::string query = "CREATE TABLE test_table (";
+	for (int i = 0; i < SQL_types.size(); i++) {
+		query += "c" + std::to_string(i) + " ";
+		switch (SQL_types[i]) {
+		case SQL_VARCHAR:
+			query += "VARCHAR";
+			break;
+		case SQL_SMALLINT:
+			query += "SMALLINT";
+			break;
+		case SQL_INTEGER:
+			query += "INTEGER";
+			break;
+		case SQL_FLOAT:
+			query += "FLOAT";
+			break;
+		case SQL_DOUBLE:
+			query += "DOUBLE";
+			break;
+		case SQL_BIT:
+			query += "BIT";
+			break;
+		case SQL_TINYINT:
+			query += "TINYINT";
+			break;
+		case SQL_BIGINT:
+			query += "BIGINT";
+			break;
+		case SQL_VARBINARY:
+			query += "BLOB";
+			break;
+		case SQL_TYPE_DATE:
+			query += "DATE";
+			break;
+		case SQL_TYPE_TIME:
+			query += "TIME";
+			break;
+		}
+		query += (i == SQL_types.size() - 1) ? ")" : ", ";
+	}
 
-    // Create a table with different SQL types
-    EXECUTE_AND_CHECK("SQLExecDirect (CREATE TABLE)", SQLExecDirect, hstmt,
-                      ConvertToSQLCHAR(query), SQL_NTS);
+	// Create a table with different SQL types
+	EXECUTE_AND_CHECK("SQLExecDirect (CREATE TABLE)", SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
 
-    // Insert data into the table
-    EXECUTE_AND_CHECK("SQLExecDirect (INSERT INTO)", SQLExecDirect, hstmt,
-                      ConvertToSQLCHAR("INSERT INTO test_table VALUES ('a', 1, 2, 3.14, 3.14159, true, 1, 10000000000, 'blob', '2021-01-01', '12:00:00')"), SQL_NTS);
+	// Insert data into the table
+	EXECUTE_AND_CHECK("SQLExecDirect (INSERT INTO)", SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("INSERT INTO test_table VALUES ('a', 1, 2, 3.14, 3.14159, true, 1, 10000000000, "
+	                                   "'blob', '2021-01-01', '12:00:00')"),
+	                  SQL_NTS);
 
-    // Call SQLColumns to get the columns of the test_table
-    EXECUTE_AND_CHECK("SQLColumns", SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
-                      ConvertToSQLCHAR("test_table"), SQL_NTS, nullptr, 0);
+	// Call SQLColumns to get the columns of the test_table
+	EXECUTE_AND_CHECK("SQLColumns", SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
+	                  ConvertToSQLCHAR("test_table"), SQL_NTS, nullptr, 0);
 
-    // Retrieve SQL_DATA_TYPE and DATA_TYPE for each column
-    SQLINTEGER sql_data_type;
-    SQLINTEGER data_type;
-    SQLLEN len_or_ind_ptr;
-    EXECUTE_AND_CHECK("SQLBindCol", SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type), &len_or_ind_ptr);
-    EXECUTE_AND_CHECK("SQLBindCol", SQLBindCol, hstmt, 14, SQL_INTEGER, &sql_data_type, sizeof(sql_data_type), &len_or_ind_ptr);
+	// Retrieve SQL_DATA_TYPE and DATA_TYPE for each column
+	SQLINTEGER sql_data_type;
+	SQLINTEGER data_type;
+	SQLLEN len_or_ind_ptr;
+	EXECUTE_AND_CHECK("SQLBindCol", SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type), &len_or_ind_ptr);
+	EXECUTE_AND_CHECK("SQLBindCol", SQLBindCol, hstmt, 14, SQL_INTEGER, &sql_data_type, sizeof(sql_data_type),
+	                  &len_or_ind_ptr);
 
-    // Fetch the results
-    for(int i = 0; i < SQL_types.size(); i++) {
-        SQLRETURN ret = SQLFetch(hstmt);
-        if (ret == SQL_SUCCESS_WITH_INFO) {
-            std::string state, message;
-            ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
-            REQUIRE(state == "07006");
-            REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
-            ret = SQL_SUCCESS;
-        } else {
-            ODBC_CHECK(ret, "SQLFetch");
-        }
+	// Fetch the results
+	for (int i = 0; i < SQL_types.size(); i++) {
+		SQLRETURN ret = SQLFetch(hstmt);
+		if (ret == SQL_SUCCESS_WITH_INFO) {
+			std::string state, message;
+			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+			REQUIRE(state == "07006");
+			REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+			ret = SQL_SUCCESS;
+		} else {
+			ODBC_CHECK(ret, "SQLFetch");
+		}
 
-        REQUIRE(data_type == SQL_types[i]);
-        REQUIRE(sql_data_type == SQL_types[i]);
-    }
+		REQUIRE(data_type == SQL_types[i]);
+		REQUIRE(sql_data_type == SQL_types[i]);
+	}
 
-    // Use SQLDescribeCol to assert that the data type is the same for each column
-    // Select * from the table
-    EXECUTE_AND_CHECK("SQLExecDirect (SELECT *)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"), SQL_NTS);
+	// Use SQLDescribeCol to assert that the data type is the same for each column
+	// Select * from the table
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT *)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
+	                  SQL_NTS);
 
-    // Fetch the results
-    EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+	// Fetch the results
+	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
 
-    // Check the data types of the columns using METADATA_CHECK which calls SQLDescribeCol
-    for(int i = 0; i < SQL_types.size(); i++) {
-        std::string col_name = "c" + std::to_string(i);
-        METADATA_CHECK(hstmt, i + 1, col_name, col_name.size(), SQL_types[i], 0, 0, SQL_NULLABLE_UNKNOWN);
-    }
+	// Check the data types of the columns using METADATA_CHECK which calls SQLDescribeCol
+	for (int i = 0; i < SQL_types.size(); i++) {
+		std::string col_name = "c" + std::to_string(i);
+		METADATA_CHECK(hstmt, i + 1, col_name, col_name.size(), SQL_types[i], 0, 0, SQL_NULLABLE_UNKNOWN);
+	}
 
-    // Free the statement handle
-    EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-    EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
-    // Disconnect from the database
-    DISCONNECT_FROM_DATABASE(env, dbc);
+	// Disconnect from the database
+	DISCONNECT_FROM_DATABASE(env, dbc);
 }

@@ -3,7 +3,6 @@
 
 #include "odbc_test_common.h"
 
-
 // Checks if config is correctly set
 void CheckConfig(SQLHANDLE &dbc, const std::string &setting, const std::string &expected_content);
 
