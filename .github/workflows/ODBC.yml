@@ -110,7 +110,7 @@ jobs:
   odbc-windows-amd64:
     name: ODBC Windows (amd64)
     runs-on: windows-latest
-#    needs: odbc-linux-amd64
+    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
         with:
