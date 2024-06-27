@@ -54,6 +54,10 @@ set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
 target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
 target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
 
+if (CLANG_TIDY)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDUCKDB_CLANG_TIDY")
+endif()
+
 if(NOT CLANG_TIDY)
   add_subdirectory(test)
 endif()
