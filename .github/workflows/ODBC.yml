@@ -143,7 +143,7 @@ jobs:
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //f
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v Trace //t REG_SZ //d 1
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceDll //t REG_SZ //d "C:\Windows\system32\odbctrac.dll"
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceFile //t REG_SZ //d "D:\a\duckdb\duckdb\ODBC_TRACE.log"
+          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceFile //t REG_SZ //d "D:\a\duckdb-odbc\duckdb-odbc\ODBC_TRACE.log"
           echo "----------------------------------------------------------------"
           Reg Query "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC"
 
