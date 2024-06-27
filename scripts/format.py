@@ -55,7 +55,7 @@ extensions = [
     '.py',
     '.java',
 ]
-formatted_directories = ['src', 'benchmark', 'test', 'tools', 'examples', 'extension', 'scripts']
+formatted_directories = ['src', 'test', 'scripts']
 ignored_files = [
     'tpch_constants.hpp',
     'tpcds_constants.hpp',
@@ -97,19 +97,7 @@ ignored_files = [
     'expr.cc',
     'function_list.cpp',
 ]
-ignored_directories = [
-    '.eggs',
-    '__pycache__',
-    'dbgen',
-    os.path.join('tools', 'pythonpkg', 'duckdb'),
-    os.path.join('tools', 'pythonpkg', 'build'),
-    os.path.join('tools', 'rpkg', 'src', 'duckdb'),
-    os.path.join('tools', 'rpkg', 'inst', 'include', 'cpp11'),
-    os.path.join('extension', 'tpcds', 'dsdgen'),
-    os.path.join('extension', 'jemalloc', 'jemalloc'),
-    os.path.join('extension', 'icu', 'third_party'),
-    os.path.join('tools', 'nodejs', 'src', 'duckdb'),
-]
+ignored_directories = ['src/duckdb']
 format_all = False
 check_only = True
 confirm = True
