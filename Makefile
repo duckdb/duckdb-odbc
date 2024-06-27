@@ -40,9 +40,8 @@ tidy-check:
 tidy-fix:
 	mkdir -p ./build/tidy && \
 	cd build/tidy && \
-	cmake -DCLANG_TIDY=1 -DDISABLE_UNITY=1 -DBUILD_EXTENSIONS=parquet -DBUILD_SHELL=0 ../.. && \
+	cmake -DCLANG_TIDY=1 ../.. && \
 	python3 ../../scripts/run-clang-tidy.py -fix
-
 
 clean:
 	rm -rf build
