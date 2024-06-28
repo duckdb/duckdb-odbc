@@ -140,12 +140,12 @@ SQLRETURN Connect::SetConnection() {
 
 	bool cache_instance = database != IN_MEMORY_PATH;
 
-    try {
-	    dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
-    } catch (std::exception &ex) {
-        ErrorData error(ex);
-        return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", error.Message(), SQLStateType::ST_IM003, "");
-    }
+	try {
+		dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
+	} catch (std::exception &ex) {
+		ErrorData error(ex);
+		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", error.Message(), SQLStateType::ST_IM003, "");
+	}
 
 	if (!dbc->conn) {
 		dbc->conn = make_uniq<Connection>(*dbc->env->db);

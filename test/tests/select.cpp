@@ -1,5 +1,4 @@
 #include "odbc_test_common.h"
-#include <iostream>
 
 using namespace odbc_test;
 

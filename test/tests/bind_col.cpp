@@ -1,6 +1,5 @@
 #include "odbc_test_common.h"
 
-
 #include <array>
 
 using namespace odbc_test;

@@ -1,6 +1,5 @@
 #include "odbc_test_common.h"
 
-
 using namespace odbc_test;
 
 #define MAX_INSERT_COUNT 2

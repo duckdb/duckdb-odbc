@@ -3,7 +3,6 @@
 
 #include "odbc_test_common.h"
 
-
 using namespace odbc_test;
 
 namespace odbc_col_attribute_test {
