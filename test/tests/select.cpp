@@ -14,7 +14,7 @@ TEST_CASE("Test Select Statement", "[odbc]") {
 	// Allocate a statement handle
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
-	// Execute a simple query
+    // Execute a simple query
 	EXECUTE_AND_CHECK("SQLExecDirect (SELECT 1 UNION ALL SELECT 2)", SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT 1 UNION ALL SELECT 2"), SQL_NTS);
 
