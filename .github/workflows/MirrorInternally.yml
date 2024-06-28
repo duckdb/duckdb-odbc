@@ -29,7 +29,7 @@ jobs:
 
       - name: Set label environment variable
         run: |
-          if "${{ github.event.created }}" == "true"; then
+          if [ "${{ github.event.created }}" == "true" ]; then
             echo "LABEL=new issue" >> $GITHUB_ENV
           else
             echo "LABEL=updated" >> $GITHUB_ENV
