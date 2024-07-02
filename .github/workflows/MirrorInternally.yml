@@ -6,7 +6,7 @@ on:
       - edited
 
 env:
-  GH_TOKEN: ${{ secrets.DUCKDBLABS_BOT_TOKEN }}
+  GH_TOKEN: ${{ secrets.DUCKDB_ISSUE_MIRRORING_TOKEN }}
   TITLE_PREFIX: "[odbc/#${{ github.event.issue.number }}]"
   PUBLIC_ISSUE_TITLE: ${{ github.event.issue.title }}
 
