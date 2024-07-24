@@ -389,8 +389,7 @@ SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQ
 
 	// String search pattern for schema name
 	auto schema_n = OdbcUtils::ReadString(schema_name, name_length2);
-	string schema_filter = OdbcUtils::ParseStringFilter("\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id,
-	                                                    string(DEFAULT_SCHEMA));
+	string schema_filter = OdbcUtils::ParseStringFilter("\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id);
 
 	// String search pattern for table name
 	auto table_n = OdbcUtils::ReadString(table_name, name_length3);
