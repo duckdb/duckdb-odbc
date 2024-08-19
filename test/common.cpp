@@ -200,6 +200,13 @@ void InitializeDatabase(HSTMT &hstmt) {
 	EXEC_SQL(hstmt, "CREATE VIEW test_view AS SELECT * FROM test_table_1;");
 
 	EXEC_SQL(hstmt, "CREATE TABLE lo_test_table (id int4, large_data blob);");
+
+	EXEC_SQL(hstmt, "CREATE SCHEMA IF NOT EXISTS ducks;");
+	EXEC_SQL(hstmt, "DROP TABLE IF EXISTS ducks.test_table_2;");
+	EXEC_SQL(hstmt, "CREATE TABLE ducks.test_table_2 (id integer PRIMARY KEY, t varchar(20));");
+	EXEC_SQL(hstmt, "INSERT INTO ducks.test_table_2 VALUES (1, 'quack');");
+	EXEC_SQL(hstmt, "INSERT INTO ducks.test_table_2 VALUES (2, 'quack quack');");
+	EXEC_SQL(hstmt, "INSERT INTO ducks.test_table_2 VALUES (3, 'quack quack quack');");
 }
 
 std::map<SQLSMALLINT, SQLULEN> InitializeTypesMap() {
