@@ -179,6 +179,51 @@ static void TestSQLTablesLong(HSTMT &hstmt) {
 	DATA_CHECK(hstmt, 4, "TABLE");
 }
 
+static void TestSQLTablesSchema(HSTMT &hstmt) {
+	SQLRETURN ret;
+
+	EXECUTE_AND_CHECK("SQLTables", SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR("ducks"), SQL_NTS,
+	                  ConvertToSQLCHAR("%"), SQL_NTS, ConvertToSQLCHAR("TABLE"), SQL_NTS);
+
+	SQLSMALLINT col_count;
+
+	EXECUTE_AND_CHECK("SQLNumResultCols", SQLNumResultCols, hstmt, &col_count);
+	REQUIRE(col_count == 5);
+
+	ret = SQLFetch(hstmt);
+	DATA_CHECK(hstmt, 1, "memory");
+	DATA_CHECK(hstmt, 2, "ducks");
+	DATA_CHECK(hstmt, 3, "test_table_2");
+	DATA_CHECK(hstmt, 4, "TABLE");
+
+	// No schema name should give all tables, including main schema
+	EXECUTE_AND_CHECK("SQLTables", SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR(""), SQL_NTS,
+	                  ConvertToSQLCHAR("%"), SQL_NTS, ConvertToSQLCHAR("TABLE"), SQL_NTS);
+
+	std::vector<std::array<std::string, 4>> expected_data = {
+	    {"test_table_2", "ducks"},  {"bool_table", "main"},  {"bytea_table", "main"},
+	    {"interval_table", "main"}, {"lo_test_table", "main"}, {"test_table_1", "main"}};
+
+	for (int i = 0; i < expected_data.size(); i++) {
+		SQLRETURN ret = SQLFetch(hstmt);
+		if (ret == SQL_SUCCESS_WITH_INFO) {
+			std::string state, message;
+			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+			REQUIRE(state == "07006");
+			REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+			ret = SQL_SUCCESS;
+		} else {
+			ODBC_CHECK(ret, "SQLFetch");
+		}
+
+		auto &entry = expected_data[i];
+		DATA_CHECK(hstmt, 1, "memory");
+		DATA_CHECK(hstmt, 2, entry[1]);
+		DATA_CHECK(hstmt, 3, entry[0]);
+		DATA_CHECK(hstmt, 4, "TABLE");
+	}
+}
+
 static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 	EXECUTE_AND_CHECK("SQLColumns", SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
 	                  ConvertToSQLCHAR("%"), SQL_NTS, nullptr, 0);
@@ -260,6 +305,7 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 	// Check for SQLTables
 	TestSQLTables(hstmt, types_map);
 	TestSQLTablesLong(hstmt);
+	TestSQLTablesSchema(hstmt);
 
 	// Check for SQLColumns
 	TestSQLColumns(hstmt, types_map);
