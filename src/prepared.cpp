@@ -86,7 +86,7 @@ SQLRETURN SQL_API SQLNumParams(SQLHSTMT statement_handle, SQLSMALLINT *parameter
 	if (!parameter_count_ptr) {
 		return SQL_ERROR;
 	}
-	*parameter_count_ptr = (SQLSMALLINT)hstmt->stmt->n_param;
+	*parameter_count_ptr = (SQLSMALLINT)hstmt->stmt->named_param_map.size();
 	return SQL_SUCCESS;
 }
 
@@ -139,7 +139,7 @@ SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT param
 		return ret;
 	}
 
-	if (parameter_number <= 0 || parameter_number > hstmt->stmt->n_param) {
+	if (parameter_number <= 0 || parameter_number > hstmt->stmt->named_param_map.size()) {
 		return SQL_ERROR;
 	}
 	// TODO make global maps with type mappings for duckdb <> odbc
