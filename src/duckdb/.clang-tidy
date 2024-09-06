@@ -1,4 +1,0 @@
-# File: src/duckdb/.clang-tidy
-
-# Disable all checks in this folder
-Checks: '-*'
