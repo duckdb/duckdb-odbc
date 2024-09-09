@@ -66,7 +66,7 @@ SQLRETURN duckdb::FinalizeStmt(duckdb::OdbcHandleStmt *hstmt) {
 		                            SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName()));
 	}
 
-	hstmt->param_desc->ResetParams(hstmt->stmt->n_param);
+	hstmt->param_desc->ResetParams(hstmt->stmt->named_param_map.size());
 
 	hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
 

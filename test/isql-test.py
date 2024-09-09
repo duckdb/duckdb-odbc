@@ -184,8 +184,8 @@ test("SELECT '  '::TIME", err="[ISQL]ERROR")
 test("SELECT '        '::TIME", err="[ISQL]ERROR")
 test("SELECT '1'::TIME", err="[ISQL]ERROR")
 test("SELECT '11'::TIME", err="[ISQL]ERROR")
-test("SELECT '11:'::TIME", err="[ISQL]ERROR")
-test("SELECT '11:11'::TIME", err="[ISQL]ERROR")
+test("SELECT '11:'::TIME", out="11:00:00")
+test("SELECT '11:11'::TIME", out="11:11:00")
 test("SELECT '11:11:f'::TIME", err="[ISQL]ERROR")
 
 ### FROM test/sql/types/time/test_time.test #################################
