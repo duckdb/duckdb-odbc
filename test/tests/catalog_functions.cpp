@@ -197,12 +197,12 @@ static void TestSQLTablesSchema(HSTMT &hstmt) {
 	DATA_CHECK(hstmt, 4, "TABLE");
 
 	// No schema name should give all tables, including main schema
-	EXECUTE_AND_CHECK("SQLTables", SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR(""), SQL_NTS,
-	                  ConvertToSQLCHAR("%"), SQL_NTS, ConvertToSQLCHAR("TABLE"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLTables", SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR(""), SQL_NTS, ConvertToSQLCHAR("%"),
+	                  SQL_NTS, ConvertToSQLCHAR("TABLE"), SQL_NTS);
 
-	std::vector<std::array<std::string, 4>> expected_data = {
-	    {"test_table_2", "ducks"},  {"bool_table", "main"},  {"bytea_table", "main"},
-	    {"interval_table", "main"}, {"lo_test_table", "main"}, {"test_table_1", "main"}};
+	std::vector<std::array<std::string, 4>> expected_data = {{"test_table_2", "ducks"}, {"bool_table", "main"},
+	                                                         {"bytea_table", "main"},   {"interval_table", "main"},
+	                                                         {"lo_test_table", "main"}, {"test_table_1", "main"}};
 
 	for (int i = 0; i < expected_data.size(); i++) {
 		SQLRETURN ret = SQLFetch(hstmt);
