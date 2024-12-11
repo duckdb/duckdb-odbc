@@ -107,7 +107,7 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
                 'LIST': 12 -- SQL_VARCHAR
             } AS mapping,
             CASE
-                WHEN len(mapping[data_type]) != 0 THEN mapping[data_type][1]::BIGINT
+                WHEN mapping[data_type] IS NOT NULL THEN mapping[data_type]::BIGINT
                 ELSE data_type_id
             END AS "DATA_TYPE",
             data_type "TYPE_NAME",
@@ -152,7 +152,7 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             NULL "REMARKS",
             column_default "COLUMN_DEF",
             CASE
-                WHEN len(mapping[data_type]) != 0 THEN mapping[data_type][1]::BIGINT
+                WHEN mapping[data_type] IS NOT NULL THEN mapping[data_type]::BIGINT
                 ELSE data_type_id
             END AS "SQL_DATA_TYPE",
             CASE
