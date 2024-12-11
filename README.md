@@ -2,8 +2,15 @@
 
 #### Build the ODBC client
 
+###### Debug (for development)
+
 ```bash
 make debug
+```
+###### Release (for usage)
+
+```bash
+make
 ```
 
 #### Run the ODBC Unit Tests
