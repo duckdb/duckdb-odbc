@@ -103,9 +103,8 @@ public:
 		auto &db = checkpointer.GetDatabase();
 		auto &type = checkpointer.GetType();
 
-		auto compressed_segment =
-		    ColumnSegment::CreateTransientSegment(db, type, row_start, info.GetBlockSize(), info.GetBlockSize());
-		compressed_segment->function = function;
+		auto compressed_segment = ColumnSegment::CreateTransientSegment(db, function, type, row_start,
+		                                                                info.GetBlockSize(), info.GetBlockSize());
 		current_segment = std::move(compressed_segment);
 
 		auto &buffer_manager = BufferManager::GetBufferManager(db);
@@ -226,8 +225,7 @@ public:
 		// Store the Dictionary
 		memcpy((void *)dataptr, (void *)state.left_parts_dict, actual_dictionary_size_bytes);
 
-		handle.Destroy();
-		checkpoint_state.FlushSegment(std::move(current_segment), total_segment_size);
+		checkpoint_state.FlushSegment(std::move(current_segment), std::move(handle), total_segment_size);
 		data_bytes_used = 0;
 		vectors_flushed = 0;
 	}

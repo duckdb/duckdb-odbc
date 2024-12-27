@@ -1,9 +1,16 @@
 ## Running the ODBC Client and Tests
 
-#### Build the ODBC client (from within the main DuckDB repository)
+#### Build the ODBC client
+
+###### Debug (for development)
 
 ```bash
-BUILD_ODBC=1 DISABLE_SANITIZER=1 make debug -j
+make debug
+```
+###### Release (for usage)
+
+```bash
+make
 ```
 
 #### Run the ODBC Unit Tests

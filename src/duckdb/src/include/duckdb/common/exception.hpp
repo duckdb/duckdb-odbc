@@ -137,7 +137,7 @@ public:
 
 	DUCKDB_API static bool UncaughtException();
 
-	DUCKDB_API static string GetStackTrace(int max_depth = 120);
+	DUCKDB_API static string GetStackTrace(idx_t max_depth = 120);
 	static string FormatStackTrace(const string &message = "") {
 		return (message + "\n" + GetStackTrace());
 	}
@@ -326,6 +326,16 @@ public:
 	template <typename... ARGS>
 	explicit InvalidInputException(const Expression &expr, const string &msg, ARGS... params)
 	    : InvalidInputException(ConstructMessage(msg, params...), Exception::InitializeExtraInfo(expr)) {
+	}
+};
+
+class ExecutorException : public Exception {
+public:
+	DUCKDB_API explicit ExecutorException(const string &msg);
+
+	template <typename... ARGS>
+	explicit ExecutorException(const string &msg, ARGS... params)
+	    : ExecutorException(ConstructMessage(msg, params...)) {
 	}
 };
 

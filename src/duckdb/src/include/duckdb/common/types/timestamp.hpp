@@ -22,15 +22,17 @@ struct date_t;     // NOLINT
 struct dtime_t;    // NOLINT
 struct dtime_tz_t; // NOLINT
 
-//! Type used to represent timestamps (seconds,microseconds,milliseconds or nanoseconds since 1970-01-01)
+//! Type used to represent a TIMESTAMP. timestamp_t holds the microseconds since 1970-01-01.
 struct timestamp_t { // NOLINT
+	// NOTE: The unit of value is microseconds for timestamp_t, but it can be
+	// different for subclasses (e.g. it's nanos for timestamp_ns, etc).
 	int64_t value;
 
 	timestamp_t() = default;
-	explicit inline constexpr timestamp_t(int64_t value_p) : value(value_p) {
+	explicit inline constexpr timestamp_t(int64_t micros) : value(micros) {
 	}
-	inline timestamp_t &operator=(int64_t value_p) {
-		value = value_p;
+	inline timestamp_t &operator=(int64_t micros) {
+		value = micros;
 		return *this;
 	}
 
@@ -79,19 +81,40 @@ struct timestamp_t { // NOLINT
 	} // NOLINT
 };
 
-struct timestamp_tz_t : public timestamp_t { // NOLINT
-};
-struct timestamp_ns_t : public timestamp_t { // NOLINT
-};
-struct timestamp_ms_t : public timestamp_t { // NOLINT
-};
+//! Type used to represent TIMESTAMP_S. timestamp_sec_t holds the seconds since 1970-01-01.
 struct timestamp_sec_t : public timestamp_t { // NOLINT
+	timestamp_sec_t() = default;
+	explicit inline constexpr timestamp_sec_t(int64_t seconds) : timestamp_t(seconds) {
+	}
+};
+
+//! Type used to represent TIMESTAMP_MS. timestamp_ms_t holds the milliseconds since 1970-01-01.
+struct timestamp_ms_t : public timestamp_t { // NOLINT
+	timestamp_ms_t() = default;
+	explicit inline constexpr timestamp_ms_t(int64_t millis) : timestamp_t(millis) {
+	}
+};
+
+//! Type used to represent TIMESTAMP_NS. timestamp_ns_t holds the nanoseconds since 1970-01-01.
+struct timestamp_ns_t : public timestamp_t { // NOLINT
+	timestamp_ns_t() = default;
+	explicit inline constexpr timestamp_ns_t(int64_t nanos) : timestamp_t(nanos) {
+	}
+};
+
+//! Type used to represent TIMESTAMPTZ. timestamp_tz_t holds the microseconds since 1970-01-01 (UTC).
+//! It is physically the same as timestamp_t, both hold microseconds since epoch.
+struct timestamp_tz_t : public timestamp_t { // NOLINT
+	timestamp_tz_t() = default;
+	explicit inline constexpr timestamp_tz_t(int64_t micros) : timestamp_t(micros) {
+	}
+	explicit inline constexpr timestamp_tz_t(timestamp_t ts) : timestamp_t(ts) {
+	}
 };
 
 enum class TimestampCastResult : uint8_t { SUCCESS, ERROR_INCORRECT_FORMAT, ERROR_NON_UTC_TIMEZONE };
 
-//! The Timestamp class is a static class that holds helper functions for the Timestamp
-//! type.
+//! The static Timestamp class holds helper functions for the timestamp types.
 class Timestamp {
 public:
 	// min timestamp is 290308-12-22 (BC)
@@ -130,7 +153,7 @@ public:
 		       c == '-';
 	}
 
-	//! Is the timestamp finite or infinite?
+	//! True, if the timestamp is finite, else false.
 	static inline bool IsFinite(timestamp_t timestamp) {
 		return timestamp != timestamp_t::infinity() && timestamp != timestamp_t::ninfinity();
 	}
@@ -168,6 +191,7 @@ public:
 	DUCKDB_API static int64_t GetEpochMicroSeconds(timestamp_t timestamp);
 	//! Convert a timestamp to epoch (in nanoseconds)
 	DUCKDB_API static int64_t GetEpochNanoSeconds(timestamp_t timestamp);
+	DUCKDB_API static int64_t GetEpochNanoSeconds(timestamp_ns_t timestamp);
 	//! Convert a timestamp to a rounded epoch at a given resolution.
 	DUCKDB_API static int64_t GetEpochRounded(timestamp_t timestamp, const int64_t power_of_ten);
 	//! Convert a timestamp to a Julian Day
