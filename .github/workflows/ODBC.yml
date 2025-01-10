@@ -28,7 +28,7 @@ jobs:
       - name: Build
         shell: bash
         run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 bash -c 'cd /duckdb && ./scripts/install_unixodbc.sh && ODBC_CONFIG=../../build/unixodbc/build/bin/odbc_config make release'
-        
+
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ubuntu:18.04
-    needs: odbc-linux-amd64
+#    needs: odbc-linux-amd64
     env:
       GEN: ninja
       DUCKDB_PLATFORM: linux_arm64
