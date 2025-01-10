@@ -59,6 +59,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
+      - name: Setup docker
+        if: runner.os == 'macos'
+        run: |
+          brew install docker
+          colima start
+
       - name: Build
         shell: bash
         run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_aarch64 bash -c 'cd /duckdb && ./scripts/install_unixodbc.sh && ODBC_CONFIG=../../build/unixodbc/build/bin/odbc_config make release'
