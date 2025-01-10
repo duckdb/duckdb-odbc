@@ -52,7 +52,7 @@ jobs:
     name: ODBC Linux (aarch64)
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:18.04
+      image: ubuntu:20.04
 #    needs: odbc-linux-amd64
     env:
       GEN: ninja
