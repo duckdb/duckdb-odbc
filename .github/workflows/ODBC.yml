@@ -101,7 +101,7 @@ jobs:
   odbc-windows-amd64:
     name: ODBC Windows (amd64)
     runs-on: windows-latest
-    needs: odbc-linux-amd64
+#    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
         with:
@@ -193,7 +193,7 @@ jobs:
       GEN: ninja
       ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
       OSX_BUILD_UNIVERSAL: 1
-    needs: odbc-linux-amd64
+#    needs: odbc-linux-amd64
     steps:
       - uses: actions/checkout@v3
         with:
