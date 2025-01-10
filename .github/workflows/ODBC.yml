@@ -29,10 +29,10 @@ jobs:
         shell: bash
         run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 bash -c 'cd /duckdb && ./scripts/install_unixodbc.sh && ODBC_CONFIG=../../build/unixodbc/build/bin/odbc_config make release'
 
-      # - name: ODBC Tests
-      #   shell: bash
-      #   if: ${{ inputs.skip_tests != 'true' }}
-      #   run: ./build/release/test/test_odbc
+      - name: ODBC Tests
+        shell: bash
+        if: ${{ inputs.skip_tests != 'true' }}
+        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 /duckdb/build/release/test/test_odbc
 
       - name: Deploy
         shell: bash
@@ -51,9 +51,7 @@ jobs:
   odbc-linux-aarch64:
     name: ODBC Linux (aarch64)
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:18.04
-    needs: odbc-linux-amd64
+#    needs: odbc-linux-amd64
     env:
       GEN: ninja
       DUCKDB_PLATFORM: linux_arm64
@@ -64,23 +62,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
-      - uses: ./.github/actions/ubuntu_18_setup
-        with:
-          ccache: 1
-          aarch64_cross_compile: 1
-
-      - name: Install unixODBC
-        shell: bash
-        run: | # we need an x86 odbc_config tool to run cmake. fun.
-          apt-get remove -y unixodbc unixodbc-dev
-          CC=gcc ./scripts/install_unixodbc.sh
-          cp build/unixodbc/build/bin/odbc_config .
-          CC=aarch64-linux-gnu-gcc ./scripts/install_unixodbc.sh --host aarch64-linux-gnu
-          cp odbc_config build/unixodbc/build/bin/odbc_config
-
       - name: Build
         shell: bash
-        run: CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ make release
+        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_aarch64 bash -c 'cd /duckdb && ./scripts/install_unixodbc.sh && ODBC_CONFIG=../../build/unixodbc/build/bin/odbc_config make release'
+
+      - name: ODBC Tests
+        shell: bash
+        if: ${{ inputs.skip_tests != 'true' }}
+        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_aarch64 /duckdb/build/release/test/test_odbc
 
       - name: Deploy
         shell: bash
