@@ -19,32 +19,21 @@ jobs:
   odbc-linux-amd64:
     name: ODBC Linux (amd64)
     runs-on: ubuntu-latest
-    container:
-      image: quay.io/pypa/manylinux2014_x86_64
-    env:
-      GEN: ninja
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
-      - uses: ./.github/actions/manylinux_2014_setup
-        with:
-          ninja-build: 1
-          ccache: 1
-          python_alias: 1
-          aws-cli: 1
-          odbc: 1
-
       - name: Build
         shell: bash
-        run: make release
+        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 bash -c 'cd /duckdb && ./scripts/install_unixodbc.sh && ODBC_CONFIG=../../build/unixodbc/build/bin/odbc_config make release'
 
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
-        run: ./build/release/test/test_odbc
+        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 /duckdb/build/release/test/test_odbc
+
       - name: Deploy
         shell: bash
         env:
@@ -63,7 +52,7 @@ jobs:
     name: ODBC Linux (aarch64)
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:18.04
+      image: ubuntu:20.04
     needs: odbc-linux-amd64
     env:
       GEN: ninja
