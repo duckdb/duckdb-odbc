@@ -6,7 +6,7 @@
 
 using duckdb::ApiInfo;
 using duckdb::idx_t;
-using duckdb::TypeInfo;
+using duckdb::OdbcTypeInfo;
 using duckdb::vector;
 using std::string;
 
@@ -32,7 +32,7 @@ SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_typ
 		auto vec_types = ApiInfo::GetVectorTypesAddr();
 		ApiInfo::WriteInfoTypesToQueryString(vec_types, query);
 	} else {
-		vector<TypeInfo> vec_types;
+		vector<OdbcTypeInfo> vec_types;
 		ApiInfo::FindDataType(data_type, vec_types);
 		ApiInfo::WriteInfoTypesToQueryString(vec_types, query);
 	}
@@ -110,7 +110,7 @@ const std::unordered_set<SQLUSMALLINT> ApiInfo::ODBC3_EXTRA_SUPPORTED_FUNCTIONS 
  * 18. NUM_PREC_RADIX
  * 19. INTERVAL_PRECISION
  */
-const vector<duckdb::TypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
+const vector<duckdb::OdbcTypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 // |          1               |               2              |  3|      4 |      5 |          6         |      7    |     8     |      9       |      10   |   11    |    12    |      13    |  14|  15|      16       |            17          | 18| 19|
 {                     "'CHAR'",                      SQL_CHAR,  1,  "''''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_SEARCHABLE,        -1, SQL_FALSE, SQL_FALSE,      "NULL", -1, -1,      SQL_CHAR,                        -1, -1, -1},
 {                  "'BOOLEAN'",                       SQL_BIT,  1,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,  SQL_TRUE,  SQL_TRUE, SQL_FALSE, "'boolean'", -1, -1,       SQL_BIT,                        -1, -1, -1},
@@ -144,7 +144,7 @@ const vector<duckdb::TypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 };
 // clang-format on
 
-void ApiInfo::FindDataType(SQLSMALLINT data_type, vector<TypeInfo> &vec_types) {
+void ApiInfo::FindDataType(SQLSMALLINT data_type, vector<OdbcTypeInfo> &vec_types) {
 	duckdb::idx_t size_types = ODBC_SUPPORTED_SQL_TYPES.size();
 	for (duckdb::idx_t i = 0; i < size_types; ++i) {
 		if (ODBC_SUPPORTED_SQL_TYPES[i].data_type == data_type) {
@@ -158,7 +158,7 @@ void ApiInfo::FindDataType(SQLSMALLINT data_type, vector<TypeInfo> &vec_types) {
 	}
 }
 
-void ApiInfo::WriteInfoTypesToQueryString(const vector<TypeInfo> &vec_types, string &query) {
+void ApiInfo::WriteInfoTypesToQueryString(const vector<OdbcTypeInfo> &vec_types, string &query) {
 	for (duckdb::idx_t i = 0; i < vec_types.size(); i++) {
 		auto info_type = vec_types[i];
 		query += "(";
@@ -328,7 +328,7 @@ SQLLEN ApiInfo::PointerSizeOf(SQLSMALLINT sql_type) {
 	}
 }
 
-const vector<TypeInfo> &ApiInfo::GetVectorTypesAddr() {
+const vector<OdbcTypeInfo> &ApiInfo::GetVectorTypesAddr() {
 	return ApiInfo::ODBC_SUPPORTED_SQL_TYPES;
 }
 

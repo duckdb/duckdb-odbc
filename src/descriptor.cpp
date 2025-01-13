@@ -819,13 +819,13 @@ SQLRETURN DescRecord::SetSqlDataType(SQLSMALLINT type) {
 }
 
 SQLRETURN DescRecord::SetSqlDescType(SQLSMALLINT type) {
-	vector<duckdb::TypeInfo> vec_typeinfo;
+	vector<duckdb::OdbcTypeInfo> vec_typeinfo;
 	ApiInfo::FindDataType(type, vec_typeinfo);
 	if (vec_typeinfo.empty()) {
 		return SQL_ERROR; // handled
 	}
 	auto type_info = vec_typeinfo.front();
-	// for consistency check set all other fields according to the first returned TypeInfo
+	// for consistency check set all other fields according to the first returned OdbcTypeInfo
 	SetSqlDataType(type_info.sql_data_type);
 
 	sql_desc_datetime_interval_code = type_info.sql_datetime_sub;
