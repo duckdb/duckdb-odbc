@@ -14,7 +14,7 @@
 
 namespace duckdb {
 
-struct TypeInfo {
+struct OdbcTypeInfo {
 public:
 	const char *type_name;
 	const int data_type;
@@ -47,7 +47,7 @@ private:
 
 	// static const std::unordered_set<SQLSMALLINT> ODBC_SUPPORTED_SQL_TYPES;
 
-	static const vector<TypeInfo> ODBC_SUPPORTED_SQL_TYPES;
+	static const vector<OdbcTypeInfo> ODBC_SUPPORTED_SQL_TYPES;
 
 	static void SetFunctionSupported(SQLUSMALLINT *flags, int function_id);
 
@@ -58,13 +58,13 @@ public:
 
 	static SQLSMALLINT FindRelatedSQLType(duckdb::LogicalTypeId type_id);
 
-	static void FindDataType(SQLSMALLINT data_type, vector<TypeInfo> &vec_types);
+	static void FindDataType(SQLSMALLINT data_type, vector<OdbcTypeInfo> &vec_types);
 
 	static SQLLEN PointerSizeOf(SQLSMALLINT sql_type);
 
-	static const vector<TypeInfo> &GetVectorTypesAddr();
+	static const vector<OdbcTypeInfo> &GetVectorTypesAddr();
 
-	static void WriteInfoTypesToQueryString(const vector<TypeInfo> &vec_types, string &query);
+	static void WriteInfoTypesToQueryString(const vector<OdbcTypeInfo> &vec_types, string &query);
 
 	static bool IsNumericDescriptorField(SQLSMALLINT field_identifier);
 
