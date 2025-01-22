@@ -58,6 +58,7 @@ SQLRETURN SQL_API SQLConnect(SQLHDBC connection_handle, SQLCHAR *server_name, SQ
 		return ret;
 	}
 
+	dbc->dsn = OdbcUtils::ConvertSQLCHARToString(server_name);
 	duckdb::Connect connect(dbc, OdbcUtils::ConvertSQLCHARToString(server_name));
 
 	return connect.SetConnection();
