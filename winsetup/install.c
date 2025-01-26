@@ -260,10 +260,20 @@ void ElevatePrivilegesAsAdmin(char **parameters) {
 }
 
 void CopyParameters(int argc, char **argv, char **parameters) {
-	size_t alloc_size, last_alloc_pos = 0;
+	size_t len = 0;
+
 	for (int i = 1; i < argc; i++) {
-		alloc_size = strlen(argv[i]) + 1;
-		*parameters = (char *)realloc(*parameters, alloc_size);
+		len += strlen(argv[i]);
+		if ((i + 1) != argc) {
+			// space between parameters
+			len += 1; 
+		}
+	}
+
+	*parameters = (char *)malloc(len + 1);
+	(*parameters)[0] = '\0';
+ 
+	for (int i = 1; i < argc; i++) {
 		strcat(*parameters, argv[i]);
 		if ((i + 1) != argc) {
 			strcat(*parameters, " ");
