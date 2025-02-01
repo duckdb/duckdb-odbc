@@ -42,7 +42,7 @@ jobs:
         run: |
           zip -j duckdb_odbc-linux-amd64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-amd64.zip
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: odbc-linux-amd64
           path: |
@@ -91,7 +91,7 @@ jobs:
           zip -j duckdb_odbc-linux-aarch64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-aarch64.zip
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: odbc-linux-aarch64
           path: |
@@ -179,7 +179,7 @@ jobs:
           zip -j duckdb_odbc-windows-amd64.zip ./build/release/bin/Release/*
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: odbc-windows-amd64
           path: |
@@ -233,7 +233,7 @@ jobs:
           zip -j duckdb_odbc-osx-universal.zip build/release/libduckdb_odbc.dylib
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-osx-universal.zip
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: odbc-osx-universal
           path: |
