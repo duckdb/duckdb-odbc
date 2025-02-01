@@ -28,7 +28,7 @@ TEST_CASE("Test SQLConnect with Ini File", "[odbc]") {
 }
 
 // Connect to the database using the ini file when connection string
-// has extra options and a trailing comma
+// has extra options and a trailing semicolon
 TEST_CASE("Test SQLConnect with Ini File with extra options", "[odbc]") {
 #if defined ODBC_LINK_ODBCINST || defined WIN32
 	// Connect to the database using the ini file
