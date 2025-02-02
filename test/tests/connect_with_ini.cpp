@@ -26,3 +26,23 @@ TEST_CASE("Test SQLConnect with Ini File", "[odbc]") {
 	DISCONNECT_FROM_DATABASE(env, dbc);
 #endif
 }
+
+// Connect to the database using the ini file when connection string
+// has extra options and a trailing semicolon
+TEST_CASE("Test SQLConnect with Ini File with extra options", "[odbc]") {
+#if defined ODBC_LINK_ODBCINST || defined WIN32
+	// Connect to the database using the ini file
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+	DRIVER_CONNECT_TO_DATABASE(env, dbc, "DSN=DuckDB;allow_unsigned_extensions=false;");
+
+	// Check that the database is set
+	CheckDatabase(dbc);
+
+	// Check that allow_unsigned_extensions is set from connection string
+	CheckConfig(dbc, "allow_unsigned_extensions", "false");
+
+	// Disconnect from the database
+	DISCONNECT_FROM_DATABASE(env, dbc);
+#endif
+}

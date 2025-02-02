@@ -80,13 +80,11 @@ SQLRETURN Connect::ParseInputStr() {
 		input_str.erase(0, row_pos + 1);
 	}
 
-	if (input_str.empty()) {
-		return SQL_SUCCESS;
-	}
-
-	SQLRETURN ret = FindKeyValPair(input_str);
-	if (ret != SQL_SUCCESS) {
-		return ret;
+	if (!input_str.empty()) {
+		SQLRETURN ret = FindKeyValPair(input_str);
+		if (ret != SQL_SUCCESS) {
+			return ret;
+		}
 	}
 
 	// Extract the DSN from the config map as it is needed to read from the .odbc.ini file
