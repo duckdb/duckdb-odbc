@@ -127,6 +127,9 @@ static void TestSettingConfigs() {
 
 	SetConfig("Database=" + GetTesterDirectory() + "test.duckdb;" + "access_mode=READ_WRITE", "access_mode",
 	          "READ_WRITE");
+
+	// Test handling unsupported connection string options
+	SetConfig("unsupported_option_1=value_1;allow_unsigned_extensions=true;", "allow_unsigned_extensions", "true");
 }
 
 TEST_CASE("Test SQLConnect and SQLDriverConnect", "[odbc]") {

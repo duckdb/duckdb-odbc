@@ -46,3 +46,20 @@ TEST_CASE("Test SQLConnect with Ini File with extra options", "[odbc]") {
 	DISCONNECT_FROM_DATABASE(env, dbc);
 #endif
 }
+
+// Connect to the database using the ini file checking that DSN is set correctly
+// when unsupported options are present in the connection string
+TEST_CASE("Test SQLConnect with Ini File with unsupported options", "[odbc]") {
+#if defined ODBC_LINK_ODBCINST || defined WIN32
+	// Connect to the database using the ini file
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+	DRIVER_CONNECT_TO_DATABASE(env, dbc, "DSN=DuckDB;unsupported_option_1=value_1;");
+
+	// Check that the database is set
+	CheckDatabase(dbc);
+
+	// Disconnect from the database
+	DISCONNECT_FROM_DATABASE(env, dbc);
+#endif
+}
