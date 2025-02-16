@@ -34,10 +34,11 @@ public:
 	bool GetSuccessWithInfo() const {
 		return success_with_info;
 	}
-	// Ignore keys for use with Power Query
-	std::vector<std::string> PQIgnoreKeys = {"driver", "trusted_connection"};
 
 private:
+	// Ignore keys automatically added by Excel, PowerBI and other popular ODBC clients
+	static const std::vector<std::string> IGNORE_KEYS;
+
 	OdbcHandleDbc *dbc;
 	std::string input_str;
 	bool success_with_info = false;
