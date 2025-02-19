@@ -80,6 +80,12 @@ TEST_CASE("Test SQLGetDiagRec (returns diagnostic record)", "[odbc]") {
 	REQUIRE(!first_endtran_state.compare(second_endtran_state));
 	REQUIRE(!first_endtran_message.compare(second_endtran_message));
 
+	// Check that TextLengthPtr is set to the actual length when the MessageText specified as NULL
+	SQLSMALLINT text_length;
+	ret = SQLGetDiagRec(SQL_HANDLE_DBC, dbc, 1, nullptr, nullptr, nullptr, 0, &text_length);
+	REQUIRE(ret == SQL_SUCCESS_WITH_INFO);
+	REQUIRE(first_endtran_message.length() == static_cast<size_t>(text_length));
+
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);

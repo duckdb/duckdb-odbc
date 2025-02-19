@@ -269,6 +269,16 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 	}
 
 	std::string msg = diag_record.GetMessage(buffer_length);
+
+	if (message_text == nullptr) {
+		if (text_length_ptr) {
+			size_t len = msg.length();
+			size_t max_len = std::numeric_limits<SQLSMALLINT>::max();
+			*text_length_ptr = static_cast<SQLSMALLINT>(len <= max_len ? len : max_len);
+		}
+		return SQL_SUCCESS_WITH_INFO;
+	}
+
 	OdbcUtils::WriteString(msg, message_text, buffer_length, text_length_ptr);
 
 	if (text_length_ptr) {
@@ -278,10 +288,6 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 			hdl->odbc_diagnostic->AddNewRecIdx(rec_idx);
 			return SQL_SUCCESS_WITH_INFO;
 		}
-	}
-
-	if (message_text == nullptr) {
-		return SQL_SUCCESS_WITH_INFO;
 	}
 
 	return SQL_SUCCESS;
