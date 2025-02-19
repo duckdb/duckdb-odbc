@@ -34,6 +34,17 @@ public:
 		WriteString<int>(s, out_buf, buf_len, nullptr);
 	}
 
+	template <typename VAL_INT_TYPE, typename LEN_INT_TYPE=SQLSMALLINT>
+	static void StoreWithLength(VAL_INT_TYPE val, SQLPOINTER ptr, LEN_INT_TYPE *length_ptr) {
+		size_t len = sizeof(VAL_INT_TYPE);
+		if (nullptr != ptr) {
+			std::memcpy(ptr, static_cast<void*>(&val), len);
+		}
+		if (nullptr != length_ptr) {
+			*length_ptr = static_cast<LEN_INT_TYPE>(len);
+		}
+	}
+
 	template <typename FIELD_TYPE>
 	SQLRETURN IsValidPtrForSpecificedField(SQLPOINTER value_ptr, FIELD_TYPE target_field,
 	                                       const vector<FIELD_TYPE> vec_field_ids) {

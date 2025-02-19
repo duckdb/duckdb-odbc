@@ -33,11 +33,12 @@ SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 	}
 	switch (attribute) {
 	case SQL_ATTR_AUTOCOMMIT: {
-		duckdb::Store<SQLUINTEGER>(dbc->autocommit, (duckdb::data_ptr_t)value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(dbc->autocommit, value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_ACCESS_MODE: {
-		duckdb::Store<SQLUINTEGER>(dbc->sql_attr_access_mode, reinterpret_cast<duckdb::data_ptr_t>(value_ptr));
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(dbc->sql_attr_access_mode, value_ptr,
+		                                                            string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_CURRENT_CATALOG: {
@@ -97,12 +98,11 @@ SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 	case SQL_ATTR_TRANSLATE_OPTION:
 		return SQL_NO_DATA;
 	case SQL_ATTR_QUERY_TIMEOUT: {
-		*(SQLINTEGER *)value_ptr = 0;
-		buffer_length = sizeof(SQLINTEGER);
+		duckdb::OdbcUtils::StoreWithLength<SQLINTEGER, SQLINTEGER>(0, value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_TXN_ISOLATION: {
-		*(SQLUINTEGER *)value_ptr = SQL_TXN_SERIALIZABLE;
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(SQL_TXN_SERIALIZABLE, value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	default:
@@ -260,17 +260,17 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_ACTIVE_ENVIRONMENTS: {
-		duckdb::Store<SQLUSMALLINT>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_AGGREGATE_FUNCTIONS: {
 		SQLUINTEGER mask =
 		    SQL_AF_ALL | SQL_AF_AVG | SQL_AF_COUNT | SQL_AF_DISTINCT | SQL_AF_MAX | SQL_AF_MIN | SQL_AF_SUM;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ALTER_DOMAIN: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ALTER_TABLE: {
@@ -278,30 +278,31 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		SQLUINTEGER mask = SQL_AT_ADD_COLUMN_COLLATION | SQL_AT_ADD_COLUMN_DEFAULT | SQL_AT_ADD_COLUMN_SINGLE |
 		                   SQL_AT_ADD_CONSTRAINT | SQL_AT_ADD_TABLE_CONSTRAINT | SQL_AT_DROP_COLUMN_DEFAULT |
 		                   SQL_AT_SET_COLUMN_DEFAULT;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ASYNC_DBC_FUNCTIONS: {
-		duckdb::Store<SQLUINTEGER>(SQL_ASYNC_DBC_NOT_CAPABLE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_ASYNC_DBC_NOT_CAPABLE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ASYNC_MODE: {
-		duckdb::Store<SQLUINTEGER>(SQL_AM_NONE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_AM_NONE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 #ifdef SQL_ASYNC_NOTIFICATION
 	case SQL_ASYNC_NOTIFICATION: {
-		duckdb::Store<SQLUINTEGER>(SQL_ASYNC_NOTIFICATION_NOT_CAPABLE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_ASYNC_NOTIFICATION_NOT_CAPABLE, info_value_ptr,
+		                                                string_length_ptr);
 		return SQL_SUCCESS;
 	}
 #endif
 	case SQL_BATCH_ROW_COUNT: {
-		duckdb::Store<SQLUINTEGER>(SQL_BRC_EXPLICIT, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_BRC_EXPLICIT, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_BATCH_SUPPORT: {
 		SQLUINTEGER mask = SQL_BS_SELECT_EXPLICIT | SQL_BS_ROW_COUNT_EXPLICIT;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_BOOKMARK_PERSISTENCE: {
@@ -315,7 +316,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_CATALOG_LOCATION: {
-		duckdb::Store<SQLUSMALLINT>(SQL_CL_START, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_CL_START, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CATALOG_NAME: {
@@ -338,7 +339,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		 * SQL_CU_INDEX_DEFINITION
 		 * SQL_CU_PROCEDURE_INVOCATION |
 		 */
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_COLLATION_SEQ: {
@@ -351,7 +352,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_CONCAT_NULL_BEHAVIOR: {
-		duckdb::Store<SQLUSMALLINT>(SQL_CB_NON_NULL, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_CB_NON_NULL, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	// basically, we used the same conversion rules from MonetBD, it's needed to be tested
@@ -363,7 +364,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                   SQL_CVT_FLOAT | SQL_CVT_INTEGER | SQL_CVT_LONGVARCHAR | SQL_CVT_NUMERIC | SQL_CVT_REAL |
 		                   SQL_CVT_SMALLINT | SQL_CVT_TINYINT | SQL_CVT_VARCHAR;
 
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_BINARY:
@@ -372,14 +373,14 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		SQLUINTEGER mask = SQL_CVT_BINARY | SQL_CVT_CHAR | SQL_CVT_LONGVARBINARY | SQL_CVT_LONGVARCHAR |
 		                   SQL_CVT_VARBINARY | SQL_CVT_VARCHAR;
 
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_BIT: {
 		SQLUINTEGER mask = SQL_CVT_BIGINT | SQL_CVT_BIT | SQL_CVT_CHAR | SQL_CVT_INTEGER | SQL_CVT_LONGVARCHAR |
 		                   SQL_CVT_SMALLINT | SQL_CVT_TINYINT | SQL_CVT_VARCHAR;
 
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_CHAR:
@@ -391,16 +392,16 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                   SQL_CVT_LONGVARCHAR | SQL_CVT_NUMERIC | SQL_CVT_REAL | SQL_CVT_SMALLINT | SQL_CVT_TIME |
 		                   SQL_CVT_TIMESTAMP | SQL_CVT_TINYINT | SQL_CVT_VARBINARY | SQL_CVT_VARCHAR;
 
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_GUID: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_DATE: {
 		SQLUINTEGER mask = SQL_CVT_CHAR | SQL_CVT_DATE | SQL_CVT_LONGVARCHAR | SQL_CVT_TIMESTAMP | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_DECIMAL:
@@ -408,7 +409,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		SQLUINTEGER mask = SQL_CVT_BIGINT | SQL_CVT_CHAR | SQL_CVT_DECIMAL | SQL_CVT_DOUBLE | SQL_CVT_FLOAT |
 		                   SQL_CVT_INTEGER | SQL_CVT_INTERVAL_DAY_TIME | SQL_CVT_LONGVARCHAR | SQL_CVT_NUMERIC |
 		                   SQL_CVT_REAL | SQL_CVT_SMALLINT | SQL_CVT_TINYINT | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_DOUBLE:
@@ -417,41 +418,41 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		SQLUINTEGER mask = SQL_CVT_BIGINT | SQL_CVT_CHAR | SQL_CVT_DECIMAL | SQL_CVT_DOUBLE | SQL_CVT_FLOAT |
 		                   SQL_CVT_INTEGER | SQL_CVT_LONGVARCHAR | SQL_CVT_NUMERIC | SQL_CVT_REAL | SQL_CVT_SMALLINT |
 		                   SQL_CVT_TINYINT | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_INTERVAL_DAY_TIME: {
 		SQLUINTEGER mask = SQL_CVT_BIGINT | SQL_CVT_CHAR | SQL_CVT_INTEGER | SQL_CVT_INTERVAL_DAY_TIME |
 		                   SQL_CVT_LONGVARCHAR | SQL_CVT_SMALLINT | SQL_CVT_TIME | SQL_CVT_TINYINT | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_INTERVAL_YEAR_MONTH: {
 		SQLUINTEGER mask = SQL_CVT_BIGINT | SQL_CVT_CHAR | SQL_CVT_INTEGER | SQL_CVT_INTERVAL_YEAR_MONTH |
 		                   SQL_CVT_LONGVARCHAR | SQL_CVT_SMALLINT | SQL_CVT_TINYINT | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_TIME: {
 		SQLUINTEGER mask =
 		    SQL_CVT_CHAR | SQL_CVT_INTERVAL_DAY_TIME | SQL_CVT_LONGVARCHAR | SQL_CVT_TIME | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_TIMESTAMP: {
 		SQLUINTEGER mask =
 		    SQL_CVT_CHAR | SQL_CVT_DATE | SQL_CVT_LONGVARCHAR | SQL_CVT_TIME | SQL_CVT_TIMESTAMP | SQL_CVT_VARCHAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 		// end conversion rules
 
 	case SQL_CONVERT_FUNCTIONS: {
-		duckdb::Store<SQLUINTEGER>(SQL_FN_CVT_CAST, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_FN_CVT_CAST, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CORRELATION_NAME: {
-		duckdb::Store<SQLUSMALLINT>(SQL_CN_ANY, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_CN_ANY, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONVERT_WCHAR:
@@ -463,35 +464,35 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	case SQL_CREATE_DOMAIN:
 	case SQL_CREATE_TRANSLATION: {
 		// "0" means that the statement is not supported.
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CREATE_SCHEMA: {
-		duckdb::Store<SQLUINTEGER>(SQL_CS_CREATE_SCHEMA, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_CS_CREATE_SCHEMA, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CREATE_TABLE: {
 		SQLUINTEGER mask = SQL_CT_COLUMN_CONSTRAINT | SQL_CT_COLUMN_DEFAULT | SQL_CT_CONSTRAINT_NAME_DEFINITION |
 		                   SQL_CT_CREATE_TABLE | SQL_CT_LOCAL_TEMPORARY | SQL_CT_TABLE_CONSTRAINT |
 		                   SQL_CT_COLUMN_COLLATION;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CREATE_VIEW: {
 		SQLUINTEGER mask = SQL_CV_CREATE_VIEW | SQL_CV_CHECK_OPTION;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CURSOR_COMMIT_BEHAVIOR: {
-		duckdb::Store<SQLUSMALLINT>(SQL_CB_PRESERVE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_CB_PRESERVE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CURSOR_ROLLBACK_BEHAVIOR: {
-		duckdb::Store<SQLUSMALLINT>(SQL_CB_CLOSE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_CB_CLOSE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CURSOR_SENSITIVITY: {
-		duckdb::Store<SQLUINTEGER>(SQL_INSENSITIVE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_INSENSITIVE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DATA_SOURCE_NAME: {
@@ -532,7 +533,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                   SQL_DL_SQL92_INTERVAL_HOUR_TO_MINUTE | SQL_DL_SQL92_INTERVAL_HOUR_TO_SECOND |
 		                   SQL_DL_SQL92_INTERVAL_MINUTE_TO_SECOND;
 
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DRIVER_NAME:
@@ -578,11 +579,11 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_DDL_INDEX: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DEFAULT_TXN_ISOLATION: {
-		duckdb::Store<SQLUINTEGER>(SQL_TXN_SERIALIZABLE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_TXN_SERIALIZABLE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DESCRIBE_PARAMETER: {
@@ -601,7 +602,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	}
 #ifdef SQL_DRIVER_AWARE_POOLING_SUPPORTED
 	case SQL_DRIVER_AWARE_POOLING_SUPPORTED: {
-		duckdb::Store<SQLUINTEGER>(SQL_DRIVER_AWARE_POOLING_NOT_CAPABLE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_DRIVER_AWARE_POOLING_NOT_CAPABLE, info_value_ptr,
+		                                                string_length_ptr);
 		return SQL_SUCCESS;
 	}
 #endif
@@ -621,47 +623,47 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_ASSERTION: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_CHARACTER_SET: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_COLLATION: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_DOMAIN: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_SCHEMA: {
 		SQLUINTEGER mask = SQL_DS_DROP_SCHEMA | SQL_DS_CASCADE | SQL_DS_RESTRICT;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_TABLE: {
 		SQLUINTEGER mask = SQL_DT_DROP_TABLE | SQL_DT_CASCADE | SQL_DT_RESTRICT;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_TRANSLATION: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_VIEW: {
 		SQLUINTEGER mask = SQL_DV_DROP_VIEW | SQL_DV_CASCADE | SQL_DV_RESTRICT;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DYNAMIC_CURSOR_ATTRIBUTES1: {
 		SQLUINTEGER mask = SQL_CA1_ABSOLUTE | SQL_CA1_NEXT | SQL_CA1_RELATIVE;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DYNAMIC_CURSOR_ATTRIBUTES2: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_EXPRESSIONS_IN_ORDERBY: {
@@ -669,28 +671,28 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_FILE_USAGE: {
-		duckdb::Store<SQLUSMALLINT>(SQL_FILE_NOT_SUPPORTED, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_FILE_NOT_SUPPORTED, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_FORWARD_ONLY_CURSOR_ATTRIBUTES1: {
-		duckdb::Store<SQLUINTEGER>(SQL_CA1_NEXT, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_CA1_NEXT, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_FORWARD_ONLY_CURSOR_ATTRIBUTES2: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_GETDATA_EXTENSIONS: {
 		SQLUINTEGER mask = SQL_GD_ANY_COLUMN | SQL_GD_ANY_ORDER | SQL_GD_BOUND | SQL_GD_BLOCK;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_GROUP_BY: {
-		duckdb::Store<SQLUSMALLINT>(SQL_GB_NO_RELATION, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_GB_NO_RELATION, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_IDENTIFIER_CASE: {
-		duckdb::Store<SQLUSMALLINT>(SQL_IC_LOWER, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_IC_LOWER, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_IDENTIFIER_QUOTE_CHAR: {
@@ -699,15 +701,15 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_INDEX_KEYWORDS: {
-		duckdb::Store<SQLUINTEGER>(SQL_IK_NONE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_IK_NONE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_INFO_SCHEMA_VIEWS: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_INSERT_STATEMENT: {
-		duckdb::Store<SQLUINTEGER>(SQL_IS_INSERT_LITERALS, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_IS_INSERT_LITERALS, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_INTEGRITY: {
@@ -716,11 +718,11 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	}
 	case SQL_KEYSET_CURSOR_ATTRIBUTES1: {
 		SQLUINTEGER mask = SQL_CA1_ABSOLUTE | SQL_CA1_NEXT | SQL_CA1_RELATIVE;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_KEYSET_CURSOR_ATTRIBUTES2: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_KEYWORDS: {
@@ -775,7 +777,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	case SQL_MAX_INDEX_SIZE:
 	case SQL_MAX_ROW_SIZE:
 	case SQL_MAX_STATEMENT_LEN: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_MAX_CATALOG_NAME_LEN:
@@ -793,12 +795,12 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	case SQL_MAX_TABLE_NAME_LEN:
 	case SQL_MAX_TABLES_IN_SELECT:
 	case SQL_MAX_USER_NAME_LEN: {
-		duckdb::Store<SQLUSMALLINT>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_MAX_DRIVER_CONNECTIONS: {
 		// Set in 1, maximum number of active connections
-		duckdb::Store<SQLUSMALLINT>(1, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(1, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_MAX_ROW_SIZE_INCLUDES_LONG: {
@@ -819,11 +821,11 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_NON_NULLABLE_COLUMNS: {
-		duckdb::Store<SQLUSMALLINT>(SQL_NNC_NON_NULL, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_NNC_NON_NULL, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_NULL_COLLATION: {
-		duckdb::Store<SQLUSMALLINT>(SQL_NC_START, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_NC_START, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_NUMERIC_FUNCTIONS: {
@@ -833,18 +835,22 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                   SQL_FN_NUM_POWER | SQL_FN_NUM_RADIANS | SQL_FN_NUM_ROUND | SQL_FN_NUM_SIGN | SQL_FN_NUM_SIN |
 		                   SQL_FN_NUM_SQRT | SQL_FN_NUM_TAN;
 
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ODBC_INTERFACE_CONFORMANCE: {
-		duckdb::Store<SQLUINTEGER>(SQL_OIC_CORE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_OIC_CORE, info_value_ptr, string_length_ptr);
+		return SQL_SUCCESS;
+	}
+	case SQL_ODBC_API_CONFORMANCE: {
+		duckdb::OdbcUtils::StoreWithLength<SQLSMALLINT>(SQL_OAC_LEVEL1, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	//  This is implemented only in the Driver Manager
 	// case SQL_ODBC_VER:
 	case SQL_OJ_CAPABILITIES: {
 		SQLUINTEGER mask = SQL_OJ_LEFT | SQL_OJ_RIGHT | SQL_OJ_FULL | SQL_OJ_INNER | SQL_OJ_ALL_COMPARISON_OPS;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ORDER_BY_COLUMNS_IN_SELECT: {
@@ -852,15 +858,15 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_PARAM_ARRAY_ROW_COUNTS: {
-		duckdb::Store<SQLUINTEGER>(SQL_PARC_BATCH, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_PARC_BATCH, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_PARAM_ARRAY_SELECTS: {
-		duckdb::Store<SQLUINTEGER>(SQL_PAS_BATCH, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_PAS_BATCH, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_POS_OPERATIONS: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_PROCEDURE_TERM: {
@@ -872,7 +878,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_QUOTED_IDENTIFIER_CASE: {
-		duckdb::Store<SQLUSMALLINT>(SQL_IC_SENSITIVE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_IC_SENSITIVE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ROW_UPDATES: {
@@ -885,11 +891,11 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	}
 	case SQL_SCHEMA_USAGE: {
 		SQLUINTEGER mask = SQL_SU_DML_STATEMENTS | SQL_SU_TABLE_DEFINITION;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SCROLL_OPTIONS: {
-		duckdb::Store<SQLUINTEGER>(SQL_SCROLL_OPTIONS, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_SCROLL_OPTIONS, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SEARCH_PATTERN_ESCAPE: {
@@ -906,69 +912,69 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL_CONFORMANCE: {
-		duckdb::Store<SQLUINTEGER>(SQL_SC_SQL92_ENTRY, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_SC_SQL92_ENTRY, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_DATETIME_FUNCTIONS: {
 		SQLUINTEGER mask = SQL_SDF_CURRENT_DATE | SQL_SDF_CURRENT_TIME | SQL_SDF_CURRENT_TIMESTAMP;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_FOREIGN_KEY_DELETE_RULE:
 	case SQL_SQL92_FOREIGN_KEY_UPDATE_RULE:
 	case SQL_SQL92_GRANT: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_NUMERIC_VALUE_FUNCTIONS: {
 		SQLUINTEGER mask = SQL_SNVF_BIT_LENGTH | SQL_SNVF_EXTRACT | SQL_SNVF_OCTET_LENGTH | SQL_SNVF_POSITION;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_PREDICATES: {
 		SQLUINTEGER mask = SQL_SP_BETWEEN | SQL_SP_COMPARISON | SQL_SP_EXISTS | SQL_SP_IN | SQL_SP_ISNOTNULL |
 		                   SQL_SP_ISNULL | SQL_SP_LIKE;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_RELATIONAL_JOIN_OPERATORS: {
 		SQLUINTEGER mask = SQL_SRJO_CROSS_JOIN | SQL_SRJO_FULL_OUTER_JOIN | SQL_SRJO_INNER_JOIN |
 		                   SQL_SRJO_LEFT_OUTER_JOIN | SQL_SRJO_NATURAL_JOIN | SQL_SRJO_RIGHT_OUTER_JOIN;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_REVOKE: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_ROW_VALUE_CONSTRUCTOR: {
 		SQLUINTEGER mask = SQL_SRVC_VALUE_EXPRESSION | SQL_SRVC_NULL | SQL_SRVC_DEFAULT | SQL_SRVC_ROW_SUBQUERY;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_STRING_FUNCTIONS: {
 		SQLUINTEGER mask = SQL_SSF_CONVERT | SQL_SSF_LOWER | SQL_SSF_UPPER | SQL_SSF_SUBSTRING | SQL_SSF_TRIM_BOTH |
 		                   SQL_SSF_TRIM_LEADING | SQL_SSF_TRIM_TRAILING;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL92_VALUE_EXPRESSIONS: {
 		SQLUINTEGER mask = SQL_SVE_CASE | SQL_SVE_CAST | SQL_SVE_COALESCE | SQL_SVE_NULLIF;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_STANDARD_CLI_CONFORMANCE: {
 		// do we comply with SQL_SCC_XOPEN_CLI_VERSION1 | SQL_SCC_ISO92_CLI ??
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_STATIC_CURSOR_ATTRIBUTES1: {
 		SQLUINTEGER mask = SQL_CA1_NEXT | SQL_CA1_ABSOLUTE | SQL_CA1_RELATIVE;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_STATIC_CURSOR_ATTRIBUTES2: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_STRING_FUNCTIONS: {
@@ -976,17 +982,17 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                   SQL_FN_STR_LEFT | SQL_FN_STR_LENGTH | SQL_FN_STR_LOCATE | SQL_FN_STR_LTRIM |
 		                   SQL_FN_STR_REPEAT | SQL_FN_STR_REPLACE | SQL_FN_STR_RIGHT | SQL_FN_STR_RTRIM |
 		                   SQL_FN_STR_SUBSTRING | SQL_FN_STR_UCASE;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SUBQUERIES: {
 		SQLUINTEGER mask =
 		    SQL_SQ_CORRELATED_SUBQUERIES | SQL_SQ_COMPARISON | SQL_SQ_EXISTS | SQL_SQ_IN | SQL_SQ_QUANTIFIED;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SYSTEM_FUNCTIONS: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_TABLE_TERM: {
@@ -997,7 +1003,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	case SQL_TIMEDATE_DIFF_INTERVALS: {
 		SQLUINTEGER mask = SQL_FN_TSI_FRAC_SECOND | SQL_FN_TSI_SECOND | SQL_FN_TSI_MINUTE | SQL_FN_TSI_HOUR |
 		                   SQL_FN_TSI_DAY | SQL_FN_TSI_WEEK | SQL_FN_TSI_MONTH | SQL_FN_TSI_QUARTER | SQL_FN_TSI_YEAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_TIMEDATE_FUNCTIONS: {
@@ -1006,20 +1012,20 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                   SQL_FN_TD_EXTRACT | SQL_FN_TD_HOUR | SQL_FN_TD_MINUTE | SQL_FN_TD_MONTH |
 		                   SQL_FN_TD_MONTHNAME | SQL_FN_TD_NOW | SQL_FN_TD_QUARTER | SQL_FN_TD_SECOND | SQL_FN_TD_WEEK |
 		                   SQL_FN_TD_YEAR;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_TXN_CAPABLE: {
-		duckdb::Store<SQLUSMALLINT>(SQL_TC_ALL, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUSMALLINT>(SQL_TC_ALL, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_TXN_ISOLATION_OPTION: {
-		duckdb::Store<SQLUINTEGER>(SQL_TXN_SERIALIZABLE, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(SQL_TXN_SERIALIZABLE, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_UNION: {
 		SQLUINTEGER mask = SQL_U_UNION | SQL_U_UNION_ALL;
-		duckdb::Store<SQLUINTEGER>(mask, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(mask, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_USER_NAME:
@@ -1028,11 +1034,11 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_DTC_TRANSACTION_COST: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_RETURN_ESCAPE_CLAUSE: {
-		duckdb::Store<SQLUINTEGER>(0, (duckdb::data_ptr_t)info_value_ptr);
+		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	default:
