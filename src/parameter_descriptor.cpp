@@ -273,7 +273,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		value = Value(duckdb::OdbcUtils::ReadString(str_data, str_len));
 		break;
 	}
-	case SQL_WCHAR: {
+	case SQL_WCHAR:
+	case SQL_WVARCHAR: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto str_data = (wchar_t *)sql_data_ptr + (val_idx * buff_size);
