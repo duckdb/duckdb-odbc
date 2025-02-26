@@ -34,17 +34,27 @@ void TestGetTypeInfo(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 
 	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
 
-	std::vector<std::pair<MetadataData, std::string>> expected_data = {
-	    {{"TYPE_NAME", SQL_VARCHAR}, "VARCHAR"},     {{"DATA_TYPE", SQL_SMALLINT}, "12"},
-	    {{"COLUMN_SIZE", SQL_INTEGER}, "-1"},        {{"LITERAL_PREFIX", SQL_VARCHAR}, "'"},
-	    {{"LITERAL_SUFFIX", SQL_VARCHAR}, "'"},      {{"CREATE_PARAMS", SQL_VARCHAR}, "length"},
-	    {{"NULLABLE", SQL_SMALLINT}, "1"},           {{"CASE_SENSITIVE", SQL_SMALLINT}, "1"},
-	    {{"SEARCHABLE", SQL_SMALLINT}, "3"},         {{"UNSIGNED_ATTRIBUTE", SQL_SMALLINT}, "-1"},
-	    {{"FIXED_PREC_SCALE", SQL_SMALLINT}, "0"},   {{"AUTO_UNIQUE_VALUE", SQL_SMALLINT}, "-1"},
-	    {{"LOCAL_TYPE_NAME", SQL_VARCHAR}, ""},      {{"MINIMUM_SCALE", SQL_SMALLINT}, "-1"},
-	    {{"MAXIMUM_SCALE", SQL_SMALLINT}, "-1"},     {{"SQL_DATA_TYPE", SQL_SMALLINT}, "12"},
-	    {{"SQL_DATETIME_SUB", SQL_SMALLINT}, "-1"},  {{"NUM_PREC_RADIX", SQL_INTEGER}, "-1"},
-	    {{"INTERVAL_PRECISION", SQL_SMALLINT}, "-1"}};
+	std::string max_col_size = std::to_string((std::numeric_limits<SQLINTEGER>::max)());
+
+	std::vector<std::pair<MetadataData, std::string>> expected_data = {{{"TYPE_NAME", SQL_VARCHAR}, "VARCHAR"},
+	                                                                   {{"DATA_TYPE", SQL_SMALLINT}, "12"},
+	                                                                   {{"COLUMN_SIZE", SQL_INTEGER}, max_col_size},
+	                                                                   {{"LITERAL_PREFIX", SQL_VARCHAR}, "'"},
+	                                                                   {{"LITERAL_SUFFIX", SQL_VARCHAR}, "'"},
+	                                                                   {{"CREATE_PARAMS", SQL_VARCHAR}, "length"},
+	                                                                   {{"NULLABLE", SQL_SMALLINT}, "1"},
+	                                                                   {{"CASE_SENSITIVE", SQL_SMALLINT}, "1"},
+	                                                                   {{"SEARCHABLE", SQL_SMALLINT}, "3"},
+	                                                                   {{"UNSIGNED_ATTRIBUTE", SQL_SMALLINT}, "-1"},
+	                                                                   {{"FIXED_PREC_SCALE", SQL_SMALLINT}, "0"},
+	                                                                   {{"AUTO_UNIQUE_VALUE", SQL_SMALLINT}, "-1"},
+	                                                                   {{"LOCAL_TYPE_NAME", SQL_VARCHAR}, ""},
+	                                                                   {{"MINIMUM_SCALE", SQL_SMALLINT}, "-1"},
+	                                                                   {{"MAXIMUM_SCALE", SQL_SMALLINT}, "-1"},
+	                                                                   {{"SQL_DATA_TYPE", SQL_SMALLINT}, "12"},
+	                                                                   {{"SQL_DATETIME_SUB", SQL_SMALLINT}, "-1"},
+	                                                                   {{"NUM_PREC_RADIX", SQL_INTEGER}, "-1"},
+	                                                                   {{"INTERVAL_PRECISION", SQL_SMALLINT}, "-1"}};
 
 	for (int i = 0; i < col_count; i++) {
 		auto &entry = expected_data[i].first;

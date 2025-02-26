@@ -49,6 +49,8 @@ private:
 
 	static const vector<OdbcTypeInfo> ODBC_SUPPORTED_SQL_TYPES;
 
+	static const SQLINTEGER MAX_COLUMN_SIZE;
+
 	static void SetFunctionSupported(SQLUSMALLINT *flags, int function_id);
 
 public:
