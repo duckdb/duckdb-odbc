@@ -327,6 +327,13 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 	                  sizeof(database_name), &len);
 	REQUIRE(STR_EQUAL(database_name, "table"));
 
+	SQLSMALLINT oac_val;
+	SQLSMALLINT oac_val_len;
+	EXECUTE_AND_CHECK("SQLGetInfo (SQL_ODBC_API_CONFORMANCE)", SQLGetInfo, hstmt, SQL_ODBC_API_CONFORMANCE,
+	                  static_cast<SQLPOINTER>(&oac_val), 2, &oac_val_len);
+	REQUIRE(SQL_OAC_LEVEL1 == oac_val);
+	REQUIRE(2 == oac_val_len); // required by MS Access
+
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
