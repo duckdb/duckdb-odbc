@@ -12,6 +12,13 @@ using namespace duckdb;
 //! The database instance cache, used so that multiple connections to the same file point to the same database object
 DBInstanceCache instance_cache;
 
+const std::vector<std::string> Connect::IGNORE_KEYS = {
+    "driver",             // can be used by any client connecting without DSN
+    "trusted_connection", // set by Power Query Connector by MotherDuck
+    "uid",                // used by default for ODBC sources in Excel
+    "pwd",                // likewise uid
+};
+
 bool Connect::SetSuccessWithInfo(SQLRETURN ret) {
 	if (!SQL_SUCCEEDED(ret)) {
 		return false;
@@ -49,7 +56,7 @@ SQLRETURN Connect::FindKeyValPair(const std::string &row) {
 	std::string key_candidate = StringUtil::Lower(row.substr(0, val_pos));
 
 	// Check if the key can be ignored
-	if (std::find(PQIgnoreKeys.begin(), PQIgnoreKeys.end(), key_candidate) != PQIgnoreKeys.end()) {
+	if (std::find(IGNORE_KEYS.begin(), IGNORE_KEYS.end(), key_candidate) != IGNORE_KEYS.end()) {
 		return SQL_SUCCESS;
 	}
 
