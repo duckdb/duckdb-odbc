@@ -81,7 +81,7 @@ SQLRETURN Connect::ParseInputStr() {
 	while ((row_pos = input_str.find(ROW_DEL)) != std::string::npos) {
 		row = input_str.substr(0, row_pos);
 		SQLRETURN ret = FindKeyValPair(row);
-		if (ret != SQL_SUCCESS) {
+		if (!SetSuccessWithInfo(ret)) {
 			return ret;
 		}
 		input_str.erase(0, row_pos + 1);
@@ -89,7 +89,7 @@ SQLRETURN Connect::ParseInputStr() {
 
 	if (!input_str.empty()) {
 		SQLRETURN ret = FindKeyValPair(input_str);
-		if (ret != SQL_SUCCESS) {
+		if (!SetSuccessWithInfo(ret)) {
 			return ret;
 		}
 	}
@@ -97,7 +97,7 @@ SQLRETURN Connect::ParseInputStr() {
 	// Extract the DSN from the config map as it is needed to read from the .odbc.ini file
 	dbc->dsn = seen_config_options["dsn"] ? config_map["dsn"].ToString() : "";
 
-	return SQL_SUCCESS;
+	return GetSuccessWithInfo() ? SQL_SUCCESS_WITH_INFO : SQL_SUCCESS;
 }
 
 SQLRETURN Connect::ReadFromIniFile() {
