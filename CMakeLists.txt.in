@@ -53,7 +53,7 @@ endif()
 
 add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DEFINES})
 
-include_directories(src/duckdb/src/include/ ${INCLUDE_FILES} ${ODBC_INCLUDE_DIRS} include)
+include_directories(src/duckdb/src/include/ ${INCLUDE_FILES} ${ODBC_INCLUDE_DIRS} include third_party)
 
 add_subdirectory(src)
 
