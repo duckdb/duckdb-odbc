@@ -5,6 +5,7 @@ include_directories(${ODBC_INCLUDE_DIRS})
 add_executable(
   test_odbc
   $<TARGET_OBJECTS:duckdb_core_obj>
+  $<TARGET_OBJECTS:odbc_widechar>
   common.cpp
   connect_helpers.cpp
   tests/alter.cpp
@@ -25,6 +26,7 @@ add_executable(
   tests/multicolumn_param_bind.cpp
   tests/numeric.cpp
   tests/quotes.cpp
+  tests/test_widechar.cpp
   tests/result_conversion.cpp
   tests/test_stubs.cpp
   tests/col_attribute/col_attribute.cpp
