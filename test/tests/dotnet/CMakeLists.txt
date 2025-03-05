@@ -24,3 +24,4 @@ list(APPEND VS_DOTNET_REFERENCES "System.Xml.Linq")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VS_DOTNET_REFERENCES
                                                  "${VS_DOTNET_REFERENCES}")
+set_target_properties(${PROJECT_NAME} PROPERTIES DOTNET_TARGET_FRAMEWORK net472)
