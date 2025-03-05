@@ -23,6 +23,7 @@ add_executable(
   tests/multicolumn_param_bind.cpp
   tests/numeric.cpp
   tests/quotes.cpp
+  tests/test_widechar.cpp
   tests/result_conversion.cpp
   tests/col_attribute/col_attribute.cpp
   tests/col_attribute/char_query.cpp
