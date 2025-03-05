@@ -34,6 +34,11 @@ add_executable(
 add_executable(test_connection_odbc common.cpp tests/connect_with_ini.cpp
                                     connect_helpers.cpp)
 
+if(WIN32)
+  target_compile_options(test_odbc PRIVATE /bigobj)
+  target_compile_options(test_connection_odbc PRIVATE /bigobj)
+endif()
+
 if(CMAKE_GENERATOR MATCHES "Visual Studio")
   # System.Data.ODBC tests Visual Studio Generator due to use of C++ CLI and
   # .NET.

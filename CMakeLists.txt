@@ -53,6 +53,10 @@ set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} src/duckdb/ub_src_catalog.cpp src/duckd
 
 add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
 
+if(WIN32)
+  target_compile_options(duckdb_odbc PRIVATE /bigobj)
+endif()
+
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
 target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
 target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
