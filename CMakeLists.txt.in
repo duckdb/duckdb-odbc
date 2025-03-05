@@ -49,13 +49,29 @@ include_directories(src/duckdb/src/include/ ${INCLUDE_FILES} ${ODBC_INCLUDE_DIRS
 
 add_subdirectory(src)
 
-set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} ${SOURCE_FILES})
+set(CORE_OBJECT_FILES ${SOURCE_FILES})
 
-add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
+if(WIN32)
+  list(APPEND ALL_OBJECT_FILES duckdb_odbc.def)
+endif()
+
+add_library(duckdb_core_obj OBJECT ${CORE_OBJECT_FILES})
+target_compile_definitions(duckdb_core_obj PRIVATE -DDUCKDB_STATIC_BUILD)
+set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_core_obj>)
+
+add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
+target_compile_definitions(duckdb_odbc PRIVATE -DDUCKDB_STATIC_BUILD)
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
-target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} ${LIBRARY_FILES})
+target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
 target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
+if(NOT WIN32)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(duckdb_odbc PRIVATE -fvisibility=hidden -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.map)
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_link_options(duckdb_odbc PRIVATE -fvisibility=hidden -Wl,-exported_symbols_list,${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.exp)
+  endif()
+endif()
 
 if(NOT CLANG_TIDY)
   add_subdirectory(test)
