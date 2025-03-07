@@ -106,6 +106,11 @@ struct OdbcBoundCol {
 	SQLLEN *strlen_or_ind;
 };
 
+struct OdbcStmtClientAttrs {
+public:
+	SQLULEN max_len = 0;
+};
+
 struct OdbcHandleStmt : public OdbcHandle {
 public:
 	explicit OdbcHandleStmt(OdbcHandleDbc *dbc_p);
@@ -127,6 +132,9 @@ public:
 	bool open;
 	SQLULEN retrieve_data = SQL_RD_ON;
 	SQLULEN *rows_fetched_ptr;
+
+	// statement attributes required by clients but not used by the engine
+	OdbcStmtClientAttrs client_attrs;
 
 	// fetcher
 	duckdb::unique_ptr<OdbcFetch> odbc_fetcher;

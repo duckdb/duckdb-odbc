@@ -11,6 +11,9 @@ using duckdb::vector;
 using std::string;
 
 string OdbcUtils::ReadString(const SQLPOINTER ptr, const SQLSMALLINT len) {
+	if (ptr == nullptr) {
+		return std::string();
+	}
 	return len == SQL_NTS ? string((const char *)ptr) : string((const char *)ptr, (size_t)len);
 }
 

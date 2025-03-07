@@ -13,6 +13,9 @@
 #define SQL_DTC_TRANSACTION_COST 1750
 #define SQL_RETURN_ESCAPE_CLAUSE 180
 
+// Set by MS Access (Jet engine)
+#define VENDOR_MSJET 30002
+
 using duckdb::OdbcUtils;
 using duckdb::SQLStateType;
 using std::ptrdiff_t;
@@ -129,6 +132,7 @@ SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 	case SQL_ATTR_LOGIN_TIMEOUT:
 	case SQL_ATTR_ODBC_CURSORS:
 	case SQL_ATTR_PACKET_SIZE:
+	case VENDOR_MSJET:
 		return SQL_SUCCESS;
 	default:
 		break;
