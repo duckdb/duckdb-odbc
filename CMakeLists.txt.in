@@ -26,6 +26,14 @@ if(ODBC_FOUND)
   endif()
 
   if(WIN32)
+    file(READ src/duckdb/src/function/table/version/pragma_version.cpp PRAGMA_VERSION_CPP_TEXT)
+    string(REGEX MATCH "^.*#define[ \t]+DUCKDB_VERSION[ \t]+\"v([0-9]+)\.([0-9]+)\.([0-9]+).*$" _ ${PRAGMA_VERSION_CPP_TEXT})
+    set(DUCKDB_ENGINE_VERSION ${CMAKE_MATCH_1}${CMAKE_MATCH_2}${CMAKE_MATCH_3})
+    message(STATUS "Version number parsed out from pragma_version.cpp: ${DUCKDB_ENGINE_VERSION}")
+    set(DUCKDB_ODBC_VERSION "00")
+    set(DUCKDB_WIN_COMMA_VERSiON "${DUCKDB_ENGINE_VERSION},${DUCKDB_ODBC_VERSION},00,00")
+    set(DUCKDB_WIN_DOT_VERSiON "${DUCKDB_ENGINE_VERSION}.${DUCKDB_ODBC_VERSION}.00.00")
+    configure_file(${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.rc.in ${CMAKE_CURRENT_BINARY_DIR}/duckdb_odbc.rc)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
     add_subdirectory(winsetup)
     list(APPEND LINK_LIB_LIST $<$<PLATFORM_ID:Windows>:odbccp32>)
@@ -51,7 +59,12 @@ add_subdirectory(src)
 
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} ${SOURCE_FILES})
 
-add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES}  duckdb_odbc.def)
+if(WIN32)
+  list(APPEND ALL_OBJECT_FILES
+    duckdb_odbc.def
+    ${CMAKE_CURRENT_BINARY_DIR}/duckdb_odbc.rc)
+endif()
+add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
 target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} ${LIBRARY_FILES})
