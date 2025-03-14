@@ -1,0 +1,27 @@
+#define UNICODE
+#define _UNICODE
+#include <windows.h>
+
+1 VERSIONINFO
+FILEVERSION     ${DUCKDB_WIN_COMMA_VERSiON}
+PRODUCTVERSION  ${DUCKDB_WIN_COMMA_VERSiON}
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName", "DuckDB Foundation"
+            VALUE "FileDescription", "DuckDB ODBC Driver"
+            VALUE "FileVersion", "${DUCKDB_WIN_DOT_VERSiON}"
+            VALUE "InternalName", "duckdb_odbc.dll"
+            VALUE "LegalCopyright", "DuckDB Foundation"
+            VALUE "OriginalFilename", "duckdb_odbc.dll"
+            VALUE "ProductName", "DuckDB ODBC Driver"
+            VALUE "ProductVersion", "${DUCKDB_WIN_DOT_VERSiON}"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04E4
+    END
+END
