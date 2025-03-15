@@ -191,6 +191,9 @@ void InitializeDatabase(HSTMT &hstmt) {
 	EXEC_SQL(hstmt, "INSERT INTO bytea_table VALUES (4, 'foo');");
 	EXEC_SQL(hstmt, "INSERT INTO bytea_table VALUES (5, 'barf');");
 
+	EXEC_SQL(hstmt, "DROP TABLE IF EXISTS decimal_table;");
+	EXEC_SQL(hstmt, "CREATE TABLE decimal_table (col1 DECIMAL(15,2));");
+
 	EXEC_SQL(hstmt, "DROP TABLE IF EXISTS interval_table;");
 	EXEC_SQL(hstmt, "CREATE TABLE interval_table(id integer, iv interval, d varchar(100));");
 	EXEC_SQL(hstmt, "INSERT INTO interval_table VALUES (1, '1 day', 'one day');");
