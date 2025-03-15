@@ -77,12 +77,12 @@ string OdbcUtils::ParseStringFilter(const string &filter_name, const string &fil
 string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const string &schema_filter,
                                         const string &table_filter, const string &column_filter) {
 	string sql_duckdb_columns = R"(
-        SELECT * EXCLUDE mapping
+        SELECT * EXCLUDE (mapping, data_type_no_typmod)
         FROM (
-            SELECT NULL "TABLE_CAT",
-            SCHEMA_NAME "TABLE_SCHEM",
-            TABLE_NAME "TABLE_NAME",
-            COLUMN_NAME "COLUMN_NAME",
+            SELECT NULL::VARCHAR AS "TABLE_CAT",
+            SCHEMA_NAME AS "TABLE_SCHEM",
+            TABLE_NAME AS "TABLE_NAME",
+            COLUMN_NAME AS "COLUMN_NAME",
             MAP {
                 'BOOLEAN': 1, -- SQL_CHAR
                 'TINYINT': -6, -- SQL_TINYINT
@@ -102,15 +102,19 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
                 'VARCHAR': 12, -- SQL_VARCHAR
                 'BLOB': -3, -- SQL_VARBINARY
                 'INTERVAL': 10, -- SQL_INTERVAL
-                'DECIMAL': 8, -- SQL_DOUBLE
+                'DECIMAL': 2, -- SQL_NUMERIC
                 'BIT': -7, -- SQL_BIT
                 'LIST': 12 -- SQL_VARCHAR
             } AS mapping,
+            STRING_SPLIT(data_type, '(')[1] AS data_type_no_typmod,
             CASE
-                WHEN mapping[data_type] IS NOT NULL THEN mapping[data_type]::BIGINT
-                ELSE data_type_id
+                WHEN mapping[data_type_no_typmod] IS NOT NULL THEN mapping[data_type_no_typmod]::SMALLINT
+                ELSE data_type_id::SMALLINT
             END AS "DATA_TYPE",
-            data_type "TYPE_NAME",
+            CASE
+                WHEN data_type_no_typmod = 'DECIMAL' THEN 'NUMERIC'
+                ELSE data_type_no_typmod
+            END AS "TYPE_NAME",
             CASE
                 WHEN data_type='DATE' THEN 12
                 WHEN data_type='TIME' THEN 15
@@ -138,28 +142,29 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
                 WHEN data_type LIKE '%INTEGER' THEN 4
                 WHEN data_type LIKE '%BIGINT' THEN 8
                 WHEN data_type='HUGEINT' THEN 16
+                WHEN data_type like 'DECIMAL%' THEN 16
                 WHEN data_type='FLOAT' THEN 4
                 WHEN data_type='DOUBLE' THEN 8
                 ELSE NULL
             END AS "BUFFER_LENGTH",
-            numeric_scale "DECIMAL_DIGITS",
-            numeric_precision_radix "NUM_PREC_RADIX",
+            numeric_scale::SMALLINT AS "DECIMAL_DIGITS",
+            numeric_precision_radix::SMALLINT "NUM_PREC_RADIX",
             CASE is_nullable
-                WHEN FALSE THEN 0
-                WHEN TRUE THEN 1
-                ELSE 2
+                WHEN FALSE THEN 0::SMALLINT
+                WHEN TRUE THEN 1::SMALLINT
+                ELSE 2::SMALLINT
             END AS "NULLABLE",
-            NULL "REMARKS",
-            column_default "COLUMN_DEF",
+            '' AS "REMARKS",
+            column_default AS "COLUMN_DEF",
             CASE
-                WHEN mapping[data_type] IS NOT NULL THEN mapping[data_type]::BIGINT
-                ELSE data_type_id
+                WHEN mapping[data_type_no_typmod] IS NOT NULL THEN mapping[data_type_no_typmod]::SMALLINT
+                ELSE data_type_id::SMALLINT
             END AS "SQL_DATA_TYPE",
             CASE
                 WHEN data_type='DATE'
                      OR data_type='TIME'
-                     OR data_type LIKE 'TIMESTAMP%' THEN data_type_id
-                ELSE NULL
+                     OR data_type LIKE 'TIMESTAMP%' THEN data_type_id::SMALLINT
+                ELSE NULL::SMALLINT
             END AS "SQL_DATETIME_SUB",
             CASE
                 WHEN data_type='%CHAR'
