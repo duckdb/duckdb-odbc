@@ -13,8 +13,6 @@ using namespace odbc_test;
  * SQLGetInfo
  *
  * TODO: Test the following catalog functions:
- * - SQLSpecialColumns
- * - SQLStatistics
  * - SQLPrimaryKeys
  * - SQLForeignKeys
  * - SQLProcedureColumns
@@ -234,6 +232,13 @@ static void TestSQLTablesSchema(HSTMT &hstmt) {
 	}
 }
 
+// Check that complex table type can be processed without errors
+static void TestSQLTablesSystemTable(HSTMT &hstmt) {
+	EXECUTE_AND_CHECK("SQLTables", SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
+	                  ConvertToSQLCHAR("%"), SQL_NTS,
+	                  ConvertToSQLCHAR("'TABLE','VIEW','SYSTEM TABLE','ALIAS','SYNONYM'"), SQL_NTS);
+}
+
 static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 	EXECUTE_AND_CHECK("SQLColumns", SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
 	                  ConvertToSQLCHAR("%"), SQL_NTS, nullptr, 0);
@@ -316,6 +321,7 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 	TestSQLTables(hstmt, types_map);
 	TestSQLTablesLong(hstmt);
 	TestSQLTablesSchema(hstmt);
+	TestSQLTablesSystemTable(hstmt);
 
 	// Check for SQLColumns
 	TestSQLColumns(hstmt, types_map);

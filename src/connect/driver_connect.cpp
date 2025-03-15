@@ -1,5 +1,7 @@
 #include "connect.hpp"
 
+#include <cstdio>
+
 #include "duckdb_odbc.hpp"
 #include "odbc_utils.hpp"
 
@@ -26,7 +28,8 @@ SQLRETURN SQL_API SQLDriverConnect(SQLHDBC connection_handle, SQLHWND window_han
 		return ret;
 	}
 
-	duckdb::Connect connect(dbc, OdbcUtils::ConvertSQLCHARToString(in_connection_string));
+	const std::string in_conn_str = OdbcUtils::ConvertSQLCHARToString(in_connection_string);
+	duckdb::Connect connect(dbc, in_conn_str);
 
 	ret = connect.ParseInputStr();
 	if (!connect.SetSuccessWithInfo(ret)) {
@@ -38,13 +41,14 @@ SQLRETURN SQL_API SQLDriverConnect(SQLHDBC connection_handle, SQLHWND window_han
 		return ret;
 	}
 
-	std::string connect_str = "DuckDB connection";
-	if (string_length2_ptr) {
-		*string_length2_ptr = connect_str.size();
-	}
-	if (out_connection_string) {
-		memcpy(out_connection_string, connect_str.c_str(),
-		       duckdb::MinValue<SQLSMALLINT>((SQLSMALLINT)connect_str.size(), buffer_length));
+	if (out_connection_string != nullptr) {
+		int available = std::snprintf(reinterpret_cast<char *>(out_connection_string),
+		                              static_cast<std::size_t>(buffer_length), "%s", in_conn_str.c_str());
+		if (string_length2_ptr != nullptr) {
+			*string_length2_ptr = static_cast<SQLSMALLINT>(available);
+		}
+	} else if (string_length2_ptr != nullptr) {
+		*string_length2_ptr = static_cast<SQLSMALLINT>(in_conn_str.length());
 	}
 	return connect.GetSuccessWithInfo() ? SQL_SUCCESS_WITH_INFO : ret;
 }

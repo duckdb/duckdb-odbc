@@ -2,7 +2,7 @@
 
 using namespace odbc_test;
 
-TEST_CASE("Test SQL_ATTR_ROW_BIND_TYPE attribute in SQLSetStmtAttr", "[odbc]") {
+TEST_CASE("Test SQL_ATTR_ROW_BIND_TYPE and SQL_ATTR_MAX_LENGTH attributes in SQLSetStmtAttr", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
 
@@ -25,11 +25,44 @@ TEST_CASE("Test SQL_ATTR_ROW_BIND_TYPE attribute in SQLSetStmtAttr", "[odbc]") {
 	                  sizeof(buf), nullptr);
 	REQUIRE(row_len == buf);
 
+	// Check that SQL_ATTR_MAX_LENGTH client attr cant be set and is preserved
+	SQLULEN max_len_buf = 1;
+	EXECUTE_AND_CHECK("SQLGetStmtAttr (SQL_ATTR_MAX_LENGTH)", SQLGetStmtAttr, hstmt, SQL_ATTR_MAX_LENGTH, &max_len_buf,
+	                  sizeof(max_len_buf), nullptr);
+	REQUIRE(0 == max_len_buf);
+	SQLULEN max_len = 42;
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_MAX_LENGTH)", SQLSetStmtAttr, hstmt, SQL_ATTR_MAX_LENGTH,
+	                  ConvertToSQLPOINTER(max_len), SQL_IS_INTEGER);
+	EXECUTE_AND_CHECK("SQLGetStmtAttr (SQL_ATTR_MAX_LENGTH)", SQLGetStmtAttr, hstmt, SQL_ATTR_MAX_LENGTH, &max_len_buf,
+	                  sizeof(max_len_buf), nullptr);
+	REQUIRE(42 == max_len_buf);
+
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
+}
+
+TEST_CASE("Test MS Access attribute in SQLSetConnectAttr", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
+	REQUIRE(ret == SQL_SUCCESS);
+
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+
+	// Check this vendor-specific attribute can be set before the connection is open
+	EXECUTE_AND_CHECK("SQLSetConnectAttr (30002)", SQLSetConnectAttr, dbc, 30002, ConvertToSQLPOINTER(SQL_TRUE),
+	                  SQL_IS_INTEGER);
+
+	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_ENV)", SQLFreeHandle, SQL_HANDLE_ENV, env);
+
+	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_DBC)", SQLFreeHandle, SQL_HANDLE_DBC, dbc);
 }
 
 TEST_CASE("Test SQL_ATTR_ACCESS_MODE and SQL_ATTR_METADATA_ID attribute in SQLSetConnectAttr", "[odbc]") {
