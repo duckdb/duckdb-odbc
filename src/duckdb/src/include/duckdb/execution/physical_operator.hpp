@@ -45,14 +45,10 @@ public:
 	virtual ~PhysicalOperator() {
 	}
 
-	// Delete copy constructors.
-	PhysicalOperator(const PhysicalOperator &other) = delete;
-	PhysicalOperator &operator=(const PhysicalOperator &) = delete;
-
 	//! The physical operator type
 	PhysicalOperatorType type;
 	//! The set of children of the operator
-	vector<reference<PhysicalOperator>> children;
+	vector<unique_ptr<PhysicalOperator>> children;
 	//! The types returned by this physical operator
 	vector<LogicalType> types;
 	//! The estimated cardinality of this physical operator

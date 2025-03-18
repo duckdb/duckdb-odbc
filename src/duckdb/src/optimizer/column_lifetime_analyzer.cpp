@@ -112,7 +112,6 @@ void ColumnLifetimeAnalyzer::VisitOperator(LogicalOperator &op) {
 	case LogicalOperatorType::LOGICAL_UNION:
 	case LogicalOperatorType::LOGICAL_EXCEPT:
 	case LogicalOperatorType::LOGICAL_INTERSECT:
-	case LogicalOperatorType::LOGICAL_RECURSIVE_CTE:
 	case LogicalOperatorType::LOGICAL_MATERIALIZED_CTE: {
 		// for set operations/materialized CTEs we don't remove anything, just recursively visit the children
 		// FIXME: for UNION we can remove unreferenced columns as long as everything_referenced is false (i.e. we
@@ -223,6 +222,9 @@ void ColumnLifetimeAnalyzer::AddVerificationProjection(unique_ptr<LogicalOperato
 
 	// Create a projection and swap the operators accordingly
 	auto projection = make_uniq<LogicalProjection>(table_index, std::move(expressions));
+	if (child->has_estimated_cardinality) {
+		projection->SetEstimatedCardinality(child->estimated_cardinality);
+	}
 	projection->children.emplace_back(std::move(child));
 	child = std::move(projection);
 

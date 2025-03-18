@@ -36,7 +36,7 @@ public:
 	static constexpr const PhysicalOperatorType TYPE = PhysicalOperatorType::VERIFY_VECTOR;
 
 public:
-	explicit PhysicalVerifyVector(PhysicalOperator &child);
+	explicit PhysicalVerifyVector(unique_ptr<PhysicalOperator> child);
 
 public:
 	unique_ptr<OperatorState> GetOperatorState(ExecutionContext &context) const override;

@@ -165,18 +165,6 @@ struct LenFun {
 	static constexpr const char *Name = "len";
 };
 
-struct CharLengthFun {
-	using ALIAS = LengthFun;
-
-	static constexpr const char *Name = "char_length";
-};
-
-struct CharacterLengthFun {
-	using ALIAS = LengthFun;
-
-	static constexpr const char *Name = "character_length";
-};
-
 struct StrlenFun {
 	static constexpr const char *Name = "strlen";
 	static constexpr const char *Parameters = "string";
