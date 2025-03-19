@@ -13,6 +13,7 @@ add_executable(
   tests/catalog_functions.cpp
   tests/connect.cpp
   tests/diagnostics.cpp
+  tests/extension.cpp
   tests/select.cpp
   tests/row_wise_fetching.cpp
   tests/set_attr.cpp
