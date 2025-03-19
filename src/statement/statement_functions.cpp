@@ -244,6 +244,78 @@ SQLRETURN GetVariableValue(const std::string &val_str, SQLUSMALLINT col_idx, duc
 	return ret;
 }
 
+// Resolve the C type based on the value type ID when SQL_C_DEFAULT is specified.
+// This logic is not comprehensive, but should be good enough, in general, clients
+// are not expected to use SQL_C_DEFAULT.
+static SQLSMALLINT resolve_default_type(LogicalTypeId typeId, SQLLEN max_len) {
+	switch (typeId) {
+	case LogicalTypeId::BOOLEAN:
+		return SQL_C_BIT;
+	case LogicalTypeId::TINYINT:
+		return SQL_C_TINYINT;
+	case LogicalTypeId::UTINYINT:
+		return SQL_C_UTINYINT;
+	case LogicalTypeId::SMALLINT:
+		if (max_len < 2) {
+			return SQL_C_TINYINT;
+		} else {
+			return SQL_C_SHORT;
+		}
+	case LogicalTypeId::USMALLINT:
+		if (max_len < 2) {
+			return SQL_C_UTINYINT;
+		} else {
+			return SQL_C_USHORT;
+		}
+	case LogicalTypeId::INTEGER:
+		if (max_len < 2) {
+			return SQL_C_TINYINT;
+		} else if (max_len < 4) {
+			return SQL_C_SHORT;
+		} else {
+			return SQL_C_LONG;
+		}
+	case LogicalTypeId::UINTEGER:
+		if (max_len < 2) {
+			return SQL_C_UTINYINT;
+		} else if (max_len < 4) {
+			return SQL_C_USHORT;
+		} else {
+			return SQL_C_ULONG;
+		}
+	case LogicalTypeId::BIGINT:
+		if (max_len < 2) {
+			return SQL_C_TINYINT;
+		} else if (max_len < 4) {
+			return SQL_C_SHORT;
+		} else if (max_len < 8) {
+			return SQL_C_LONG;
+		} else {
+			return SQL_C_SBIGINT;
+		}
+	case LogicalTypeId::UBIGINT:
+		if (max_len < 2) {
+			return SQL_C_UTINYINT;
+		} else if (max_len < 4) {
+			return SQL_C_USHORT;
+		} else if (max_len < 8) {
+			return SQL_C_ULONG;
+		} else {
+			return SQL_C_UBIGINT;
+		}
+	case LogicalTypeId::FLOAT:
+		return SQL_C_FLOAT;
+	case LogicalTypeId::DOUBLE:
+		if (max_len < 8) {
+			return SQL_C_FLOAT;
+		} else {
+			return SQL_C_DOUBLE;
+		}
+	default:
+		return SQL_C_CHAR;
+	}
+}
+
 SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_param_num, SQLSMALLINT target_type,
                                     SQLPOINTER target_value_ptr, SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr) {
 	if (!target_value_ptr && !OdbcUtils::IsCharType(target_type)) {
@@ -264,7 +336,12 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		return SQL_SUCCESS;
 	}
 
-	switch (target_type) {
+	SQLSMALLINT target_type_resolved = target_type;
+	if (target_type_resolved == SQL_C_DEFAULT) {
+		target_type_resolved = resolve_default_type(val.type().id(), buffer_length);
+	}
+
+	switch (target_type_resolved) {
 	case SQL_C_SHORT:
 	case SQL_C_SSHORT:
 		return GetInternalValue<int16_t, SQLSMALLINT>(hstmt, val, LogicalType::SMALLINT, target_value_ptr,
@@ -817,7 +894,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 	default:
 		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult", "Data type not supported",
 		                                   SQLStateType::ST_HY004, hstmt->dbc->GetDataSourceName());
-	} // end switch "(target_type)": SQL_C_TYPE_TIMESTAMP
+	} // end switch "(target_type_resolved)": SQL_C_TYPE_TIMESTAMP
 }
 
 SQLRETURN duckdb::ExecDirectStmt(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {

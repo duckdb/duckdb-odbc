@@ -12,21 +12,6 @@ SQLRETURN SQL_API SQLNativeSql(SQLHDBC connection_handle, SQLCHAR *in_statement_
 	return SQL_ERROR;
 }
 
-SQLRETURN SQL_API SQLSpecialColumns(SQLHSTMT statement_handle, SQLSMALLINT identifier_type, SQLCHAR *catalog_name,
-                                    SQLSMALLINT name_length1, SQLCHAR *schema_name, SQLSMALLINT name_length2,
-                                    SQLCHAR *table_name, SQLSMALLINT name_length3, SQLSMALLINT scope,
-                                    SQLSMALLINT nullable) {
-	std::cout << "***** SQLSpecialColumns" << std::endl;
-	return SQL_ERROR;
-}
-
-SQLRETURN SQL_API SQLStatistics(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
-                                SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
-                                SQLSMALLINT name_length3, SQLUSMALLINT unique, SQLUSMALLINT reserved) {
-	std::cout << "***** SQLStatistics" << std::endl;
-	return SQL_ERROR;
-}
-
 SQLRETURN SQL_API SQLBrowseConnect(SQLHDBC connection_handle, SQLCHAR *in_connection_string, SQLSMALLINT string_length1,
                                    SQLCHAR *out_connection_string, SQLSMALLINT buffer_length,
                                    SQLSMALLINT *string_length2_ptr) {

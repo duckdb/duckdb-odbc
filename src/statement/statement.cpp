@@ -154,6 +154,10 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 		hstmt->odbc_fetcher->cursor_scrollable = value;
 		return SQL_SUCCESS;
 	}
+	case SQL_ATTR_MAX_LENGTH: {
+		hstmt->client_attrs.max_len = (SQLULEN)(uintptr_t)value_ptr;
+		return SQL_SUCCESS;
+	}
 	default:
 		return duckdb::SetDiagnosticRecord(hstmt, SQL_SUCCESS_WITH_INFO, "SQLSetStmtAttr",
 		                                   "Option value changed:" + std::to_string(attribute), SQLStateType::ST_01S02,
@@ -293,6 +297,10 @@ SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 		*((SQLULEN *)value_ptr) = hstmt->odbc_fetcher->cursor_scrollable;
 		return SQL_SUCCESS;
 	}
+	case SQL_ATTR_MAX_LENGTH: {
+		*((SQLULEN *)value_ptr) = hstmt->client_attrs.max_len;
+		return SQL_SUCCESS;
+	}
 	case SQL_ATTR_ASYNC_ENABLE:
 #ifdef SQL_ATTR_ASYNC_STMT_EVENT
 	case SQL_ATTR_ASYNC_STMT_EVENT:
@@ -301,7 +309,6 @@ SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 	case SQL_ATTR_ENABLE_AUTO_IPD:
 	case SQL_ATTR_FETCH_BOOKMARK_PTR:
 	case SQL_ATTR_KEYSET_SIZE:
-	case SQL_ATTR_MAX_LENGTH:
 	case SQL_ATTR_MAX_ROWS:
 	case SQL_ATTR_METADATA_ID:
 	case SQL_ATTR_NOSCAN:
@@ -313,7 +320,7 @@ SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 	case SQL_ATTR_SIMULATE_CURSOR:
 	case SQL_ATTR_USE_BOOKMARKS:
 	default:
-		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLSetStmtAttr",
+		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetStmtAttr",
 		                                   "Unsupported attribute type:" + std::to_string(attribute),
 		                                   SQLStateType::ST_HY092, hstmt->dbc->GetDataSourceName());
 	}
@@ -400,6 +407,7 @@ SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQ
 	// .Net ODBC driver GetSchema() call includes "SYSTEM TABLE" (doesn't exist in DuckDB),
 	// and the regex tweaks below break if "SYSTEM TABLE" is in the query, so remove it
 	table_tp = std::regex_replace(table_tp, std::regex("('SYSTEM TABLE'|SYSTEM TABLE)"), "");
+	table_tp = std::regex_replace(table_tp, std::regex(",\\s*,"), ",");
 
 	table_tp = std::regex_replace(table_tp, std::regex("('TABLE'|TABLE)"), "'BASE TABLE'");
 	table_tp = std::regex_replace(table_tp, std::regex("('VIEW'|VIEW)"), "'VIEW'");
@@ -480,6 +488,56 @@ SQLRETURN SQL_API SQLColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, S
 	string sql_columns = OdbcUtils::GetQueryDuckdbColumns(catalog_filter, schema_filter, table_filter, column_filter);
 
 	ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_columns.c_str(), sql_columns.size());
+	if (!SQL_SUCCEEDED(ret)) {
+		return ret;
+	}
+	return SQL_SUCCESS;
+}
+
+SQLRETURN SQL_API SQLSpecialColumns(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
+                                    SQLSMALLINT name_length1, SQLCHAR *schema_name, SQLSMALLINT name_length2,
+                                    SQLCHAR *table_name, SQLSMALLINT name_length3, SQLUSMALLINT scope,
+                                    SQLUSMALLINT nullable) {
+	std::string query = R"#(
+SELECT
+	CAST(0  AS SMALLINT) AS "SCOPE",
+	CAST('' AS VARCHAR ) AS "COLUMN_NAME", 
+	CAST(0  AS SMALLINT) AS "DATA_TYPE",
+	CAST('' AS VARCHAR ) AS "TYPE_NAME",
+	CAST(0  AS INT     ) AS "COLUMN_SIZE",
+	CAST(0  AS INT     ) AS "BUFFER_LENGTH",
+	CAST(0  AS SMALLINT) AS "DECIMAL_DIGITS", 
+	CAST(0  AS SMALLINT) AS "PSEUDO_COLUMN"
+WHERE 1 < 0
+)#";
+	SQLRETURN ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), query.size());
+	if (!SQL_SUCCEEDED(ret)) {
+		return ret;
+	}
+	return SQL_SUCCESS;
+}
+
+SQLRETURN SQL_API SQLStatistics(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                                SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                                SQLSMALLINT name_length3, SQLUSMALLINT unique, SQLUSMALLINT reserved) {
+	std::string query = R"#(
+SELECT
+	CAST('' AS VARCHAR ) AS "TABLE_CAT",
+	CAST('' AS VARCHAR ) AS "TABLE_SCHEM",
+	CAST('' AS VARCHAR ) AS "TABLE_NAME",
+	CAST(0  AS SMALLINT) AS "NON_UNIQUE",
+	CAST('' AS VARCHAR ) AS "INDEX_QUALIFIER",
+	CAST('' AS VARCHAR ) AS "INDEX_NAME",
+	CAST(0  AS SMALLINT) AS "TYPE",
+	CAST(0  AS SMALLINT) AS "ORDINAL_POSITION",
+	CAST('' AS VARCHAR ) AS "COLUMN_NAME",
+	CAST('' AS CHAR(1) ) AS "ASC_OR_DESC",
+	CAST(0  AS INT     ) AS "CARDINALITY",
+	CAST(0  AS INT     ) AS "PAGES",
+	CAST('' AS VARCHAR ) AS "FILTER_CONDITION"
+WHERE 1 < 0
+)#";
+	SQLRETURN ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), query.size());
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
 	}

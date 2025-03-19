@@ -594,3 +594,32 @@ TEST_CASE("Test converting using SQLGetData", "[odbc]") {
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test SQLGetData with SQL_C_DEFAULT type", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	// Run the query
+	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT CAST(42 AS BIGINT)"), SQL_NTS);
+
+	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+	SQLSMALLINT value = 0;
+	SQLLEN out_len;
+	EXECUTE_AND_CHECK("SQLGetData", SQLGetData, hstmt, 1, SQL_C_DEFAULT, &value, sizeof(value), &out_len);
+	REQUIRE(42 == value);
+	REQUIRE(2 == out_len);
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
