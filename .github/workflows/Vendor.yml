@@ -7,6 +7,12 @@ on:
       - 'vendor.py'
       - 'src/duckdb'
   workflow_dispatch:
+    inputs:
+      duckdb-sha:
+        description: 'Vendor Specific DuckDB SHA'
+        required: false
+        default: ''
+        type: 'string'
   schedule:
     - cron: "17 0 * * *"
 
@@ -29,6 +35,11 @@ jobs:
           repository: duckdb/duckdb
           path: .git/duckdb
           fetch-depth: 0
+
+      - name: Get commit SHA
+        if: ${{ inputs.duckdb-sha != '' }}
+        run: |
+          cd .git/duckdb && git checkout ${{ inputs.duckdb-sha }}
 
       - uses: actions/setup-python@v5
         with:
