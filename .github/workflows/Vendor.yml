@@ -6,6 +6,13 @@ on:
     paths:
       - 'vendor.py'
       - 'src/duckdb'
+  workflow_call:
+    inputs:
+      duckdb-sha:
+        description: 'Vendor Specific DuckDB SHA'
+        required: false
+        default: ''
+        type: 'string'
   workflow_dispatch:
     inputs:
       duckdb-sha:
