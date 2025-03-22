@@ -643,6 +643,14 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 			}
 			break;
 		}
+		case LogicalTypeId::TIME: {
+			auto time_input = val.GetValue<dtime_t>();
+			// PyODBC requests DB TIME field as SQL_TYPE_TIMESTAMP, but the
+			// cast from dtime_t to timestamp_t is not implemented in the
+			// engine, so we create timestamp_t instance manually.
+			timestamp = timestamp_t(time_input.micros);
+			break;
+		}
 		case LogicalTypeId::VARCHAR: {
 			string val_str = val.GetValue<string>();
 			auto str_input = string_t(val_str);
