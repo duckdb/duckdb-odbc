@@ -34,6 +34,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
 
       - uses: actions/checkout@v4
         with:
@@ -73,13 +74,3 @@ jobs:
       - if: steps.vendor.outputs.vendor != '' && github.event_name != 'pull_request'
         run: |
           git push -u origin HEAD
-
-      - name: Wait for push to complete
-        if: steps.vendor.outputs.vendor != '' && github.event_name != 'pull_request'
-        run: sleep 10  # Give GitHub a moment to process the push
-
-  rebuild:
-    needs: vendor
-    if: ${{ needs.vendor.outputs.did_vendor != '' }}
-    uses: ./.github/workflows/ODBC.yml
-    secrets: inherit
