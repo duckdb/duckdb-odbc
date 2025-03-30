@@ -349,3 +349,38 @@ jobs:
         shell: bash
         run: ./test/run_pyodbc_tests.sh
 
+  odbc-merge-vendoring-pr:
+    name: Merge vendoring PR 
+    if: ${{ github.repository == 'duckdb/duckdb-odbc' && github.event_name == 'pull_request' && github.head_ref == 'vendoring' }}
+    needs:
+      - odbc-linux-amd64
+      - odbc-linux-aarch64
+      - odbc-windows-amd64
+      - debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge vendoring PR
+        id: merge_vendoring_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+            # echo "Merging PR number: ${{ github.event.pull_request.number }} with message: ${{ github.event.pull_request.title }}"
+            gh pr merge vendoring \
+             --rebase \
+             --subject "${{ github.event.pull_request.title }}" \
+             --body ""
+
+      - name: Update vendoring branch
+        id: update_vendoring_branch
+        if: ${{ steps.merge_vendoring_pr.outcome == 'success' }}
+        run: |
+            # Delete vendoring branch and re-create it for future PRs
+            git push --delete origin vendoring
+            git checkout --track origin/main
+            git pull --ff-only
+            git branch vendoring
+            git push origin vendoring
