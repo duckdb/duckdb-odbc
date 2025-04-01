@@ -10,6 +10,7 @@
 
 #include "duckdb/common/mutex.hpp"
 #include "duckdb/common/types.hpp"
+#include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/types/vector_cache.hpp"
 #include "duckdb/common/types/vector.hpp"
 
