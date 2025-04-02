@@ -22,9 +22,9 @@ fi
 FOLDER="$1"
 DRY_RUN_PARAM=""
 
-# dryrun if repo is not duckdb/duckdb-java
-if [ "$GITHUB_REPOSITORY" != "duckdb/duckdb-java" ]; then
-  echo "Repository is $GITHUB_REPOSITORY (not duckdb/duckdb-java)"
+# dryrun if repo is not duckdb/duckdb-odbc
+if [ "$GITHUB_REPOSITORY" != "duckdb/duckdb-odbc" ]; then
+  echo "Repository is $GITHUB_REPOSITORY (not duckdb/duckdb-odbc)"
   DRY_RUN_PARAM="--dryrun"
 fi
 # dryrun if we are not in main

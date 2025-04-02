@@ -4,6 +4,7 @@ include_directories(${ODBC_INCLUDE_DIRS})
 
 add_executable(
   test_odbc
+  $<TARGET_OBJECTS:duckdb_core_obj>
   common.cpp
   connect_helpers.cpp
   tests/alter.cpp
@@ -13,6 +14,7 @@ add_executable(
   tests/catalog_functions.cpp
   tests/connect.cpp
   tests/diagnostics.cpp
+  tests/extension.cpp
   tests/select.cpp
   tests/row_wise_fetching.cpp
   tests/set_attr.cpp
@@ -32,8 +34,9 @@ add_executable(
   tests/col_attribute/uuid_query.cpp
   tests/col_attribute/utils.cpp)
 
-add_executable(test_connection_odbc common.cpp tests/connect_with_ini.cpp
-                                    connect_helpers.cpp)
+add_executable(
+  test_connection_odbc $<TARGET_OBJECTS:duckdb_core_obj> common.cpp
+                       tests/connect_with_ini.cpp connect_helpers.cpp)
 
 if(WIN32)
   target_compile_options(test_odbc PRIVATE /bigobj)

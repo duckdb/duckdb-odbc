@@ -6,9 +6,20 @@ on:
     paths:
       - 'vendor.py'
       - 'src/duckdb'
+  workflow_call:
+    inputs:
+      duckdb-sha:
+        description: 'Vendor Specific DuckDB SHA'
+        required: false
+        default: ''
+        type: 'string'
   workflow_dispatch:
-  schedule:
-    - cron: "17 0 * * *"
+    inputs:
+      duckdb-sha:
+        description: 'Vendor Specific DuckDB SHA'
+        required: false
+        default: ''
+        type: 'string'
 
 jobs:
   vendor:
@@ -29,6 +40,11 @@ jobs:
           repository: duckdb/duckdb
           path: .git/duckdb
           fetch-depth: 0
+
+      - name: Get commit SHA
+        if: ${{ inputs.duckdb-sha != '' }}
+        run: |
+          cd .git/duckdb && git checkout ${{ inputs.duckdb-sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -57,13 +73,3 @@ jobs:
       - if: steps.vendor.outputs.vendor != '' && github.event_name != 'pull_request'
         run: |
           git push -u origin HEAD
-
-      - name: Wait for push to complete
-        if: steps.vendor.outputs.vendor != '' && github.event_name != 'pull_request'
-        run: sleep 10  # Give GitHub a moment to process the push
-
-  rebuild:
-    needs: vendor
-    if: ${{ needs.vendor.outputs.did_vendor != '' }}
-    uses: ./.github/workflows/ODBC.yml
-    secrets: inherit
