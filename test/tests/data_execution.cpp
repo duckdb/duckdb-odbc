@@ -16,8 +16,8 @@ static void DataAtExecution(HSTMT &hstmt) {
 	                  param_1_bytes, 0, ConvertToSQLPOINTER(1), 0, &param_1_len);
 
 	SQLLEN param_2_len = SQL_DATA_AT_EXEC;
-	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 2, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARCHAR, 6, 0,
-	                  ConvertToSQLPOINTER(2), 0, &param_2_len);
+	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 2, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARCHAR,
+	                  6, 0, ConvertToSQLPOINTER(2), 0, &param_2_len);
 
 	// Execute the statement
 	SQLRETURN ret = SQLExecute(hstmt);
@@ -52,22 +52,22 @@ static void ArrayBindingDataAtExecution(HSTMT &hstmt) {
 	SQLULEN num_processed;
 
 	// Prepare a statement
-	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT id FROM bytea_table WHERE t = ?"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
+	                  ConvertToSQLCHAR("SELECT id FROM bytea_table WHERE t = ?"), SQL_NTS);
 
 	// Set STMT attributes PARAM_BIND_TYPE, PARAM_STATUS_PTR, PARAMS_PROCESSED_PTR, and PARAMSET_SIZE
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAM_BIND_TYPE,
-	                  reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr(SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAM_STATUS_PTR,
-	                  status, 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_BIND_TYPE, reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr(SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_STATUS_PTR, status, 0);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr(SQL_ATTR_PARAMS_PROCESSED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
 	                  SQL_ATTR_PARAMS_PROCESSED_PTR, &num_processed, 0);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr(SQL_ATTR_PARAMSET_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAMSET_SIZE,
 	                  ConvertToSQLPOINTER(2), 0);
 
 	// Bind the array
-	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARBINARY, 5,
-	                  0, ConvertToSQLPOINTER(1), 0, str_ind);
+	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_BINARY,
+	                  SQL_VARBINARY, 5, 0, ConvertToSQLPOINTER(1), 0, str_ind);
 
 	// Execute the statement
 	SQLRETURN ret = SQLExecute(hstmt);

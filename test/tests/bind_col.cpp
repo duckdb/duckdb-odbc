@@ -55,8 +55,8 @@ TEST_CASE("Test SQLBindCol (binding columns to application buffers)", "[odbc]") 
 		}
 		// rebind the text field on row 5 and 9
 		if (row_num == 5 || row_num == 9) {
-			EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", hstmt, SQLBindCol, hstmt, 2, SQL_C_CHAR, &char_value, sizeof(char_value),
-			                  &ind_char_value);
+			EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", hstmt, SQLBindCol, hstmt, 2, SQL_C_CHAR, &char_value,
+			                  sizeof(char_value), &ind_char_value);
 		}
 		// unbind both fields on row 7 using SQLFreeStmt(SQL_UNBIND)
 		if (row_num == 7) {

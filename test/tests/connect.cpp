@@ -21,8 +21,8 @@ void ConnectWithoutDSN(SQLHANDLE &env, SQLHANDLE &dbc) {
 
 	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
-	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(conn_str.c_str()), SQL_NTS,
-	                  str, sizeof(str), &strl, SQL_DRIVER_COMPLETE);
+	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(conn_str.c_str()),
+	                  SQL_NTS, str, sizeof(str), &strl, SQL_DRIVER_COMPLETE);
 }
 
 // Connect to a database with extra keywords provided by Power Query SDK
@@ -266,8 +266,8 @@ TEST_CASE("Connect with named file, disconnect and reconnect", "[odbc]") {
 	                  ConvertToSQLCHAR("INSERT INTO test_table VALUES (1)"), SQL_NTS);
 
 	// select the row
-	EXECUTE_AND_CHECK("SQLExecDirect (select row)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (select row)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT * FROM test_table"), SQL_NTS);
 
 	// Fetch the result
 	EXECUTE_AND_CHECK("SQLFetch (select row)", hstmt, SQLFetch, hstmt);
@@ -285,8 +285,8 @@ TEST_CASE("Connect with named file, disconnect and reconnect", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// select the row
-	EXECUTE_AND_CHECK("SQLExecDirect (select row)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (select row)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT * FROM test_table"), SQL_NTS);
 
 	// Fetch the result
 	EXECUTE_AND_CHECK("SQLFetch (select row)", hstmt, SQLFetch, hstmt);

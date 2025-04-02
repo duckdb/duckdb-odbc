@@ -31,8 +31,8 @@ static void PreparedWithTest(HSTMT &hstmt) {
 
 	SQLINTEGER param = 3;
 	SQLLEN param_len = sizeof(param);
-	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_INTEGER, SQL_INTEGER, 0, 0,
-	                  &param, sizeof(param), &param_len);
+	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_INTEGER, SQL_INTEGER,
+	                  0, 0, &param, sizeof(param), &param_len);
 
 	EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
 

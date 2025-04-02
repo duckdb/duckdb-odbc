@@ -25,14 +25,14 @@ TEST_CASE("Test bools to char conversion", "[odbc]") {
 	 */
 
 	// Prepare a statement
-	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT id, t, b FROM bool_table WHERE t = ?"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
+	                  ConvertToSQLCHAR("SELECT id, t, b FROM bool_table WHERE t = ?"), SQL_NTS);
 
 	// Bind param
 	const char *param = "yes";
 	SQLLEN param_len = SQL_NTS;
-	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR, 5, 0,
-	                  (SQLPOINTER)param, strlen(param), &param_len);
+	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR,
+	                  5, 0, (SQLPOINTER)param, strlen(param), &param_len);
 
 	// Execute
 	EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
@@ -54,8 +54,8 @@ TEST_CASE("Test bools to char conversion", "[odbc]") {
 	// Bind param
 	param = "true";
 	param_len = SQL_NTS;
-	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR, 5, 0,
-	                  (SQLPOINTER)param, strlen(param), &param_len);
+	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR,
+	                  5, 0, (SQLPOINTER)param, strlen(param), &param_len);
 
 	// Execute
 	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,

@@ -15,7 +15,7 @@ TEST_CASE("Test Select Statement", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Execute a simple query
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT 1 UNION ALL SELECT 2)",  hstmt,SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT 1 UNION ALL SELECT 2)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT 1 UNION ALL SELECT 2"), SQL_NTS);
 
 	// Fetch the first row
@@ -39,8 +39,8 @@ TEST_CASE("Test Select Statement", "[odbc]") {
 		}
 	}
 
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT 1600 columns)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query.c_str()),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT 1600 columns)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR(query.c_str()), SQL_NTS);
 
 	// Fetch the first row
 	EXECUTE_AND_CHECK("SQLFetch (SELECT 1600 columns)", hstmt, SQLFetch, hstmt);

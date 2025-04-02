@@ -106,8 +106,8 @@ TEST_CASE("Test setting cursor attributes, and closing the cursor", "[odbc]") {
 	// Connect to the database using SQLConnect
 	CONNECT_TO_DATABASE(env, dbc);
 
-	EXECUTE_AND_CHECK("SQLSetConnectAttr", nullptr, SQLSetConnectAttr, dbc, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_OFF,
-	                  SQL_IS_INTEGER);
+	EXECUTE_AND_CHECK("SQLSetConnectAttr", nullptr, SQLSetConnectAttr, dbc, SQL_ATTR_AUTOCOMMIT,
+	                  (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_INTEGER);
 
 	SimpleCursorCommitTest(dbc);
 	PreparedCursorCommitTest(dbc);

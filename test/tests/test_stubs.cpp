@@ -16,7 +16,8 @@ TEST_CASE("Test SQLSpecialColumns and SQLStatistics stubs", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	{ // Check SQLSpecialColumns
-		EXECUTE_AND_CHECK("SQLSpecialColumns", hstmt, SQLSpecialColumns, hstmt, 0, nullptr, 0, nullptr, 0, nullptr, 0, 0, 0);
+		EXECUTE_AND_CHECK("SQLSpecialColumns", hstmt, SQLSpecialColumns, hstmt, 0, nullptr, 0, nullptr, 0, nullptr, 0,
+		                  0, 0);
 
 		// Check columns
 		SQLSMALLINT col_count;
