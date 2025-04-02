@@ -146,8 +146,8 @@ void DRIVER_CONNECT_TO_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc, const std::strin
 
 	// SQLDriverConnect establishes connections to a driver and a data source.
 	// Supports data sources that require more connection information than the three arguments in SQLConnect.
-	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, str,
-	                  sizeof(str), &strl, SQL_DRIVER_COMPLETE);
+	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(dsn.c_str()),
+	                  SQL_NTS, str, sizeof(str), &strl, SQL_DRIVER_COMPLETE);
 }
 
 void CONNECT_TO_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
@@ -162,7 +162,8 @@ void CONNECT_TO_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
 	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
 	// SQLConnect establishes connections to a driver and a data source.
-	EXECUTE_AND_CHECK("SQLConnect", nullptr, SQLConnect, dbc, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, nullptr, 0, nullptr, 0);
+	EXECUTE_AND_CHECK("SQLConnect", nullptr, SQLConnect, dbc, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, nullptr, 0,
+	                  nullptr, 0);
 }
 
 void DISCONNECT_FROM_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
@@ -174,7 +175,8 @@ void DISCONNECT_FROM_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
 }
 
 void EXEC_SQL(HSTMT hstmt, const std::string &query) {
-	EXECUTE_AND_CHECK("SQLExecDirect (" + query + ")", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query.c_str()), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (" + query + ")", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query.c_str()),
+	                  SQL_NTS);
 }
 
 void InitializeDatabase(HSTMT &hstmt) {

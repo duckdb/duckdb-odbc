@@ -65,7 +65,8 @@ void TestGetTypeInfo(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 	SQLINTEGER data_type;
 	SQLLEN row_count = 0;
 	SQLLEN len_or_ind_ptr;
-	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 2, SQL_INTEGER, &data_type, sizeof(data_type), &len_or_ind_ptr);
+	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 2, SQL_INTEGER, &data_type, sizeof(data_type),
+	                  &len_or_ind_ptr);
 	EXECUTE_AND_CHECK("SQLGetTypeInfo(SQL_ALL_TYPES)", hstmt, SQLGetTypeInfo, hstmt, SQL_ALL_TYPES);
 
 	SQLINTEGER data_types[] = {
@@ -179,8 +180,8 @@ static void TestSQLTablesLong(HSTMT &hstmt) {
 	// FIXME: this test is broken
 	return;
 
-	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, ConvertToSQLCHAR(""), SQL_NTS, ConvertToSQLCHAR("main"), SQL_NTS,
-	                  ConvertToSQLCHAR("test_table_%"), SQL_NTS,
+	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, ConvertToSQLCHAR(""), SQL_NTS, ConvertToSQLCHAR("main"),
+	                  SQL_NTS, ConvertToSQLCHAR("test_table_%"), SQL_NTS,
 	                  ConvertToSQLCHAR("1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,'TABLE'"),
 	                  SQL_NTS);
 
@@ -208,8 +209,8 @@ static void TestSQLTablesSchema(HSTMT &hstmt) {
 	DATA_CHECK(hstmt, 4, "TABLE");
 
 	// No schema name should give all tables, including main schema
-	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR(""), SQL_NTS, ConvertToSQLCHAR("%"),
-	                  SQL_NTS, ConvertToSQLCHAR("TABLE"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR(""), SQL_NTS,
+	                  ConvertToSQLCHAR("%"), SQL_NTS, ConvertToSQLCHAR("TABLE"), SQL_NTS);
 
 	std::vector<std::array<std::string, 4>> expected_data = {
 	    {"test_table_2", "ducks"},  {"bool_table", "main"},    {"bytea_table", "main"}, {"decimal_table", "main"},
@@ -437,7 +438,8 @@ TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescrib
 	SQLINTEGER sql_data_type;
 	SQLINTEGER data_type;
 	SQLLEN len_or_ind_ptr;
-	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type), &len_or_ind_ptr);
+	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type),
+	                  &len_or_ind_ptr);
 	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 14, SQL_INTEGER, &sql_data_type, sizeof(sql_data_type),
 	                  &len_or_ind_ptr);
 
@@ -460,8 +462,8 @@ TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescrib
 
 	// Use SQLDescribeCol to assert that the data type is the same for each column
 	// Select * from the table
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT *)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT *)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT * FROM test_table"), SQL_NTS);
 
 	// Fetch the results
 	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);

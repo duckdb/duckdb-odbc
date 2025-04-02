@@ -35,8 +35,8 @@ static void TestRowWiseExampleTable(HSTMT &hstmt) {
 	                  reinterpret_cast<SQLPOINTER>(ROW_ARRAY_SIZE), 0);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_STATUS_PTR,
 	                  row_array_status, 0);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
-	                  &rows_fetched, 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_ROWS_FETCHED_PTR, &rows_fetched, 0);
 
 	// Bind elements of the first structure in the array to the OrderID,
 	// SalesPerson, and Status columns.
@@ -106,8 +106,8 @@ void TestManySQLTypes(HSTMT &hstmt) {
 	                  row_array_status, 0);
 	// Specify the address of the variable that will receive the number of rows fetched with the
 	// SQL_ATTR_ROWS_FETCHED_PTR
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
-	                  &rows_fetched, 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_ROWS_FETCHED_PTR, &rows_fetched, 0);
 
 	// Bind elements of the first structure to the array
 	EXECUTE_AND_CHECK("SQLBindCol (b)", hstmt, SQLBindCol, hstmt, 1, SQL_C_CHAR, many_sql_types[0].b,

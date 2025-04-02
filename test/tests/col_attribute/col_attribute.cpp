@@ -37,14 +37,14 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		char buffer[64];
 
 		// Get the column label
-		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_LABEL, buffer, sizeof(buffer), nullptr,
-		                  nullptr);
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_LABEL, buffer, sizeof(buffer),
+		                  nullptr, nullptr);
 
 		// Get the column name and base column name
 		char col_name[64];
 		char base_col_name[64];
-		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_NAME, col_name, sizeof(col_name),
-		                  nullptr, nullptr);
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_NAME, col_name,
+		                  sizeof(col_name), nullptr, nullptr);
 		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_BASE_COLUMN_NAME, base_col_name,
 		                  sizeof(base_col_name), nullptr, nullptr);
 		REQUIRE(STR_EQUAL(col_name, base_col_name));
@@ -90,8 +90,8 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		CheckInteger(hstmt, 0, SQL_DESC_OCTET_LENGTH);
 
 		// Get the column type name
-		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_TYPE_NAME, buffer, sizeof(buffer),
-		                  nullptr, nullptr);
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_TYPE_NAME, buffer,
+		                  sizeof(buffer), nullptr, nullptr);
 		switch (i) {
 		case 1:
 			REQUIRE(STR_EQUAL(buffer, "INT32"));
@@ -126,8 +126,8 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("select * From colattrfoo"), SQL_NTS);
 
 	SQLLEN fixed_prec_scale;
-	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 1, SQL_DESC_FIXED_PREC_SCALE, nullptr, 0, nullptr,
-	                  &fixed_prec_scale);
+	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 1, SQL_DESC_FIXED_PREC_SCALE, nullptr, 0,
+	                  nullptr, &fixed_prec_scale);
 
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);

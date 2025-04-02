@@ -608,7 +608,8 @@ TEST_CASE("Test SQLGetData with SQL_C_DEFAULT type", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Run the query
-	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT CAST(42 AS BIGINT)"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT CAST(42 AS BIGINT)"),
+	                  SQL_NTS);
 
 	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 	SQLSMALLINT value = 0;

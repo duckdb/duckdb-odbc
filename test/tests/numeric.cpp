@@ -84,23 +84,24 @@ TEST_CASE("Test numeric limits and conversion", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Test 25.212 with default precision and scale
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric)", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric)", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric"),
+	                  SQL_NTS);
 	TestNumericParams(hstmt, 1, "7C62", 5, 3, "25.212");
 
 	// Test 0 (negative and positive) with precision 1 and scale 0
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(1,0))", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(1,0)"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(1,0))", hstmt, SQLPrepare, hstmt,
+	                  ConvertToSQLCHAR("SELECT ?::numeric(1,0)"), SQL_NTS);
 	TestNumericParams(hstmt, 1, "00", 1, 0, "0");
 	TestNumericParams(hstmt, 0, "00", 1, 0, "0");
 
 	// Test 7.70 with precision 3 and scale 2
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(3,2))", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(3,2)"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(3,2))", hstmt, SQLPrepare, hstmt,
+	                  ConvertToSQLCHAR("SELECT ?::numeric(3,2)"), SQL_NTS);
 	TestNumericParams(hstmt, 1, "0203", 3, 2, "7.70");
 
 	// Test 12345678901234567890123456789012345678 with precision 38 and scale 0
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(38,0))", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(38,0)"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(38,0))", hstmt, SQLPrepare, hstmt,
+	                  ConvertToSQLCHAR("SELECT ?::numeric(38,0)"), SQL_NTS);
 	TestNumericParams(hstmt, 1, "4EF338DE509049C4133302F0F6B04909", 38, 0, "12345678901234567890123456789012345678");
 
 	// Test setting numeric struct within the application

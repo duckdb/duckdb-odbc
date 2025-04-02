@@ -27,13 +27,13 @@ TEST_CASE("Test binding multiple columsn at once", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Set the SQL_ATTR_PARAM_BIND_TYPE statement attribute to use column-wise binding.
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAM_BIND_TYPE,
-	                  reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_BIND_TYPE, reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
 
 	// Specify an array in which to return the status of each set of parameters.
 	SQLUSMALLINT param_status[MAX_INSERT_COUNT];
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAM_STATUS_PTR,
-	                  param_status, 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_STATUS_PTR, param_status, 0);
 
 	// Specify an SQLULEN value into which to return the number of sets of parameters processed.
 	SQLULEN params_processed;
@@ -90,8 +90,10 @@ TEST_CASE("Test binding multiple columsn at once", "[odbc]") {
 		}
 		ODBC_CHECK(ret, "SQLFetch", hstmt);
 		for (int j = 0; j < params_processed; j++) {
-			EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_CHAR, c1[j], MAX_BUFFER_SIZE, &c1_ind[j]);
-			EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 2, SQL_C_CHAR, c2[j], MAX_BUFFER_SIZE, &c2_ind[j]);
+			EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_CHAR, c1[j], MAX_BUFFER_SIZE,
+			                  &c1_ind[j]);
+			EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 2, SQL_C_CHAR, c2[j], MAX_BUFFER_SIZE,
+			                  &c2_ind[j]);
 		}
 	}
 

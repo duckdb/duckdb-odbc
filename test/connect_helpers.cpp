@@ -25,7 +25,7 @@ void CheckDatabase(SQLHANDLE &dbc) {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Select * from customers
-	EXECUTE_AND_CHECK("SQLExecDirect (FROM string_values)",  hstmt, SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect (FROM string_values)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("FROM string_values"), SQL_NTS);
 
 	// Fetch the first row and check the data

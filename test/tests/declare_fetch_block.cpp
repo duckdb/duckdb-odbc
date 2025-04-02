@@ -34,7 +34,8 @@ static void BlockCursor(HSTMT &hstmt, ESize S, SQLINTEGER *&id, SQLLEN *&id_ind)
 	EXECUTE_AND_CHECK("SQLBindCol (id)", hstmt, SQLBindCol, hstmt, 1, SQL_C_SLONG, id, 0, id_ind);
 
 	// Execute the query
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"),
+	                  SQL_NTS);
 
 	int expected_rows_fetched = 0;
 	if (S == SMALL) {
@@ -89,7 +90,8 @@ static void ScrollNext(HSTMT &hstmt, ESize S) {
 	REQUIRE(ret == SQL_SUCCESS_WITH_INFO);
 
 	// Execute the query
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"),
+	                  SQL_NTS);
 
 	// Fetch results using SQLFetchScroll
 	for (int i = 0; i < 2; i++) {

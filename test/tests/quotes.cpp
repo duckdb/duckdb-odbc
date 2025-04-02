@@ -9,8 +9,8 @@ static void BindParamAndExecute(HSTMT &hstmt, SQLCHAR *query, SQLCHAR *param,
                                 const std::vector<std::string> &expected_result) {
 	SQLLEN len = strlen((char *)param);
 
-	EXECUTE_AND_CHECK("SQLBindParameter (param)", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_CHAR, 20,
-	                  0, param, len, &len);
+	EXECUTE_AND_CHECK("SQLBindParameter (param)", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR,
+	                  SQL_CHAR, 20, 0, param, len, &len);
 
 	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, query, SQL_NTS);
 
