@@ -19,19 +19,20 @@ struct MetadataData {
 	SQLSMALLINT col_type;
 };
 
-void ODBC_CHECK(SQLRETURN ret, const std::string &func);
+void ODBC_CHECK(SQLRETURN ret, const std::string &func, HSTMT hstmt);
 
 /**
  * @brief
  * Two for one special! Runs the function passed as a param and then checks the return value using ODBC_CHECK.
  * @param msg The message to print if the return value is not SQL_SUCCESS
+ * @param hstmt A statement handle
  * @param func The function to run
  * @param args The arguments to pass to the function
  */
 template <typename MSG, typename FUNC, typename... ARGS>
-void EXECUTE_AND_CHECK(MSG msg, FUNC func, ARGS... args) {
+void EXECUTE_AND_CHECK(MSG msg, HSTMT hstmt, FUNC func, ARGS... args) {
 	SQLRETURN ret = func(args...);
-	ODBC_CHECK(ret, msg);
+	ODBC_CHECK(ret, msg, hstmt);
 }
 
 /**

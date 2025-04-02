@@ -16,12 +16,12 @@ void ConnectWithoutDSN(SQLHANDLE &env, SQLHANDLE &dbc) {
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
 	REQUIRE(ret == SQL_SUCCESS);
 
-	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
 	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
-	EXECUTE_AND_CHECK("SQLDriverConnect", SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(conn_str.c_str()), SQL_NTS,
+	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(conn_str.c_str()), SQL_NTS,
 	                  str, sizeof(str), &strl, SQL_DRIVER_COMPLETE);
 }
 
@@ -37,12 +37,12 @@ void ConnectWithPowerQuerySDK(SQLHANDLE &env, SQLHANDLE &dbc) {
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
 	REQUIRE(ret == SQL_SUCCESS);
 
-	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
 	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
-	EXECUTE_AND_CHECK("SQLDriverConnect", SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(conn_str), SQL_NTS,
+	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(conn_str), SQL_NTS,
 	                  out_str_vec.data(), out_str_vec.size(), &out_str_len, SQL_DRIVER_COMPLETE);
 	REQUIRE(out_str_len > 0);
 	auto out_str = std::string(reinterpret_cast<char *>(out_str_vec.data()), static_cast<std::size_t>(out_str_len));
@@ -62,10 +62,10 @@ void ConnectWithIncorrectParam(std::string param) {
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
 	REQUIRE(ret == SQL_SUCCESS);
 
-	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
 	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
 	ret = SQLDriverConnect(dbc, nullptr, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, str, sizeof(str), &strl,
 	                       SQL_DRIVER_COMPLETE);
@@ -174,18 +174,18 @@ TEST_CASE("Test user_agent - in-memory database", "[odbc][useragent]") {
 	DRIVER_CONNECT_TO_DATABASE(env, dbc, "");
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Execute a simple query
 	EXECUTE_AND_CHECK(
-	    "SQLExecDirect (get user_agent)", SQLExecDirect, hstmt,
+	    "SQLExecDirect (get user_agent)", hstmt, SQLExecDirect, hstmt,
 	    ConvertToSQLCHAR("SELECT regexp_matches(user_agent, '^duckdb/.*(.*) odbc') FROM pragma_user_agent()"), SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch (get user_agent)", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch (get user_agent)", hstmt, SQLFetch, hstmt);
 	DATA_CHECK(hstmt, 1, "true");
 
 	// Free the env handle
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
@@ -200,18 +200,18 @@ TEST_CASE("Test user_agent - named database", "[odbc][useragent]") {
 	DRIVER_CONNECT_TO_DATABASE(env, dbc, "Database=test_odbc_named.db");
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Execute a simple query
 	EXECUTE_AND_CHECK(
-	    "SQLExecDirect (get user_agent)", SQLExecDirect, hstmt,
+	    "SQLExecDirect (get user_agent)", hstmt, SQLExecDirect, hstmt,
 	    ConvertToSQLCHAR("SELECT regexp_matches(user_agent, '^duckdb/.*(.*) odbc') FROM pragma_user_agent()"), SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch (get user_agent)", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch (get user_agent)", hstmt, SQLFetch, hstmt);
 	DATA_CHECK(hstmt, 1, "true");
 
 	// Free the env handle
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
@@ -227,20 +227,20 @@ TEST_CASE("Test user_agent - named database, custom useragent", "[odbc][useragen
 	DRIVER_CONNECT_TO_DATABASE(env, dbc, "Database=test_odbc_named_ua.db;custom_user_agent=CUSTOM_STRING");
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Execute a simple query
 	EXECUTE_AND_CHECK(
-	    "SQLExecDirect (get user_agent)", SQLExecDirect, hstmt,
+	    "SQLExecDirect (get user_agent)", hstmt, SQLExecDirect, hstmt,
 	    ConvertToSQLCHAR(
 	        "SELECT regexp_matches(user_agent, '^duckdb/.*(.*) odbc CUSTOM_STRING') FROM pragma_user_agent()"),
 	    SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch (get user_agent)", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch (get user_agent)", hstmt, SQLFetch, hstmt);
 	DATA_CHECK(hstmt, 1, "true");
 
 	// Free the env handle
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
@@ -255,22 +255,22 @@ TEST_CASE("Connect with named file, disconnect and reconnect", "[odbc]") {
 	// Connect to the database using SQLConnect
 	DRIVER_CONNECT_TO_DATABASE(env, dbc, "Database=test_odbc_named.db");
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// create a table
-	EXECUTE_AND_CHECK("SQLExecDirect (create table)", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect (create table)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("CREATE OR REPLACE TABLE test_table (a INTEGER)"), SQL_NTS);
 
 	// insert a row
-	EXECUTE_AND_CHECK("SQLExecDirect (insert row)", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect (insert row)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("INSERT INTO test_table VALUES (1)"), SQL_NTS);
 
 	// select the row
-	EXECUTE_AND_CHECK("SQLExecDirect (select row)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
+	EXECUTE_AND_CHECK("SQLExecDirect (select row)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
 	                  SQL_NTS);
 
 	// Fetch the result
-	EXECUTE_AND_CHECK("SQLFetch (select row)", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch (select row)", hstmt, SQLFetch, hstmt);
 
 	// Check the result
 	DATA_CHECK(hstmt, 1, "1");
@@ -282,14 +282,14 @@ TEST_CASE("Connect with named file, disconnect and reconnect", "[odbc]") {
 	DRIVER_CONNECT_TO_DATABASE(env, dbc, "Database=test_odbc_named.db");
 
 	hstmt = SQL_NULL_HSTMT;
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// select the row
-	EXECUTE_AND_CHECK("SQLExecDirect (select row)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
+	EXECUTE_AND_CHECK("SQLExecDirect (select row)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test_table"),
 	                  SQL_NTS);
 
 	// Fetch the result
-	EXECUTE_AND_CHECK("SQLFetch (select row)", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch (select row)", hstmt, SQLFetch, hstmt);
 
 	// Check the result
 	DATA_CHECK(hstmt, 1, "1");

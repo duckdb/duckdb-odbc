@@ -29,31 +29,31 @@ static void TestRowWiseExampleTable(HSTMT &hstmt) {
 	// NumRowsFetched.
 
 	SQLULEN row_bind_type = sizeof(t_order_info);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_BIND_TYPE)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_BIND_TYPE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_BIND_TYPE,
 	                  reinterpret_cast<SQLPOINTER>(row_bind_type), 0);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_ARRAY_SIZE)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_ARRAY_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
 	                  reinterpret_cast<SQLPOINTER>(ROW_ARRAY_SIZE), 0);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_STATUS_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_STATUS_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_STATUS_PTR,
 	                  row_array_status, 0);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
 	                  &rows_fetched, 0);
 
 	// Bind elements of the first structure in the array to the OrderID,
 	// SalesPerson, and Status columns.
-	EXECUTE_AND_CHECK("SQLBindCol (OrderID)", SQLBindCol, hstmt, 1, SQL_C_ULONG, &order_info[0].order_id, 0,
+	EXECUTE_AND_CHECK("SQLBindCol (OrderID)", hstmt, SQLBindCol, hstmt, 1, SQL_C_ULONG, &order_info[0].order_id, 0,
 	                  &order_info[0].order_id_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (SalesPerson)", SQLBindCol, hstmt, 2, SQL_C_CHAR, order_info[0].sales_person,
+	EXECUTE_AND_CHECK("SQLBindCol (SalesPerson)", hstmt, SQLBindCol, hstmt, 2, SQL_C_CHAR, order_info[0].sales_person,
 	                  sizeof(order_info[0].sales_person), &order_info[0].sales_person_len_or_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (Status)", SQLBindCol, hstmt, 3, SQL_C_CHAR, order_info[0].status,
+	EXECUTE_AND_CHECK("SQLBindCol (Status)", hstmt, SQLBindCol, hstmt, 3, SQL_C_CHAR, order_info[0].status,
 	                  sizeof(order_info[0].status), &order_info[0].status_len_or_ind);
 
 	// Execute a statement to retrieve rows from the Orders table.
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT i AS OrderID, i::VARCHAR || 'SalesPerson' AS SalesPerson, i::VARCHAR || "
 	                                   "'Status' AS Status FROM range(10) t(i)"),
 	                  SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetchScroll", SQLFetchScroll, hstmt, SQL_FETCH_NEXT, 0);
+	EXECUTE_AND_CHECK("SQLFetchScroll", hstmt, SQLFetchScroll, hstmt, SQL_FETCH_NEXT, 0);
 	REQUIRE(rows_fetched == ROW_ARRAY_SIZE);
 	for (int i = 0; i < rows_fetched; i++) {
 		if (row_array_status[i] == SQL_ROW_SUCCESS || row_array_status[i] == SQL_ROW_SUCCESS_WITH_INFO) {
@@ -66,7 +66,7 @@ static void TestRowWiseExampleTable(HSTMT &hstmt) {
 		}
 	}
 
-	EXECUTE_AND_CHECK("SQLCloseCursor", SQLCloseCursor, hstmt);
+	EXECUTE_AND_CHECK("SQLCloseCursor", hstmt, SQLCloseCursor, hstmt);
 }
 
 typedef struct s_many_sql_types {
@@ -96,43 +96,43 @@ void TestManySQLTypes(HSTMT &hstmt) {
 	// SQLSetStmtAttr is used to set attributes that govern the behavior of a statement.
 
 	// Specify the size of the structure with the SQL_ATTR_ROW_BIND_TYPE
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_BIND_TYPE)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_BIND_TYPE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_BIND_TYPE,
 	                  reinterpret_cast<SQLPOINTER>(row_size), 0);
 	// Specify the number of rows to be fetched with the SQL_ATTR_ROW_ARRAY_SIZE
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_ARRAY_SIZE)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_ARRAY_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
 	                  reinterpret_cast<SQLPOINTER>(ROW_ARRAY_SIZE), 0);
 	// Specify the address of the array of row status pointers with the SQL_ATTR_ROW_STATUS_PTR
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_STATUS_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_STATUS_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_STATUS_PTR,
 	                  row_array_status, 0);
 	// Specify the address of the variable that will receive the number of rows fetched with the
 	// SQL_ATTR_ROWS_FETCHED_PTR
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
 	                  &rows_fetched, 0);
 
 	// Bind elements of the first structure to the array
-	EXECUTE_AND_CHECK("SQLBindCol (b)", SQLBindCol, hstmt, 1, SQL_C_CHAR, many_sql_types[0].b,
+	EXECUTE_AND_CHECK("SQLBindCol (b)", hstmt, SQLBindCol, hstmt, 1, SQL_C_CHAR, many_sql_types[0].b,
 	                  sizeof(many_sql_types[0].b), &many_sql_types[0].b_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (u_i)", SQLBindCol, hstmt, 2, SQL_C_ULONG, &many_sql_types[0].u_i,
+	EXECUTE_AND_CHECK("SQLBindCol (u_i)", hstmt, SQLBindCol, hstmt, 2, SQL_C_ULONG, &many_sql_types[0].u_i,
 	                  sizeof(many_sql_types[0].u_i), &many_sql_types[0].u_i_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (i)", SQLBindCol, hstmt, 3, SQL_C_LONG, &many_sql_types[0].i,
+	EXECUTE_AND_CHECK("SQLBindCol (i)", hstmt, SQLBindCol, hstmt, 3, SQL_C_LONG, &many_sql_types[0].i,
 	                  sizeof(many_sql_types[0].i), &many_sql_types[0].i_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (d)", SQLBindCol, hstmt, 4, SQL_C_DOUBLE, &many_sql_types[0].d,
+	EXECUTE_AND_CHECK("SQLBindCol (d)", hstmt, SQLBindCol, hstmt, 4, SQL_C_DOUBLE, &many_sql_types[0].d,
 	                  sizeof(many_sql_types[0].d), &many_sql_types[0].d_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (n)", SQLBindCol, hstmt, 5, SQL_C_NUMERIC, &many_sql_types[0].n,
+	EXECUTE_AND_CHECK("SQLBindCol (n)", hstmt, SQLBindCol, hstmt, 5, SQL_C_NUMERIC, &many_sql_types[0].n,
 	                  sizeof(many_sql_types[0].n), &many_sql_types[0].n_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (vchar)", SQLBindCol, hstmt, 6, SQL_C_CHAR, many_sql_types[0].vchar,
+	EXECUTE_AND_CHECK("SQLBindCol (vchar)", hstmt, SQLBindCol, hstmt, 6, SQL_C_CHAR, many_sql_types[0].vchar,
 	                  sizeof(many_sql_types[0].vchar), &many_sql_types[0].vchar_len_or_ind);
-	EXECUTE_AND_CHECK("SQLBindCol (date)", SQLBindCol, hstmt, 7, SQL_C_TYPE_DATE, many_sql_types[0].date,
+	EXECUTE_AND_CHECK("SQLBindCol (date)", hstmt, SQLBindCol, hstmt, 7, SQL_C_TYPE_DATE, many_sql_types[0].date,
 	                  sizeof(many_sql_types[0].date), &many_sql_types[0].date_len_or_ind);
 
 	EXECUTE_AND_CHECK(
-	    "SQLExecDirect", SQLExecDirect, hstmt,
+	    "SQLExecDirect", hstmt, SQLExecDirect, hstmt,
 	    ConvertToSQLCHAR("SELECT i::bool::char, i::uint8, i::int8, i::double, i::numeric, i::varchar || '-Varchar',"
 	                     "('200' || i::char || '-10-1' || i::char )::date FROM range(10) t(i)"),
 	    SQL_NTS);
 
 	// Fetch the data using SQLFetchScroll which fetches the next rowset of data from the result set.
-	EXECUTE_AND_CHECK("SQLFetchScroll", SQLFetchScroll, hstmt, SQL_FETCH_NEXT, 0);
+	EXECUTE_AND_CHECK("SQLFetchScroll", hstmt, SQLFetchScroll, hstmt, SQL_FETCH_NEXT, 0);
 	REQUIRE(rows_fetched == ROW_ARRAY_SIZE);
 
 	for (int i = 0; i < ROW_ARRAY_SIZE; i++) {
@@ -155,7 +155,7 @@ void TestManySQLTypes(HSTMT &hstmt) {
 		REQUIRE(date->day == 10 + i);
 	}
 
-	EXECUTE_AND_CHECK("SQLCloseCursor", SQLCloseCursor, hstmt);
+	EXECUTE_AND_CHECK("SQLCloseCursor", hstmt, SQLCloseCursor, hstmt);
 }
 
 TEST_CASE("Test Row Wise Testing and SQLFetchScroll", "[odbc]") {
@@ -167,7 +167,7 @@ TEST_CASE("Test Row Wise Testing and SQLFetchScroll", "[odbc]") {
 	// Connect to the database using SQLConnect
 	CONNECT_TO_DATABASE(env, dbc);
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Test taken from ODBC documentation
 	TestRowWiseExampleTable(hstmt);
@@ -175,8 +175,8 @@ TEST_CASE("Test Row Wise Testing and SQLFetchScroll", "[odbc]") {
 	TestManySQLTypes(hstmt);
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }

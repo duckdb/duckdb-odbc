@@ -44,14 +44,14 @@ static void TestNumericParams(HSTMT &hstmt, unsigned char sign, const char *hexv
 	BuildNumericStruct(&numeric, sign, hexval, precision, scale);
 
 	SQLLEN numeric_len = sizeof(numeric);
-	EXECUTE_AND_CHECK("SQLBindParameter (numeric)", SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_NUMERIC,
+	EXECUTE_AND_CHECK("SQLBindParameter (numeric)", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_NUMERIC,
 	                  SQL_NUMERIC, precision, scale, &numeric, numeric_len, &numeric_len);
 
-	EXECUTE_AND_CHECK("SQLExecute", SQLExecute, hstmt);
+	EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
 
-	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 	DATA_CHECK(hstmt, 1, expected);
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 }
 
 static void TestNumericResult(HSTMT &hstmt, const char *num_str, const std::string &expected_result,
@@ -61,10 +61,10 @@ static void TestNumericResult(HSTMT &hstmt, const char *num_str, const std::stri
 
 	std::string query = "SELECT '" + std::string(num_str) + "'::numeric(" + std::to_string(precision) + "," +
 	                    std::to_string(scale) + ")";
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
-	EXECUTE_AND_CHECK("SQLGetData", SQLGetData, hstmt, 1, SQL_C_NUMERIC, &numeric, sizeof(numeric), nullptr);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_NUMERIC, &numeric, sizeof(numeric), nullptr);
 	REQUIRE(numeric.precision == expected_precision);
 	REQUIRE(numeric.scale == expected_scale);
 	REQUIRE(numeric.sign == 1);
@@ -81,25 +81,25 @@ TEST_CASE("Test numeric limits and conversion", "[odbc]") {
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Test 25.212 with default precision and scale
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric)", SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric)", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric"), SQL_NTS);
 	TestNumericParams(hstmt, 1, "7C62", 5, 3, "25.212");
 
 	// Test 0 (negative and positive) with precision 1 and scale 0
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(1,0))", SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(1,0)"),
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(1,0))", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(1,0)"),
 	                  SQL_NTS);
 	TestNumericParams(hstmt, 1, "00", 1, 0, "0");
 	TestNumericParams(hstmt, 0, "00", 1, 0, "0");
 
 	// Test 7.70 with precision 3 and scale 2
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(3,2))", SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(3,2)"),
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(3,2))", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(3,2)"),
 	                  SQL_NTS);
 	TestNumericParams(hstmt, 1, "0203", 3, 2, "7.70");
 
 	// Test 12345678901234567890123456789012345678 with precision 38 and scale 0
-	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(38,0))", SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(38,0)"),
+	EXECUTE_AND_CHECK("SQLPrepare (?::numeric(38,0))", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("SELECT ?::numeric(38,0)"),
 	                  SQL_NTS);
 	TestNumericParams(hstmt, 1, "4EF338DE509049C4133302F0F6B04909", 38, 0, "12345678901234567890123456789012345678");
 
@@ -113,8 +113,8 @@ TEST_CASE("Test numeric limits and conversion", "[odbc]") {
 	TestNumericResult(hstmt, "999999999999", "FF0FA5D4E8000000", 12, 3);
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
