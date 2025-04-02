@@ -9,17 +9,17 @@ static void BindParamAndExecute(HSTMT &hstmt, SQLCHAR *query, SQLCHAR *param,
                                 const std::vector<std::string> &expected_result) {
 	SQLLEN len = strlen((char *)param);
 
-	EXECUTE_AND_CHECK("SQLBindParameter (param)", SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_CHAR, 20,
+	EXECUTE_AND_CHECK("SQLBindParameter (param)", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_CHAR, 20,
 	                  0, param, len, &len);
 
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt, query, SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, query, SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 	for (int i = 0; i < expected_result.size(); i++) {
 		DATA_CHECK(hstmt, i + 1, expected_result[i]);
 	}
 
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 }
 
 TEST_CASE("Test parameter quoting and in combination with special characters", "[odbc]") {
@@ -32,7 +32,7 @@ TEST_CASE("Test parameter quoting and in combination with special characters", "
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Check that the driver escapes quotes correctly
 	BindParamAndExecute(hstmt, ConvertToSQLCHAR("SELECT 'foo', ?::text"), ConvertToSQLCHAR("param'quote"),
@@ -64,8 +64,8 @@ TEST_CASE("Test parameter quoting and in combination with special characters", "
 	                    ConvertToSQLCHAR("param"), {"1", "param", "2 $'s in an identifier"});
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }

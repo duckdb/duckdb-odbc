@@ -12,10 +12,10 @@ TEST_CASE("Test SQLColAttribute for a query that returns an interval", "[odbc]")
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// run a simple query  with ints to get a result set
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT INTERVAL 1 HOUR AS a, INTERVAL 2 HOUR AS b"), SQL_NTS);
 	std::map<SQLLEN, ExpectedResult> expected_interval;
 	expected_interval[SQL_DESC_CASE_SENSITIVE] = ExpectedResult(SQL_FALSE);
@@ -42,8 +42,8 @@ TEST_CASE("Test SQLColAttribute for a query that returns an interval", "[odbc]")
 	TestAllFields(hstmt, expected_interval);
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	// Disconnect from the database
 	DISCONNECT_FROM_DATABASE(env, dbc);

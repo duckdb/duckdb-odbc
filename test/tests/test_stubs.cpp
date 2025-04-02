@@ -13,14 +13,14 @@ TEST_CASE("Test SQLSpecialColumns and SQLStatistics stubs", "[odbc]") {
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	{ // Check SQLSpecialColumns
-		EXECUTE_AND_CHECK("SQLSpecialColumns", SQLSpecialColumns, hstmt, 0, nullptr, 0, nullptr, 0, nullptr, 0, 0, 0);
+		EXECUTE_AND_CHECK("SQLSpecialColumns", hstmt, SQLSpecialColumns, hstmt, 0, nullptr, 0, nullptr, 0, nullptr, 0, 0, 0);
 
 		// Check columns
 		SQLSMALLINT col_count;
-		EXECUTE_AND_CHECK("SQLNumResultCols", SQLNumResultCols, hstmt, &col_count);
+		EXECUTE_AND_CHECK("SQLNumResultCols", hstmt, SQLNumResultCols, hstmt, &col_count);
 		REQUIRE(col_count == 8);
 
 		// Check that the result set is empty
@@ -28,10 +28,10 @@ TEST_CASE("Test SQLSpecialColumns and SQLStatistics stubs", "[odbc]") {
 		REQUIRE(ret == SQL_NO_DATA);
 	}
 	{ // Check SQLStatistics
-		EXECUTE_AND_CHECK("SQLStatistics", SQLStatistics, hstmt, nullptr, 0, nullptr, 0, nullptr, 0, 0, 0);
+		EXECUTE_AND_CHECK("SQLStatistics", hstmt, SQLStatistics, hstmt, nullptr, 0, nullptr, 0, nullptr, 0, 0, 0);
 		// Check columns
 		SQLSMALLINT col_count;
-		EXECUTE_AND_CHECK("SQLNumResultCols", SQLNumResultCols, hstmt, &col_count);
+		EXECUTE_AND_CHECK("SQLNumResultCols", hstmt, SQLNumResultCols, hstmt, &col_count);
 		REQUIRE(col_count == 13);
 
 		// Check that the result set is empty
@@ -40,8 +40,8 @@ TEST_CASE("Test SQLSpecialColumns and SQLStatistics stubs", "[odbc]") {
 	}
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	// Disconnect from the database
 	DISCONNECT_FROM_DATABASE(env, dbc);

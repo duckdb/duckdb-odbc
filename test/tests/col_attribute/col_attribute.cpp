@@ -13,10 +13,10 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Get column attributes of a simple query
-	EXECUTE_AND_CHECK("SQLExectDirect", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExectDirect", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT "
 	                                   "'1'::int AS intcol, "
 	                                   "'foobar'::text AS textcol, "
@@ -29,7 +29,7 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 
 	// Get the number of columns
 	SQLSMALLINT num_cols;
-	EXECUTE_AND_CHECK("SQLNumResultCols", SQLNumResultCols, hstmt, &num_cols);
+	EXECUTE_AND_CHECK("SQLNumResultCols", hstmt, SQLNumResultCols, hstmt, &num_cols);
 	REQUIRE(num_cols == 7);
 
 	// Loop through the columns
@@ -37,15 +37,15 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		char buffer[64];
 
 		// Get the column label
-		EXECUTE_AND_CHECK("SQLColAttribute", SQLColAttribute, hstmt, i, SQL_DESC_LABEL, buffer, sizeof(buffer), nullptr,
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_LABEL, buffer, sizeof(buffer), nullptr,
 		                  nullptr);
 
 		// Get the column name and base column name
 		char col_name[64];
 		char base_col_name[64];
-		EXECUTE_AND_CHECK("SQLColAttribute", SQLColAttribute, hstmt, i, SQL_DESC_NAME, col_name, sizeof(col_name),
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_NAME, col_name, sizeof(col_name),
 		                  nullptr, nullptr);
-		EXECUTE_AND_CHECK("SQLColAttribute", SQLColAttribute, hstmt, i, SQL_DESC_BASE_COLUMN_NAME, base_col_name,
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_BASE_COLUMN_NAME, base_col_name,
 		                  sizeof(base_col_name), nullptr, nullptr);
 		REQUIRE(STR_EQUAL(col_name, base_col_name));
 		switch (i) {
@@ -90,7 +90,7 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		CheckInteger(hstmt, 0, SQL_DESC_OCTET_LENGTH);
 
 		// Get the column type name
-		EXECUTE_AND_CHECK("SQLColAttribute", SQLColAttribute, hstmt, i, SQL_DESC_TYPE_NAME, buffer, sizeof(buffer),
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_TYPE_NAME, buffer, sizeof(buffer),
 		                  nullptr, nullptr);
 		switch (i) {
 		case 1:
@@ -115,23 +115,23 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 
 	// Create table and retrieve base table name using SQLColAttribute, should fail because the statement is not a
 	// SELECT
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("CREATE TABLE test (a INTEGER, b INTEGER)"), SQL_NTS);
 	ExpectError(hstmt, SQL_DESC_BASE_TABLE_NAME);
 
 	// Prepare a statement and call SQLColAttribute, succeeds but is undefined
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("create table colattrfoo(col1 int, col2 varchar(20))"), SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLPrepare", SQLPrepare, hstmt, ConvertToSQLCHAR("select * From colattrfoo"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt, ConvertToSQLCHAR("select * From colattrfoo"), SQL_NTS);
 
 	SQLLEN fixed_prec_scale;
-	EXECUTE_AND_CHECK("SQLColAttribute", SQLColAttribute, hstmt, 1, SQL_DESC_FIXED_PREC_SCALE, nullptr, 0, nullptr,
+	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 1, SQL_DESC_FIXED_PREC_SCALE, nullptr, 0, nullptr,
 	                  &fixed_prec_scale);
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	// Disconnect from the database
 	DISCONNECT_FROM_DATABASE(env, dbc);

@@ -12,10 +12,10 @@ TEST_CASE("Test SQLColAttribute for a query that returns a char", "[odbc]") {
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// run a simple query with chars to get a result set
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT 'a' AS a, 'b' AS b"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT 'a' AS a, 'b' AS b"), SQL_NTS);
 	std::map<SQLLEN, ExpectedResult> expected_chars;
 	expected_chars[SQL_DESC_CASE_SENSITIVE] = ExpectedResult(SQL_TRUE);
 	expected_chars[SQL_DESC_CATALOG_NAME] = ExpectedResult("system");
@@ -41,8 +41,8 @@ TEST_CASE("Test SQLColAttribute for a query that returns a char", "[odbc]") {
 	TestAllFields(hstmt, expected_chars);
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	// Disconnect from the database
 	DISCONNECT_FROM_DATABASE(env, dbc);

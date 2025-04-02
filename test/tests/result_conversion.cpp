@@ -516,9 +516,9 @@ static void ConvertAndCheck(HSTMT &hstmt, const std::string &type, const std::st
                             SQLINTEGER sql_type, const std::string &expected_result, int content_size = 256) {
 	std::string query = "SELECT $$" + type_to_convert + "$$::" + type;
 
-	EXECUTE_AND_CHECK(query.c_str(), SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
+	EXECUTE_AND_CHECK(query.c_str(), hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 	SQLCHAR content[256];
 	SQLLEN content_len;
 	SQLRETURN ret = SQLGetData(hstmt, 1, sql_type, content, content_size, &content_len);
@@ -531,7 +531,7 @@ static void ConvertAndCheck(HSTMT &hstmt, const std::string &type, const std::st
 	}
 	ConvertToTypes(sql_type, content, expected_result);
 
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 }
 
 TEST_CASE("Test converting using SQLGetData", "[odbc]") {
@@ -544,7 +544,7 @@ TEST_CASE("Test converting using SQLGetData", "[odbc]") {
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	for (int type_index = 0; type_index < all_types.size(); type_index++) {
 		for (int sql_type_index = 0; sql_type_index < all_sql_types.size(); sql_type_index++) {
@@ -589,8 +589,8 @@ TEST_CASE("Test converting using SQLGetData", "[odbc]") {
 	ConvertAndCheck(hstmt, "timestamp_ns", "2021-07-15 12:30:00", SQL_C_TYPE_TIMESTAMP, "2021-7-15-12-30-0-0");
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
@@ -605,21 +605,21 @@ TEST_CASE("Test SQLGetData with SQL_C_DEFAULT type", "[odbc]") {
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Run the query
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT CAST(42 AS BIGINT)"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT CAST(42 AS BIGINT)"), SQL_NTS);
 
-	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 	SQLSMALLINT value = 0;
 	SQLLEN out_len;
-	EXECUTE_AND_CHECK("SQLGetData", SQLGetData, hstmt, 1, SQL_C_DEFAULT, &value, sizeof(value), &out_len);
+	EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_DEFAULT, &value, sizeof(value), &out_len);
 	REQUIRE(42 == value);
 	REQUIRE(2 == out_len);
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }

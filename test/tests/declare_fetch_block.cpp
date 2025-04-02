@@ -8,33 +8,33 @@ const int ARRAY_SIZE[] = {84, 512};
 enum ESize { SMALL, LARGE };
 
 static void TemporaryTable(HSTMT &hstmt, ESize S) {
-	EXECUTE_AND_CHECK("SQLExecDirect (CREATE TABLE)", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect (CREATE TABLE)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("CREATE TEMPORARY TABLE test (id int4 primary key)"), SQL_NTS);
 
 	// Insert S size rows
 	for (int i = 0; i < TABLE_SIZE[S]; i++) {
 		std::string query = "INSERT INTO test VALUES (" + std::to_string(i) + ")";
-		EXECUTE_AND_CHECK("SQLExecDirect (INSERT)", SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
+		EXECUTE_AND_CHECK("SQLExecDirect (INSERT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
 	}
 
-	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 }
 
 static void BlockCursor(HSTMT &hstmt, ESize S, SQLINTEGER *&id, SQLLEN *&id_ind) {
 	SQLULEN rows_fetched;
 
 	// Set array S to ARRAY_SIZE[S]
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROW_ARRAY_SIZE)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROW_ARRAY_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
 	                  ConvertToSQLPOINTER(ARRAY_SIZE[S]), 0);
 	// Set ROWS_FETCHED_PTR to rows_fetched
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROWS_FETCHED_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
 	                  &rows_fetched, 0);
 
 	// Bind Column
-	EXECUTE_AND_CHECK("SQLBindCol (id)", SQLBindCol, hstmt, 1, SQL_C_SLONG, id, 0, id_ind);
+	EXECUTE_AND_CHECK("SQLBindCol (id)", hstmt, SQLBindCol, hstmt, 1, SQL_C_SLONG, id, 0, id_ind);
 
 	// Execute the query
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
 
 	int expected_rows_fetched = 0;
 	if (S == SMALL) {
@@ -47,7 +47,7 @@ static void BlockCursor(HSTMT &hstmt, ESize S, SQLINTEGER *&id, SQLLEN *&id_ind)
 
 	// Fetch results
 	for (int i = 0; i < expected_rows_fetched; i++) {
-		EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
+		EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 		REQUIRE(rows_fetched <= ARRAY_SIZE[S]);
 		total_rows_fetched += rows_fetched;
 		REQUIRE(total_rows_fetched == i * ARRAY_SIZE[S] + rows_fetched);
@@ -57,13 +57,13 @@ static void BlockCursor(HSTMT &hstmt, ESize S, SQLINTEGER *&id, SQLLEN *&id_ind)
 	SQLRETURN ret = SQLFetch(hstmt);
 	REQUIRE(ret == SQL_NO_DATA);
 
-	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 }
 
 static void FetchRows(HSTMT &hstmt, SQLULEN &rows_fetched, SQLSMALLINT scroll_orientation, ESize S) {
 	int total_rows_fetched = 0;
 	for (int j = 0; j < TABLE_SIZE[S]; j++) {
-		EXECUTE_AND_CHECK("SQLFetchScroll", SQLFetchScroll, hstmt, scroll_orientation, 0);
+		EXECUTE_AND_CHECK("SQLFetchScroll", hstmt, SQLFetchScroll, hstmt, scroll_orientation, 0);
 		REQUIRE(rows_fetched == 1);
 		total_rows_fetched++;
 	}
@@ -75,13 +75,13 @@ static void ScrollNext(HSTMT &hstmt, ESize S) {
 	SQLULEN rows_fetched;
 
 	// Set array size to 1,
-	EXECUTE_AND_CHECK("SQLSetStmtAttr(ROW_ARRAY_SIZE)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr(ROW_ARRAY_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROW_ARRAY_SIZE,
 	                  ConvertToSQLPOINTER(1), SQL_IS_INTEGER);
 	// Set rows fetched ptr
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROWS_FETCHED_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
 	                  &rows_fetched, 0);
 	// Cursor Type to Static: which means data in the result set is static
-	EXECUTE_AND_CHECK("SQLSetStmtAttr(CURSOR_TYPE)", SQLSetStmtAttr, hstmt, SQL_ATTR_CURSOR_TYPE,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr(CURSOR_TYPE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_CURSOR_TYPE,
 	                  ConvertToSQLPOINTER(SQL_CURSOR_STATIC), 0);
 	// and Concurrency to Rowver: Cursor uses optimistic concurrency control, comparing row versions such as SQLBase
 	// ROWID or Sybase TIMESTAMP.
@@ -89,7 +89,7 @@ static void ScrollNext(HSTMT &hstmt, ESize S) {
 	REQUIRE(ret == SQL_SUCCESS_WITH_INFO);
 
 	// Execute the query
-	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
 
 	// Fetch results using SQLFetchScroll
 	for (int i = 0; i < 2; i++) {
@@ -101,24 +101,24 @@ static void ScrollNext(HSTMT &hstmt, ESize S) {
 	}
 
 	// Close the cursor
-	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 	// Unbind the columns
-	EXECUTE_AND_CHECK("SQLFreeStmt(UNBIND)", SQLFreeStmt, hstmt, SQL_UNBIND);
+	EXECUTE_AND_CHECK("SQLFreeStmt(UNBIND)", hstmt, SQLFreeStmt, hstmt, SQL_UNBIND);
 }
 
 static void FetchAbsolute(HSTMT &hstmt, ESize S) {
 	SQLULEN rows_fetched;
 	// Set rows fetched ptr
-	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROWS_FETCHED_PTR)", SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_ROWS_FETCHED_PTR,
 	                  &rows_fetched, 0);
 
-	EXECUTE_AND_CHECK("SQLExecDirect", SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT * FROM test"), SQL_NTS);
 
 	// Fetch beyond the last row, should return SQL_NO_DATA
 	SQLRETURN ret = SQLFetchScroll(hstmt, SQL_FETCH_ABSOLUTE, TABLE_SIZE[S] + 1);
 	REQUIRE(ret == SQL_NO_DATA);
 
-	EXECUTE_AND_CHECK("SQLFetchScroll (ABSOLUTE, 1)", SQLFetchScroll, hstmt, SQL_FETCH_ABSOLUTE, 1);
+	EXECUTE_AND_CHECK("SQLFetchScroll (ABSOLUTE, 1)", hstmt, SQLFetchScroll, hstmt, SQL_FETCH_ABSOLUTE, 1);
 
 	// Keep fetching until we reach the last row
 	int id;
@@ -131,7 +131,7 @@ static void FetchAbsolute(HSTMT &hstmt, ESize S) {
 	REQUIRE(id == TABLE_SIZE[S]);
 
 	// Close the cursor
-	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeStmt(CLOSE)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
 }
 
 TEST_CASE("Test Using SQLFetchScroll with different orientations", "[odbc]") {
@@ -146,7 +146,7 @@ TEST_CASE("Test Using SQLFetchScroll with different orientations", "[odbc]") {
 		CONNECT_TO_DATABASE(env, dbc);
 
 		// Allocate a statement handle
-		EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+		EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 		// Create a temporary table and insert size[i] rows
 		TemporaryTable(hstmt, i);
@@ -166,8 +166,8 @@ TEST_CASE("Test Using SQLFetchScroll with different orientations", "[odbc]") {
 		delete[] id_ind;
 
 		// Free the statement handle
-		EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-		EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+		EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+		EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 		DISCONNECT_FROM_DATABASE(env, dbc);
 	}

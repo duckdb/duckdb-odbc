@@ -18,18 +18,18 @@ TEST_CASE("Test SQLBindCol (binding columns to application buffers)", "[odbc]") 
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Bind the first column (long_value) to a long
-	EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", SQLBindCol, hstmt, 1, SQL_C_LONG, &long_value, sizeof(SQLINTEGER),
+	EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", hstmt, SQLBindCol, hstmt, 1, SQL_C_LONG, &long_value, sizeof(SQLINTEGER),
 	                  &ind_long_value);
 
 	// Bind the second column (char_value) to a string
-	EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", SQLBindCol, hstmt, 2, SQL_C_CHAR, &char_value, sizeof(char_value),
+	EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", hstmt, SQLBindCol, hstmt, 2, SQL_C_CHAR, &char_value, sizeof(char_value),
 	                  &ind_char_value);
 
 	// Execute the query
-	EXECUTE_AND_CHECK("SQLExecDirect (HSTMT)", SQLExecDirect, hstmt,
+	EXECUTE_AND_CHECK("SQLExecDirect (HSTMT)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT id, 'foo' || id FROM generate_series(1, 10) id(id)"), SQL_NTS);
 
 	SQLINTEGER row_num = 0;
@@ -51,22 +51,22 @@ TEST_CASE("Test SQLBindCol (binding columns to application buffers)", "[odbc]") 
 
 		// unbind the text field on row 3
 		if (row_num == 3) {
-			EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", SQLBindCol, hstmt, 2, SQL_C_CHAR, nullptr, 0, nullptr);
+			EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", hstmt, SQLBindCol, hstmt, 2, SQL_C_CHAR, nullptr, 0, nullptr);
 		}
 		// rebind the text field on row 5 and 9
 		if (row_num == 5 || row_num == 9) {
-			EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", SQLBindCol, hstmt, 2, SQL_C_CHAR, &char_value, sizeof(char_value),
+			EXECUTE_AND_CHECK("SQLBindCol (HSTMT)", hstmt, SQLBindCol, hstmt, 2, SQL_C_CHAR, &char_value, sizeof(char_value),
 			                  &ind_char_value);
 		}
 		// unbind both fields on row 7 using SQLFreeStmt(SQL_UNBIND)
 		if (row_num == 7) {
-			EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_UNBIND);
+			EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_UNBIND);
 		}
 	}
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
