@@ -55,7 +55,7 @@ void ACCESS_DIAGNOSTIC(std::string &state, std::string &message, SQLHANDLE handl
 		// calls to SQLGetDiagRec doesn't change the state of the statement, this is not a problem.
 		if (SQL_SUCCEEDED(ret)) {
 			state = ConvertToString(sqlstate);
-			message = ConvertToString(message_text);
+			message += ConvertToString(message_text);
 		}
 	}
 
