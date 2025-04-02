@@ -391,8 +391,7 @@ void CSVSniffer::AnalyzeDialectCandidate(unique_ptr<ColumnCountScanner> scanner,
 				return;
 			} else {
 				// Give preference to one that got escaped
-				if (!scanner->ever_escaped && candidates.front()->ever_escaped &&
-				    sniffing_state_machine.dialect_options.state_machine_options.strict_mode.GetValue()) {
+				if (!scanner->ever_escaped && candidates.front()->ever_escaped) {
 					return;
 				}
 				if (best_consistent_rows == consistent_rows && num_cols >= max_columns_found) {
@@ -414,19 +413,9 @@ void CSVSniffer::AnalyzeDialectCandidate(unique_ptr<ColumnCountScanner> scanner,
 			return;
 		}
 		if (quoted && num_cols < max_columns_found) {
-			if (scanner->ever_escaped &&
-			    sniffing_state_machine.dialect_options.state_machine_options.strict_mode.GetValue()) {
-				for (auto &candidate : candidates) {
-					if (candidate->ever_quoted && candidate->ever_escaped) {
-						return;
-					}
-				}
-
-			} else {
-				for (auto &candidate : candidates) {
-					if (candidate->ever_quoted) {
-						return;
-					}
+			for (auto &candidate : candidates) {
+				if (candidate->ever_quoted) {
+					return;
 				}
 			}
 		}
@@ -445,6 +434,7 @@ void CSVSniffer::AnalyzeDialectCandidate(unique_ptr<ColumnCountScanner> scanner,
 		} else if (!options.null_padding) {
 			sniffing_state_machine.dialect_options.skip_rows = dirty_notes;
 		}
+
 		candidates.clear();
 		sniffing_state_machine.dialect_options.num_cols = num_cols;
 		lines_sniffed = sniffed_column_counts.result_position;

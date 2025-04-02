@@ -64,7 +64,6 @@ JoinHashTable::JoinHashTable(ClientContext &context_p, const vector<JoinConditio
 	D_ASSERT(!equality_types.empty());
 
 	// Types for the layout
-	auto layout = make_shared_ptr<TupleDataLayout>();
 	vector<LogicalType> layout_types(condition_types);
 	layout_types.insert(layout_types.end(), build_types.begin(), build_types.end());
 	if (PropagatesBuildSide(join_type)) {
@@ -73,8 +72,7 @@ JoinHashTable::JoinHashTable(ClientContext &context_p, const vector<JoinConditio
 		layout_types.emplace_back(LogicalType::BOOLEAN);
 	}
 	layout_types.emplace_back(LogicalType::HASH);
-	layout->Initialize(layout_types, false);
-	layout_ptr = std::move(layout);
+	layout.Initialize(layout_types, false);
 
 	// Initialize the row matcher that are used for filtering during the probing only if there are non-equality
 	if (!non_equality_predicates.empty()) {
@@ -82,8 +80,8 @@ JoinHashTable::JoinHashTable(ClientContext &context_p, const vector<JoinConditio
 		row_matcher_probe = unique_ptr<RowMatcher>(new RowMatcher());
 		row_matcher_probe_no_match_sel = unique_ptr<RowMatcher>(new RowMatcher());
 
-		row_matcher_probe->Initialize(false, *layout_ptr, non_equality_predicates, non_equality_predicate_columns);
-		row_matcher_probe_no_match_sel->Initialize(true, *layout_ptr, non_equality_predicates,
+		row_matcher_probe->Initialize(false, layout, non_equality_predicates, non_equality_predicate_columns);
+		row_matcher_probe_no_match_sel->Initialize(true, layout, non_equality_predicates,
 		                                           non_equality_predicate_columns);
 
 		needs_chain_matcher = true;
@@ -92,19 +90,19 @@ JoinHashTable::JoinHashTable(ClientContext &context_p, const vector<JoinConditio
 	}
 
 	chains_longer_than_one = false;
-	row_matcher_build.Initialize(true, *layout_ptr, equality_predicates);
+	row_matcher_build.Initialize(true, layout, equality_predicates);
 
-	const auto &offsets = layout_ptr->GetOffsets();
+	const auto &offsets = layout.GetOffsets();
 	tuple_size = offsets[condition_types.size() + build_types.size()];
 	pointer_offset = offsets.back();
-	entry_size = layout_ptr->GetRowWidth();
+	entry_size = layout.GetRowWidth();
 
-	data_collection = make_uniq<TupleDataCollection>(buffer_manager, layout_ptr);
+	data_collection = make_uniq<TupleDataCollection>(buffer_manager, layout);
 	sink_collection =
-	    make_uniq<RadixPartitionedTupleData>(buffer_manager, layout_ptr, radix_bits, layout_ptr->ColumnCount() - 1);
+	    make_uniq<RadixPartitionedTupleData>(buffer_manager, layout, radix_bits, layout.ColumnCount() - 1);
 
-	dead_end = make_unsafe_uniq_array_uninitialized<data_t>(layout_ptr->GetRowWidth());
-	memset(dead_end.get(), 0, layout_ptr->GetRowWidth());
+	dead_end = make_unsafe_uniq_array_uninitialized<data_t>(layout.GetRowWidth());
+	memset(dead_end.get(), 0, layout.GetRowWidth());
 
 	if (join_type == JoinType::SINGLE) {
 		auto &config = ClientConfig::GetConfig(context);
@@ -264,9 +262,9 @@ static inline void GetRowPointersInternal(DataChunk &keys, TupleDataChunkState &
 
 		if (salt_match_count != 0) {
 			// Perform row comparisons, after function call salt_match_sel will point to the keys that match
-			idx_t key_match_count = ht.row_matcher_build.Match(
-			    keys, key_state.vector_data, state.salt_match_sel, salt_match_count, *ht.layout_ptr,
-			    state.rhs_row_locations, &state.key_no_match_sel, key_no_match_count);
+			idx_t key_match_count = ht.row_matcher_build.Match(keys, key_state.vector_data, state.salt_match_sel,
+			                                                   salt_match_count, ht.layout, state.rhs_row_locations,
+			                                                   &state.key_no_match_sel, key_no_match_count);
 
 			D_ASSERT(key_match_count + key_no_match_count == salt_match_count);
 
@@ -369,7 +367,7 @@ void JoinHashTable::Build(PartitionedTupleDataAppendState &append_state, DataChu
 
 	// build a chunk to append to the data collection [keys, payload, (optional "found" boolean), hash]
 	DataChunk source_chunk;
-	source_chunk.InitializeEmpty(layout_ptr->GetTypes());
+	source_chunk.InitializeEmpty(layout.GetTypes());
 	for (idx_t i = 0; i < keys.ColumnCount(); i++) {
 		source_chunk.data[i].Reference(keys.data[i]);
 	}
@@ -509,9 +507,9 @@ static inline void PerformKeyComparison(JoinHashTable::InsertState &state, JoinH
 	}
 
 	// Perform row comparisons
-	key_match_count = ht.row_matcher_build.Match(state.lhs_data, state.chunk_state.vector_data, state.key_match_sel,
-	                                             count, *ht.layout_ptr, state.rhs_row_locations,
-	                                             &state.key_no_match_sel, key_no_match_count);
+	key_match_count =
+	    ht.row_matcher_build.Match(state.lhs_data, state.chunk_state.vector_data, state.key_match_sel, count, ht.layout,
+	                               state.rhs_row_locations, &state.key_no_match_sel, key_no_match_count);
 
 	D_ASSERT(key_match_count + key_no_match_count == count);
 }
@@ -836,8 +834,8 @@ idx_t ScanStructure::ResolvePredicates(DataChunk &keys, SelectionVector &match_s
 
 		// we need to only use the vectors with the indices of the columns that are used in the probe phase, namely
 		// the non-equality columns
-		return matcher->Match(keys, key_state.vector_data, match_sel, this->count, *ht.layout_ptr, pointers,
-		                      no_match_sel, no_match_count, ht.non_equality_predicate_columns);
+		return matcher->Match(keys, key_state.vector_data, match_sel, this->count, ht.layout, pointers, no_match_sel,
+		                      no_match_count, ht.non_equality_predicate_columns);
 	} else {
 		// no match sel is the opposite of match sel
 		return this->count;
@@ -966,7 +964,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 					for (idx_t i = 0; i < ht.output_columns.size(); i++) {
 						auto &vector = result.data[left.ColumnCount() + i];
 						const auto output_col_idx = ht.output_columns[i];
-						D_ASSERT(vector.GetType() == ht.layout_ptr->GetTypes()[output_col_idx]);
+						D_ASSERT(vector.GetType() == ht.layout.GetTypes()[output_col_idx]);
 						GatherResult(vector, chain_match_sel_vector, result_count, output_col_idx);
 					}
 
@@ -991,7 +989,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		for (idx_t i = 0; i < ht.output_columns.size(); i++) {
 			auto &vector = result.data[left.ColumnCount() + i];
 			const auto output_col_idx = ht.output_columns[i];
-			D_ASSERT(vector.GetType() == ht.layout_ptr->GetTypes()[output_col_idx]);
+			D_ASSERT(vector.GetType() == ht.layout.GetTypes()[output_col_idx]);
 			GatherResult(vector, base_count, output_col_idx);
 		}
 	}
@@ -1280,7 +1278,7 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &left, DataChunk &
 			}
 		}
 		const auto output_col_idx = ht.output_columns[i];
-		D_ASSERT(vector.GetType() == ht.layout_ptr->GetTypes()[output_col_idx]);
+		D_ASSERT(vector.GetType() == ht.layout.GetTypes()[output_col_idx]);
 		GatherResult(vector, result_sel, result_sel, result_count, output_col_idx);
 	}
 	result.SetCardinality(left.size());
@@ -1366,7 +1364,7 @@ void JoinHashTable::ScanFullOuter(JoinHTScanState &state, Vector &addresses, Dat
 	for (idx_t i = 0; i < output_columns.size(); i++) {
 		auto &vector = result.data[left_column_count + i];
 		const auto output_col_idx = output_columns[i];
-		D_ASSERT(vector.GetType() == layout_ptr->GetTypes()[output_col_idx]);
+		D_ASSERT(vector.GetType() == layout.GetTypes()[output_col_idx]);
 		data_collection->Gather(addresses, sel_vector, found_entries, output_col_idx, vector, sel_vector, nullptr);
 	}
 }
@@ -1471,7 +1469,7 @@ void JoinHashTable::SetRepartitionRadixBits(const idx_t max_ht_size, const idx_t
 	}
 	radix_bits += added_bits;
 	sink_collection =
-	    make_uniq<RadixPartitionedTupleData>(buffer_manager, layout_ptr, radix_bits, layout_ptr->ColumnCount() - 1);
+	    make_uniq<RadixPartitionedTupleData>(buffer_manager, layout, radix_bits, layout.ColumnCount() - 1);
 
 	// Need to initialize again after changing the number of bits
 	InitializePartitionMasks();
@@ -1501,8 +1499,8 @@ idx_t JoinHashTable::FinishedPartitionCount() const {
 }
 
 void JoinHashTable::Repartition(JoinHashTable &global_ht) {
-	auto new_sink_collection = make_uniq<RadixPartitionedTupleData>(buffer_manager, layout_ptr, global_ht.radix_bits,
-	                                                                layout_ptr->ColumnCount() - 1);
+	auto new_sink_collection =
+	    make_uniq<RadixPartitionedTupleData>(buffer_manager, layout, global_ht.radix_bits, layout.ColumnCount() - 1);
 	sink_collection->Repartition(context, *new_sink_collection);
 	sink_collection = std::move(new_sink_collection);
 	global_ht.Merge(*this);

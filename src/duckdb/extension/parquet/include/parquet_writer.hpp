@@ -13,7 +13,6 @@
 #include "duckdb/common/encryption_state.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/mutex.hpp"
-#include "duckdb/common/atomic.hpp"
 #include "duckdb/common/serializer/buffered_file_writer.hpp"
 #include "duckdb/common/types/column/column_data_collection.hpp"
 #include "duckdb/function/copy_function.hpp"
@@ -114,7 +113,8 @@ public:
 		return *writer;
 	}
 	idx_t FileSize() {
-		return total_written;
+		lock_guard<mutex> glock(lock);
+		return writer->total_written;
 	}
 	idx_t DictionarySizeLimit() const {
 		return dictionary_size_limit;
@@ -129,7 +129,8 @@ public:
 		return compression_level;
 	}
 	idx_t NumberOfRowGroups() {
-		return num_row_groups;
+		lock_guard<mutex> glock(lock);
+		return file_meta_data.row_groups.size();
 	}
 	ParquetVersion GetParquetVersion() const {
 		return parquet_version;
@@ -169,9 +170,6 @@ private:
 	vector<ParquetColumnSchema> column_schemas;
 
 	unique_ptr<BufferedFileWriter> writer;
-	//! Atomics to reduce contention when rotating writes to multiple Parquet files
-	atomic<idx_t> total_written;
-	atomic<idx_t> num_row_groups;
 	std::shared_ptr<duckdb_apache::thrift::protocol::TProtocol> protocol;
 	duckdb_parquet::FileMetaData file_meta_data;
 	std::mutex lock;
