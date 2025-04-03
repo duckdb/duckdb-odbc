@@ -223,10 +223,6 @@ unique_ptr<CatalogEntry> DuckTableEntry::AlterEntry(ClientContext &context, Alte
 		auto &add_constraint_info = table_info.Cast<AddConstraintInfo>();
 		return AddConstraint(context, add_constraint_info);
 	}
-	case AlterTableType::SET_PARTITIONED_BY:
-		throw NotImplementedException("SET PARTITIONED BY is not supported for DuckDB tables");
-	case AlterTableType::SET_SORTED_BY:
-		throw NotImplementedException("SET SORTED BY is not supported for DuckDB tables");
 	default:
 		throw InternalException("Unrecognized alter table type!");
 	}
@@ -889,10 +885,7 @@ void DuckTableEntry::CommitAlter(string &column_name) {
 			break;
 		}
 	}
-
-	auto logical_column_index = LogicalIndex(removed_index.GetIndex());
-	auto column_index = columns.LogicalToPhysical(logical_column_index).index;
-	storage->CommitDropColumn(column_index);
+	storage->CommitDropColumn(columns.LogicalToPhysical(LogicalIndex(removed_index.GetIndex())).index);
 }
 
 void DuckTableEntry::CommitDrop() {
