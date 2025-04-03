@@ -3,6 +3,10 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+        override_git_describe:
+            description: 'Override git describe'
+            required: false
   workflow_call:
   repository_dispatch:
   workflow_run:
