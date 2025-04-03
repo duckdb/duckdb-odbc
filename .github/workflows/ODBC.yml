@@ -25,6 +25,9 @@ jobs:
   odbc-linux-amd64:
     name: ODBC Linux (amd64)
     runs-on: ubuntu-latest
+    env:
+      GEN: ninja
+      DUCKDB_PLATFORM: linux_amd64
     steps:
       - uses: actions/checkout@v4
         with:
