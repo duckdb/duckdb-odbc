@@ -1,5 +1,4 @@
 #include "odbc_test_common.h"
-#include <iostream>
 
 #include <array>
 #include <vector>
