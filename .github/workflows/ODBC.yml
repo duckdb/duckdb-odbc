@@ -9,12 +9,6 @@ on:
             required: false
   workflow_call:
   repository_dispatch:
-  workflow_run:
-    workflows:
-      - "Vendor"
-    types:
-      - completed
-
 
 env:
   GH_TOKEN: ${{ secrets.GH_TOKEN }}
