@@ -1,7 +1,5 @@
 #include "odbc_test_common.h"
 
-#include <iostream>
-
 using namespace odbc_test;
 
 static void DataAtExecution(HSTMT &hstmt) {
