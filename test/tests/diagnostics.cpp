@@ -13,7 +13,7 @@ TEST_CASE("Test SQLGetDiagRec (returns diagnostic record)", "[odbc]") {
 	CONNECT_TO_DATABASE(env, dbc);
 
 	// Allocate a statement handle
-	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	/* TEST 1: Execute a query that will fail and check the diagnostics */
 	// Execute a query that will fail
@@ -87,8 +87,8 @@ TEST_CASE("Test SQLGetDiagRec (returns diagnostic record)", "[odbc]") {
 	REQUIRE(first_endtran_message.length() == static_cast<size_t>(text_length));
 
 	// Free the statement handle
-	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", SQLFreeStmt, hstmt, SQL_CLOSE);
-	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }

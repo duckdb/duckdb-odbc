@@ -3,7 +3,7 @@
 
 namespace odbc_test {
 
-void ODBC_CHECK(SQLRETURN ret, const std::string &msg) {
+void ODBC_CHECK(SQLRETURN ret, const std::string &msg, HSTMT hstmt) {
 	switch (ret) {
 	case SQL_SUCCESS:
 		REQUIRE(1);
@@ -24,6 +24,15 @@ void ODBC_CHECK(SQLRETURN ret, const std::string &msg) {
 		fprintf(stderr, "%s: Unexpected return value\n", msg.c_str());
 		break;
 	}
+	if (ret == SQL_ERROR && hstmt != nullptr) {
+		// Get the diagnostics
+		std::string state;
+		std::string message;
+
+		ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+		std::cout << message << std::endl;
+	}
+
 	REQUIRE(SQL_SUCCEEDED(ret));
 }
 
@@ -46,12 +55,12 @@ void ACCESS_DIAGNOSTIC(std::string &state, std::string &message, SQLHANDLE handl
 		// calls to SQLGetDiagRec doesn't change the state of the statement, this is not a problem.
 		if (SQL_SUCCEEDED(ret)) {
 			state = ConvertToString(sqlstate);
-			message = ConvertToString(message_text);
+			message += ConvertToString(message_text);
 		}
 	}
 
 	if (ret != SQL_NO_DATA) {
-		ODBC_CHECK(ret, "SQLGetDiagRec");
+		ODBC_CHECK(ret, "SQLGetDiagRec", handle);
 	}
 }
 
@@ -61,7 +70,7 @@ void DATA_CHECK(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_c
 
 	// SQLGetData returns data for a single column in the result set.
 	SQLRETURN ret = SQLGetData(hstmt, col_num, SQL_C_CHAR, content, sizeof(content), &content_len);
-	ODBC_CHECK(ret, "SQLGetData");
+	ODBC_CHECK(ret, "SQLGetData", hstmt);
 	if (content_len == SQL_NULL_DATA) {
 		REQUIRE(expected_content.empty());
 		return;
@@ -83,7 +92,7 @@ void METADATA_CHECK(HSTMT &hstmt, SQLUSMALLINT col_num, const std::string &expec
 	// column in a result set.
 	SQLRETURN ret = SQLDescribeCol(hstmt, col_num, col_name, sizeof(col_name), &col_name_len, &col_type, &col_size,
 	                               &col_decimal_digits, &col_nullable);
-	ODBC_CHECK(ret, "SQLDescribeCol");
+	ODBC_CHECK(ret, "SQLDescribeCol", hstmt);
 
 	if (!expected_col_name.empty()) {
 		REQUIRE(expected_col_name == ConvertToString(col_name));
@@ -130,15 +139,15 @@ void DRIVER_CONNECT_TO_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc, const std::strin
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
 	REQUIRE(ret == SQL_SUCCESS);
 
-	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
 	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
 	// SQLDriverConnect establishes connections to a driver and a data source.
 	// Supports data sources that require more connection information than the three arguments in SQLConnect.
-	EXECUTE_AND_CHECK("SQLDriverConnect", SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, str,
-	                  sizeof(str), &strl, SQL_DRIVER_COMPLETE);
+	EXECUTE_AND_CHECK("SQLDriverConnect", nullptr, SQLDriverConnect, dbc, nullptr, ConvertToSQLCHAR(dsn.c_str()),
+	                  SQL_NTS, str, sizeof(str), &strl, SQL_DRIVER_COMPLETE);
 }
 
 void CONNECT_TO_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
@@ -147,25 +156,27 @@ void CONNECT_TO_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
 	REQUIRE(ret == SQL_SUCCESS);
 
-	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
 	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
 
-	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
 
 	// SQLConnect establishes connections to a driver and a data source.
-	EXECUTE_AND_CHECK("SQLConnect", SQLConnect, dbc, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, nullptr, 0, nullptr, 0);
+	EXECUTE_AND_CHECK("SQLConnect", nullptr, SQLConnect, dbc, ConvertToSQLCHAR(dsn.c_str()), SQL_NTS, nullptr, 0,
+	                  nullptr, 0);
 }
 
 void DISCONNECT_FROM_DATABASE(SQLHANDLE &env, SQLHANDLE &dbc) {
-	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_ENV)", SQLFreeHandle, SQL_HANDLE_ENV, env);
+	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_ENV)", nullptr, SQLFreeHandle, SQL_HANDLE_ENV, env);
 
-	EXECUTE_AND_CHECK("SQLDisconnect", SQLDisconnect, dbc);
+	EXECUTE_AND_CHECK("SQLDisconnect", nullptr, SQLDisconnect, dbc);
 
-	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_DBC)", SQLFreeHandle, SQL_HANDLE_DBC, dbc);
+	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_DBC)", nullptr, SQLFreeHandle, SQL_HANDLE_DBC, dbc);
 }
 
 void EXEC_SQL(HSTMT hstmt, const std::string &query) {
-	EXECUTE_AND_CHECK("SQLExecDirect (" + query + ")", SQLExecDirect, hstmt, ConvertToSQLCHAR(query.c_str()), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (" + query + ")", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query.c_str()),
+	                  SQL_NTS);
 }
 
 void InitializeDatabase(HSTMT &hstmt) {
