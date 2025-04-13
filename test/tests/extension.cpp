@@ -49,8 +49,7 @@ TEST_CASE("Log DuckDB Version", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
 	// Get the version of DuckDB
-	EXECUTE_AND_CHECK("PRAGMA version", SQLExecDirect, hstmt, ConvertToSQLCHAR("PRAGMA version"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK("PRAGMA version", SQLExecDirect, hstmt, ConvertToSQLCHAR("PRAGMA version"), SQL_NTS);
 
 	// Fetch the results
 	EXECUTE_AND_CHECK("SQLFetch", SQLFetch, hstmt);
