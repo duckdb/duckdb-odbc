@@ -1,6 +1,7 @@
 add_subdirectory(common)
 add_subdirectory(connect)
 add_subdirectory(statement)
+add_subdirectory(widechar)
 
 add_library(
   odbc_src OBJECT
