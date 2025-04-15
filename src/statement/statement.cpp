@@ -559,6 +559,11 @@ static SQLRETURN SetNumericAttributePtr(duckdb::OdbcHandleStmt *hstmt, const T &
 static SQLRETURN SetCharacterAttributePtr(duckdb::OdbcHandleStmt *hstmt, const string &str,
                                           SQLCHAR *character_attribute_ptr, SQLSMALLINT buffer_length,
                                           SQLSMALLINT *string_length_ptr) {
+	// user only wants the size of the character attribute
+	if (character_attribute_ptr == nullptr && string_length_ptr) {
+		*string_length_ptr = str.size();
+		return SQL_SUCCESS;
+	}
 	if (buffer_length <= 0) {
 		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLColAttribute(s)", "Invalid string or buffer length",
 		                                   SQLStateType::ST_HY090, hstmt->dbc->GetDataSourceName());

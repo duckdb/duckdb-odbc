@@ -40,49 +40,82 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_LABEL, buffer, sizeof(buffer),
 		                  nullptr, nullptr);
 
+		SQLSMALLINT col_label_size;
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_LABEL, nullptr, 0,
+		                  &col_label_size, nullptr);
+
 		// Get the column name and base column name
 		char col_name[64];
 		char base_col_name[64];
 		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_NAME, col_name,
 		                  sizeof(col_name), nullptr, nullptr);
+		SQLSMALLINT col_name_size;
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_NAME, nullptr, 0,
+		                  &col_name_size, nullptr);
+
 		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_BASE_COLUMN_NAME, base_col_name,
 		                  sizeof(base_col_name), nullptr, nullptr);
+		SQLSMALLINT base_col_name_size;
+		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_BASE_COLUMN_NAME, nullptr, 0,
+		                  &base_col_name_size, nullptr);
+
 		REQUIRE(STR_EQUAL(col_name, base_col_name));
 		switch (i) {
 		case 1:
 			REQUIRE(STR_EQUAL(buffer, "intcol"));
 			REQUIRE(STR_EQUAL(col_name, "intcol"));
 			REQUIRE(STR_EQUAL(base_col_name, "intcol"));
+			REQUIRE(col_label_size == 6);
+			REQUIRE(col_name_size == 6);
+			REQUIRE(base_col_name_size == 6);
 			break;
 		case 2:
 			REQUIRE(STR_EQUAL(buffer, "textcol"));
 			REQUIRE(STR_EQUAL(col_name, "textcol"));
 			REQUIRE(STR_EQUAL(base_col_name, "textcol"));
+			REQUIRE(col_label_size == 7);
+			REQUIRE(col_name_size == 7);
+			REQUIRE(base_col_name_size == 7);
 			break;
 		case 3:
 			REQUIRE(STR_EQUAL(buffer, "varcharcol"));
 			REQUIRE(STR_EQUAL(col_name, "varcharcol"));
 			REQUIRE(STR_EQUAL(base_col_name, "varcharcol"));
+			REQUIRE(col_label_size == 10);
+			REQUIRE(col_name_size == 10);
+			REQUIRE(base_col_name_size == 10);
 			break;
 		case 4:
 			REQUIRE(STR_EQUAL(buffer, "empty_varchar_col"));
 			REQUIRE(STR_EQUAL(col_name, "empty_varchar_col"));
 			REQUIRE(STR_EQUAL(base_col_name, "empty_varchar_col"));
+			REQUIRE(col_label_size == 17);
+			REQUIRE(col_name_size == 17);
+			REQUIRE(base_col_name_size == 17);
 			break;
 		case 5:
 			REQUIRE(STR_EQUAL(buffer, "varchar5col"));
 			REQUIRE(STR_EQUAL(col_name, "varchar5col"));
 			REQUIRE(STR_EQUAL(base_col_name, "varchar5col"));
+			REQUIRE(col_label_size == 11);
+			REQUIRE(col_name_size == 11);
+			REQUIRE(base_col_name_size == 11);
 			break;
 		case 6:
 			REQUIRE(STR_EQUAL(buffer, "uuidcol"));
 			REQUIRE(STR_EQUAL(col_name, "uuidcol"));
 			REQUIRE(STR_EQUAL(base_col_name, "uuidcol"));
+			REQUIRE(col_label_size == 7);
+			REQUIRE(col_name_size == 7);
+			REQUIRE(base_col_name_size == 7);
 			break;
 		case 7:
 			REQUIRE(STR_EQUAL(buffer, "CAST('5 days' AS INTERVAL)"));
 			REQUIRE(STR_EQUAL(col_name, "CAST('5 days' AS INTERVAL)"));
 			REQUIRE(STR_EQUAL(base_col_name, "CAST('5 days' AS INTERVAL)"));
+			REQUIRE(col_label_size == 26);
+			REQUIRE(col_name_size == 26);
+			REQUIRE(base_col_name_size == 26);
 			break;
 		}
 
