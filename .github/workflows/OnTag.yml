@@ -6,7 +6,7 @@ on:
         type: string
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
   staged_upload:
