@@ -142,9 +142,9 @@ test(
 
 test('SELECT MIN(t) FROM timestamp;', out='2007-01-01 00:00:01')
 test('SELECT MAX(t) FROM timestamp;', out='2008-02-01 00:00:01')
-test('SELECT AVG(t) FROM timestamp', out="2007-11-14 11:44:19.142857")
 
 test('SELECT SUM(t) FROM timestamp', err="[ISQL]ERROR")
+test('SELECT AVG(t) FROM timestamp', err="[ISQL]ERROR")
 test('SELECT t+t FROM timestamp', err="[ISQL]ERROR")
 test('SELECT t*t FROM timestamp', err="[ISQL]ERROR")
 test('SELECT t/t FROM timestamp', err="[ISQL]ERROR")
