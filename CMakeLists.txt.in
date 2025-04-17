@@ -60,7 +60,10 @@ add_subdirectory(src)
 set(CORE_OBJECT_FILES ${SOURCE_FILES})
 
 add_library(duckdb_core_obj OBJECT ${CORE_OBJECT_FILES})
-target_compile_definitions(duckdb_core_obj PRIVATE -DDUCKDB_STATIC_BUILD)
+target_compile_definitions(duckdb_core_obj PRIVATE 
+  -DDUCKDB_STATIC_BUILD
+  -DDUCKDB_EXTENSION_AUTOLOAD_DEFAULT
+  -DDUCKDB_EXTENSION_AUTOINSTALL_DEFAULT )
 if(WIN32)
   target_compile_options(duckdb_core_obj PRIVATE /bigobj)
 endif()
