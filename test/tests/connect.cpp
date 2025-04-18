@@ -1,6 +1,5 @@
 #include "connect_helpers.h"
 
-#include <iostream>
 #include <vector>
 
 #include <odbcinst.h>

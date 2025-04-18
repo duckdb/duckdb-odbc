@@ -97,7 +97,10 @@ ignored_files = [
     'expr.cc',
     'function_list.cpp',
 ]
-ignored_directories = ['src/duckdb']
+ignored_directories = [
+    'src/duckdb',
+    'scripts/__pycache__',
+]
 format_all = False
 check_only = True
 confirm = True
