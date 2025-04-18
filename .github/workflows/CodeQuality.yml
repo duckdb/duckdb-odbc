@@ -33,6 +33,7 @@ jobs:
   format-check:
     name: Format Check
     runs-on: ubuntu-22.04
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'vendoring') }}
 
     env:
       CC: gcc-10
