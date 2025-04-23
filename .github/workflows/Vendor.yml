@@ -47,9 +47,11 @@ jobs:
         if: ${{ inputs.duckdb-sha != '' }}
         working-directory: .git/duckdb
         run: |
+          echo "Checking out engine ref: ${{ inputs.duckdb-sha }} on branch: ${{ github.ref_name }}"
           git checkout ${{ inputs.duckdb-sha }}
 
       - name: Vendor sources
+        if: ${{ steps.checkout_engine_rev.outcome == 'success' }}
         id: vendor
         run: |
           REV=$(cd .git/duckdb && git rev-parse --short HEAD && cd ../..)
@@ -58,7 +60,7 @@ jobs:
           git config --global user.name "DuckDB Labs GitHub Bot"
           # Vendoring branch must exist, it may or may not already have
           # a pending PR on it, we are rebasing it anyway
-          git checkout vendoring
+          git checkout vendoring-${{ github.ref_name }}
           git rebase ${{ github.ref_name }}
           # Call the vendoring script in the engine
           git rm -rf src/duckdb
@@ -77,9 +79,9 @@ jobs:
           git commit -m "${MSG}"
           # Check if ahead of upstream branch
           # If yes, set a step output
-          git push -f --dry-run origin vendoring
-          if [ $(git rev-list HEAD...origin/main --count) -gt 0 ]; then
-            git push -f origin vendoring
+          git push -f --dry-run origin vendoring-${{ github.ref_name }}
+          if [ $(git rev-list HEAD...origin/${{ github.ref_name }} --count) -gt 0 ]; then
+            git push -f origin vendoring-${{ github.ref_name }}
             # Avoid set-output, it's deprecated
             echo "push_performed=true" >> "${GITHUB_OUTPUT}"
             echo "commit_msg=${MSG}" >> "${GITHUB_OUTPUT}"
@@ -91,12 +93,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUM=$(gh pr list --head vendoring --json number --jq '.[].number')
+          PR_NUM=$(gh pr list --head vendoring-${{ github.ref_name }} --json number --jq '.[].number')
           if [ -z "${PR_NUM}" ]; then
-            echo "No PR exists for branch vendoring"
+            echo "No PR exists for branch vendoring-${{ github.ref_name }}"
             echo "pr_exists=false" >> "${GITHUB_OUTPUT}"
           else
-            echo "PR found for branch vendoring, number: ${PR_NUM}"
+            echo "PR found for branch vendoring-${{ github.ref_name }}, number: ${PR_NUM}"
             echo "pr_exists=true" >> "${GITHUB_OUTPUT}"
             echo "pr_num=${PR_NUM}" >> "${GITHUB_OUTPUT}"
           fi
@@ -127,8 +129,8 @@ jobs:
             # Remove empty lines
             sed -i '/^$/d' body.txt
             gh pr create \
-             --head "vendoring" \
-             --base "main" \
+             --head "vendoring-${{ github.ref_name }}" \
+             --base "${{ github.ref_name }}" \
              --title "${{ steps.commit_and_push.outputs.commit_msg }}" \
              --body-file body.txt
 
@@ -142,7 +144,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
             # Write existing PR body text to a file
-            gh pr view vendoring --json body --jq '.body' > body.txt
+            gh pr view vendoring-${{ github.ref_name }} --json body --jq '.body' > body.txt
             # Append change description
             echo "${{ steps.prepare_pr_message.outputs.pr_msg }}" >> body.txt
             # Remove empty lines
