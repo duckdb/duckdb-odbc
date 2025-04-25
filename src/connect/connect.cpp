@@ -1,5 +1,6 @@
 #include "connect.hpp"
 #include "duckdb/main/db_instance_cache.hpp"
+#include "duckdb/common/virtual_file_system.hpp"
 #include <iostream>
 #include <utility>
 
@@ -129,6 +130,18 @@ SQLRETURN Connect::ReadFromIniFile() {
 	return SQL_SUCCESS;
 }
 
+static void NormalizeWindowsPathSeparators(case_insensitive_map_t<duckdb::Value> &config_map,
+                                           const std::string &option_name) {
+	auto it = config_map.find(option_name);
+	if (it == config_map.end()) {
+		return;
+	}
+	auto value_str = it->second.GetValue<std::string>();
+	auto value_str_norm = duckdb::StringUtil::Replace(value_str, "\\", "/");
+	config_map.erase(option_name);
+	config_map.emplace(option_name, std::move(value_str_norm));
+}
+
 SQLRETURN Connect::SetConnection() {
 #if defined ODBC_LINK_ODBCINST || defined WIN32
 	ReadFromIniFile();
@@ -141,7 +154,29 @@ SQLRETURN Connect::SetConnection() {
 	config_map.erase("dsn");
 
 	config.SetOptionByName("duckdb_api", "odbc");
+
+	// When 'enable_external_access' is set to 'false' then it is not allowed to change
+	// 'allowed_paths' or 'allowed_directories' options, so we are setting 'enable_external_access'
+	// after all other options
+	std::string enable_external_access;
+	auto it = config_map.find("enable_external_access");
+	if (it != config_map.end()) {
+		enable_external_access = it->second.GetValue<std::string>();
+		config_map.erase(it);
+	}
+
+#ifdef _WIN32
+	// Back slashes are not accepted for 'allowed_paths' or 'allowed_directories' options
+	NormalizeWindowsPathSeparators(config_map, "allowed_paths");
+	NormalizeWindowsPathSeparators(config_map, "allowed_directories");
+#endif // _WIN32
+
+	// Validate and set all options
 	config.SetOptionsByName(config_map);
+
+	if (!enable_external_access.empty()) {
+		config.SetOptionByName("enable_external_access", duckdb::Value(enable_external_access));
+	}
 
 	bool cache_instance = database != IN_MEMORY_PATH;
 
@@ -168,4 +203,8 @@ Connect::Connect(OdbcHandleDbc *dbc_p, string input_str_p) : dbc(dbc_p), input_s
 	}
 	seen_config_options["dsn"] = false;
 	seen_config_options["database"] = false;
+
+	// Required for settings like 'allowed_directories' that use
+	// file separator when checking the property value.
+	config.file_system = duckdb::make_uniq<duckdb::VirtualFileSystem>();
 }

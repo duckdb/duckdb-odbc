@@ -310,7 +310,7 @@ TEST_CASE("Test utf8_alloc_out_vec function", "[odbc_widechar]") {
 	std::vector<SQLCHAR> small_vec = utf8_alloc_out_vec(100);
 	REQUIRE(small_vec.size() == 300);
 	std::vector<SQLCHAR> large_vec = utf8_alloc_out_vec(30000);
-	REQUIRE(large_vec.size() == (std::numeric_limits<SQLSMALLINT>::max)());
+	REQUIRE(large_vec.size() == std::numeric_limits<SQLSMALLINT>::max());
 }
 
 // This test mimics the intended usage of widechar helper functions
