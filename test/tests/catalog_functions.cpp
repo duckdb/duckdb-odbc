@@ -31,7 +31,7 @@ void TestGetTypeInfo(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 
 	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
 
-	std::string max_col_size = std::to_string((std::numeric_limits<SQLINTEGER>::max)());
+	std::string max_col_size = std::to_string(std::numeric_limits<SQLINTEGER>::max());
 
 	std::vector<std::pair<MetadataData, std::string>> expected_data = {{{"TYPE_NAME", SQL_VARCHAR}, "VARCHAR"},
 	                                                                   {{"DATA_TYPE", SQL_SMALLINT}, "12"},
