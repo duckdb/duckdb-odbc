@@ -48,6 +48,8 @@ void EXECUTE_AND_CHECK(MSG msg, HSTMT hstmt, FUNC func, ARGS... args) {
  */
 void ACCESS_DIAGNOSTIC(std::string &state, std::string &message, SQLHANDLE handle, SQLSMALLINT handle_type);
 
+void ACCESS_DIAGNOSTIC_WIDE(std::string &state, std::string &message, SQLHANDLE handle, SQLSMALLINT handle_type);
+
 /**
  * @brief
  * Runs SQLGetData to get the data from the column of the current row and compares it with the expected content.
@@ -119,7 +121,12 @@ std::map<SQLSMALLINT, SQLULEN> InitializeTypesMap();
 // Converters
 SQLCHAR *ConvertToSQLCHAR(const char *str);
 SQLCHAR *ConvertToSQLCHAR(const std::string &str);
+std::vector<SQLWCHAR> ConvertToSQLWCHAR(const char *str);
+std::vector<SQLWCHAR> ConvertToSQLWCHARNTS(const char *str);
+std::vector<SQLWCHAR> ConvertToSQLWCHAR(const std::string &str);
+std::vector<SQLWCHAR> ConvertToSQLWCHARNTS(const std::string &str);
 std::string ConvertToString(SQLCHAR *str);
+std::string ConvertToString(SQLWCHAR *str);
 const char *ConvertToCString(SQLCHAR *str);
 SQLPOINTER ConvertToSQLPOINTER(uint64_t ptr);
 SQLPOINTER ConvertToSQLPOINTER(const char *str);

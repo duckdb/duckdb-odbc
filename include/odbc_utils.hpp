@@ -4,8 +4,15 @@
 // needs to be first because BOOL
 #include "duckdb.hpp"
 
+#include <cstring>
+
 #ifdef _WIN32
+#define VC_EXTRALEAN
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
+#undef CreateDirectory
+#undef RemoveDirectory
 #endif
 
 #include <sql.h>
@@ -17,30 +24,42 @@
 namespace duckdb {
 struct OdbcUtils {
 public:
-	static std::string ReadString(const SQLPOINTER ptr, const SQLSMALLINT len);
-	// static void WriteString(const std::string &s, SQLCHAR *out_buf, SQLSMALLINT buf_len, SQLSMALLINT *out_len);
-	template <typename INT_TYPE>
-	static void WriteString(const string &s, SQLCHAR *out_buf, SQLSMALLINT buf_len, INT_TYPE *out_len = nullptr) {
+	static std::string ReadString(const SQLPOINTER ptr, const SQLLEN len);
+
+	template <typename INT_TYPE, typename CHAR_TYPE=SQLCHAR>
+	static void WriteString(const std::string &s, CHAR_TYPE *out_buf, SQLLEN buf_len, INT_TYPE *out_len = nullptr) {
 		INT_TYPE written_chars = 0;
-		if (out_buf) {
+		if (out_buf != nullptr) {
 			written_chars = (INT_TYPE)snprintf((char *)out_buf, buf_len, "%s", s.c_str());
 		}
-		if (out_len) {
+		if (out_len != nullptr) {
 			*out_len = written_chars;
 		}
 	}
-	// template specialization for int to pass a null pointer
-	static void WriteString(const string &s, SQLCHAR *out_buf, SQLSMALLINT buf_len) {
+	// overload for int to pass a null pointer
+	static void WriteString(const std::string &s, SQLCHAR *out_buf, SQLLEN buf_len) {
 		WriteString<int>(s, out_buf, buf_len, nullptr);
 	}
+
+	// overload for widechar and small int
+	static void WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes);
+
+	// overload for widechar and int
+	static void WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
+
+	// overload for widechar and smallint with NULL-terminated vector input
+	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes);
+
+	// overload for widechar and int with NULL-terminated vector input
+	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
 
 	template <typename VAL_INT_TYPE, typename LEN_INT_TYPE=SQLSMALLINT>
 	static void StoreWithLength(VAL_INT_TYPE val, SQLPOINTER ptr, LEN_INT_TYPE *length_ptr) {
 		size_t len = sizeof(VAL_INT_TYPE);
-		if (nullptr != ptr) {
+		if (ptr != nullptr) {
 			std::memcpy(ptr, static_cast<void*>(&val), len);
 		}
-		if (nullptr != length_ptr) {
+		if (length_ptr != nullptr) {
 			*length_ptr = static_cast<LEN_INT_TYPE>(len);
 		}
 	}

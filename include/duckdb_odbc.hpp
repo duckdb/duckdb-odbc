@@ -15,7 +15,12 @@
 #include "duckdb/common/vector.hpp"
 
 #ifdef _WIN32
+#define VC_EXTRALEAN
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
+#undef CreateDirectory
+#undef RemoveDirectory
 #endif
 
 namespace duckdb {

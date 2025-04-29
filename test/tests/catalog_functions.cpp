@@ -60,13 +60,13 @@ void TestGetTypeInfo(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 		DATA_CHECK(hstmt, i + 1, expected_data[i].second);
 	}
 
-	// Test SQLGetTypeInfo with SQL_ALL_TYPES and data_type
+	// Test SQLGetTypeInfoW with SQL_ALL_TYPES and data_type
 	SQLINTEGER data_type;
 	SQLLEN row_count = 0;
 	SQLLEN len_or_ind_ptr;
 	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 2, SQL_INTEGER, &data_type, sizeof(data_type),
 	                  &len_or_ind_ptr);
-	EXECUTE_AND_CHECK("SQLGetTypeInfo(SQL_ALL_TYPES)", hstmt, SQLGetTypeInfo, hstmt, SQL_ALL_TYPES);
+	EXECUTE_AND_CHECK("SQLGetTypeInfoW(SQL_ALL_TYPES)", hstmt, SQLGetTypeInfoW, hstmt, SQL_ALL_TYPES);
 
 	SQLINTEGER data_types[] = {
 	    SQL_CHAR,
@@ -83,6 +83,7 @@ void TestGetTypeInfo(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 	    SQL_FLOAT,
 	    SQL_DOUBLE,
 	    SQL_VARCHAR,
+	    SQL_WVARCHAR,
 	    SQL_VARBINARY,
 	    SQL_UNKNOWN_TYPE,
 	    SQL_INTERVAL_YEAR,
@@ -179,10 +180,11 @@ static void TestSQLTablesLong(HSTMT &hstmt) {
 	// FIXME: this test is broken
 	return;
 
-	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, ConvertToSQLCHAR(""), SQL_NTS, ConvertToSQLCHAR("main"),
-	                  SQL_NTS, ConvertToSQLCHAR("test_table_%"), SQL_NTS,
-	                  ConvertToSQLCHAR("1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,'TABLE'"),
-	                  SQL_NTS);
+	EXECUTE_AND_CHECK(
+	    "SQLTablesW", hstmt, SQLTablesW, hstmt, ConvertToSQLWCHARNTS("").data(), SQL_NTS,
+	    ConvertToSQLWCHARNTS("main").data(), SQL_NTS, ConvertToSQLWCHARNTS("test_table_%").data(), SQL_NTS,
+	    ConvertToSQLWCHARNTS("1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,'TABLE'").data(),
+	    SQL_NTS);
 
 	DATA_CHECK(hstmt, 1, "memory");
 	DATA_CHECK(hstmt, 2, "main");
@@ -245,6 +247,8 @@ static void TestSQLTablesSystemTable(HSTMT &hstmt) {
 static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 	EXECUTE_AND_CHECK("SQLColumns", hstmt, SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
 	                  ConvertToSQLCHAR("%"), SQL_NTS, nullptr, 0);
+	EXECUTE_AND_CHECK("SQLColumnsW", hstmt, SQLColumnsW, hstmt, nullptr, 0, ConvertToSQLWCHARNTS("main").data(),
+	                  SQL_NTS, ConvertToSQLWCHARNTS("%").data(), SQL_NTS, nullptr, 0);
 
 	SQLSMALLINT col_count;
 
@@ -345,6 +349,17 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 	                  sizeof(database_name), &len);
 	REQUIRE(STR_EQUAL(database_name, "table"));
 
+	std::vector<SQLWCHAR> database_name_utf16;
+	database_name_utf16.resize(128);
+	SQLSMALLINT len_utf16;
+	EXECUTE_AND_CHECK("SQLGetInfoW (SQL_TABLE_TERM)", hstmt, SQLGetInfoW, hstmt, SQL_TABLE_TERM,
+	                  database_name_utf16.data(), database_name_utf16.size(), &len_utf16);
+	REQUIRE(len_utf16 > 0);
+	REQUIRE(len_utf16 < database_name_utf16.size());
+	REQUIRE(database_name_utf16[static_cast<std::size_t>(len_utf16)] == 0);
+	auto database_name_utf8 = ConvertToString(database_name_utf16.data());
+	REQUIRE(database_name_utf8 == std::string("table"));
+
 	SQLSMALLINT oac_val;
 	SQLSMALLINT oac_val_len;
 	EXECUTE_AND_CHECK("SQLGetInfo (SQL_ODBC_API_CONFORMANCE)", hstmt, SQLGetInfo, hstmt, SQL_ODBC_API_CONFORMANCE,
@@ -429,34 +444,67 @@ TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescrib
 	                                   "'blob', '2021-01-01', '12:00:00')"),
 	                  SQL_NTS);
 
-	// Call SQLColumns to get the columns of the test_table
-	EXECUTE_AND_CHECK("SQLColumns", hstmt, SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
-	                  ConvertToSQLCHAR("test_table"), SQL_NTS, nullptr, 0);
+	{
+		// Call SQLColumns to get the columns of the test_table
+		EXECUTE_AND_CHECK("SQLColumns", hstmt, SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
+		                  ConvertToSQLCHAR("test_table"), SQL_NTS, nullptr, 0);
 
-	// Retrieve SQL_DATA_TYPE and DATA_TYPE for each column
-	SQLINTEGER sql_data_type;
-	SQLINTEGER data_type;
-	SQLLEN len_or_ind_ptr;
-	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type),
-	                  &len_or_ind_ptr);
-	EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 14, SQL_INTEGER, &sql_data_type, sizeof(sql_data_type),
-	                  &len_or_ind_ptr);
+		// Retrieve SQL_DATA_TYPE and DATA_TYPE for each column
+		SQLINTEGER sql_data_type;
+		SQLINTEGER data_type;
+		SQLLEN len_or_ind_ptr;
+		EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type),
+		                  &len_or_ind_ptr);
+		EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 14, SQL_INTEGER, &sql_data_type,
+		                  sizeof(sql_data_type), &len_or_ind_ptr);
 
-	// Fetch the results
-	for (int i = 0; i < SQL_types.size(); i++) {
-		SQLRETURN ret = SQLFetch(hstmt);
-		if (ret == SQL_SUCCESS_WITH_INFO) {
-			std::string state, message;
-			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
-			REQUIRE(state == "07006");
-			REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
-			ret = SQL_SUCCESS;
-		} else {
-			ODBC_CHECK(ret, "SQLFetch", hstmt);
+		// Fetch the results
+		for (int i = 0; i < SQL_types.size(); i++) {
+			SQLRETURN ret = SQLFetch(hstmt);
+			if (ret == SQL_SUCCESS_WITH_INFO) {
+				std::string state, message;
+				ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+				REQUIRE(state == "07006");
+				REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+				ret = SQL_SUCCESS;
+			} else {
+				ODBC_CHECK(ret, "SQLFetch", nullptr);
+			}
+
+			REQUIRE(data_type == SQL_types[i]);
+			REQUIRE(sql_data_type == SQL_types[i]);
 		}
+	}
+	{
+		// Call SQLColumnsW to get the columns of the test_table
+		EXECUTE_AND_CHECK("SQLColumnsW", hstmt, SQLColumnsW, hstmt, nullptr, 0, ConvertToSQLWCHARNTS("main").data(),
+		                  SQL_NTS, ConvertToSQLWCHARNTS("test_table").data(), SQL_NTS, nullptr, 0);
 
-		REQUIRE(data_type == SQL_types[i]);
-		REQUIRE(sql_data_type == SQL_types[i]);
+		// Retrieve SQL_DATA_TYPE and DATA_TYPE for each column
+		SQLINTEGER sql_data_type;
+		SQLINTEGER data_type;
+		SQLLEN len_or_ind_ptr;
+		EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 5, SQL_INTEGER, &data_type, sizeof(data_type),
+		                  &len_or_ind_ptr);
+		EXECUTE_AND_CHECK("SQLBindCol", hstmt, SQLBindCol, hstmt, 14, SQL_INTEGER, &sql_data_type,
+		                  sizeof(sql_data_type), &len_or_ind_ptr);
+
+		// Fetch the results
+		for (int i = 0; i < SQL_types.size(); i++) {
+			SQLRETURN ret = SQLFetch(hstmt);
+			if (ret == SQL_SUCCESS_WITH_INFO) {
+				std::string state, message;
+				ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+				REQUIRE(state == "07006");
+				REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+				ret = SQL_SUCCESS;
+			} else {
+				ODBC_CHECK(ret, "SQLFetch", nullptr);
+			}
+
+			REQUIRE(data_type == SQL_types[i]);
+			REQUIRE(sql_data_type == SQL_types[i]);
+		}
 	}
 
 	// Use SQLDescribeCol to assert that the data type is the same for each column

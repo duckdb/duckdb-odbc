@@ -3,8 +3,6 @@
 #include "odbc_utils.hpp"
 #include "parameter_descriptor.hpp"
 
-#include <codecvt>
-
 SQLRETURN duckdb::SetDiagnosticRecord(OdbcHandle *handle, const SQLRETURN &ret, const std::string &component,
                                       const std::string &msg, const SQLStateType &sqlstate_type,
                                       const std::string &server_name) {

@@ -1,5 +1,8 @@
 #define CATCH_CONFIG_MAIN
 #include "include/odbc_test_common.h"
+#include <cstring>
+#include <vector>
+#include "widechar.hpp"
 
 namespace odbc_test {
 
@@ -64,6 +67,36 @@ void ACCESS_DIAGNOSTIC(std::string &state, std::string &message, SQLHANDLE handl
 	}
 }
 
+void ACCESS_DIAGNOSTIC_WIDE(std::string &state, std::string &message, SQLHANDLE handle, SQLSMALLINT handle_type) {
+	std::vector<SQLWCHAR> sqlstate;
+	sqlstate.resize(6);
+	SQLINTEGER native_error;
+	std::vector<SQLWCHAR> message_text;
+	message_text.resize(256);
+	SQLSMALLINT text_length;
+	SQLSMALLINT rec_num = 0;
+	SQLRETURN ret = SQL_SUCCESS;
+
+	while (SQL_SUCCEEDED(ret)) {
+		rec_num++;
+		// SQLGetDiagRec returns the current values of multiple fields in a diagnostic record that contains error,
+		// warning, and status information.
+		ret = SQLGetDiagRecW(handle_type, handle, rec_num, sqlstate.data(), &native_error, message_text.data(),
+		                     message_text.size(), &text_length);
+		// The function overwrites the previous contents of state and message, so only the last diagnostic record is
+		// available. Because this function usually is called on one diagnostic record, or used to confirm that two
+		// calls to SQLGetDiagRec doesn't change the state of the statement, this is not a problem.
+		if (SQL_SUCCEEDED(ret)) {
+			state = ConvertToString(sqlstate.data());
+			message = ConvertToString(message_text.data());
+		}
+	}
+
+	if (ret != SQL_NO_DATA) {
+		ODBC_CHECK(ret, "SQLGetDiagRecW", nullptr);
+	}
+}
+
 void DATA_CHECK(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_content) {
 	SQLCHAR content[256];
 	SQLLEN content_len;
@@ -81,36 +114,71 @@ void DATA_CHECK(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_c
 void METADATA_CHECK(HSTMT &hstmt, SQLUSMALLINT col_num, const std::string &expected_col_name,
                     SQLSMALLINT expected_col_name_len, SQLSMALLINT expected_col_data_type, SQLULEN expected_col_size,
                     SQLSMALLINT expected_col_decimal_digits, SQLSMALLINT expected_col_nullable) {
-	SQLCHAR col_name[256];
-	SQLSMALLINT col_name_len;
-	SQLSMALLINT col_type;
-	SQLULEN col_size;
-	SQLSMALLINT col_decimal_digits;
-	SQLSMALLINT col_nullable;
+	{
+		SQLCHAR col_name[256];
+		SQLSMALLINT col_name_len;
+		SQLSMALLINT col_type;
+		SQLULEN col_size;
+		SQLSMALLINT col_decimal_digits;
+		SQLSMALLINT col_nullable;
 
-	// SQLDescribeCol returns the result descriptor (column name, column size, decimal digits, and nullability) for one
-	// column in a result set.
-	SQLRETURN ret = SQLDescribeCol(hstmt, col_num, col_name, sizeof(col_name), &col_name_len, &col_type, &col_size,
-	                               &col_decimal_digits, &col_nullable);
-	ODBC_CHECK(ret, "SQLDescribeCol", hstmt);
+		// SQLDescribeCol returns the result descriptor (column name, column size, decimal digits, and nullability) for
+		// one column in a result set.
+		SQLRETURN ret = SQLDescribeCol(hstmt, col_num, col_name, sizeof(col_name), &col_name_len, &col_type, &col_size,
+		                               &col_decimal_digits, &col_nullable);
+		ODBC_CHECK(ret, "SQLDescribeCol", hstmt);
 
-	if (!expected_col_name.empty()) {
-		REQUIRE(expected_col_name == ConvertToString(col_name));
+		if (!expected_col_name.empty()) {
+			REQUIRE(expected_col_name == ConvertToString(col_name));
+		}
+		if (expected_col_name_len) {
+			REQUIRE(col_name_len == expected_col_name_len);
+		}
+		if (expected_col_data_type) {
+			REQUIRE(col_type == expected_col_data_type);
+		}
+		if (expected_col_size) {
+			REQUIRE(col_size == expected_col_size);
+		}
+		if (expected_col_decimal_digits) {
+			REQUIRE(col_decimal_digits == expected_col_decimal_digits);
+		}
+		if (expected_col_nullable) {
+			REQUIRE(col_nullable == expected_col_nullable);
+		}
 	}
-	if (expected_col_name_len) {
-		REQUIRE(col_name_len == expected_col_name_len);
-	}
-	if (expected_col_data_type) {
-		REQUIRE(col_type == expected_col_data_type);
-	}
-	if (expected_col_size) {
-		REQUIRE(col_size == expected_col_size);
-	}
-	if (expected_col_decimal_digits) {
-		REQUIRE(col_decimal_digits == expected_col_decimal_digits);
-	}
-	if (expected_col_nullable) {
-		REQUIRE(col_nullable == expected_col_nullable);
+	{
+		SQLWCHAR col_name[256];
+		SQLSMALLINT col_name_len;
+		SQLSMALLINT col_type;
+		SQLULEN col_size;
+		SQLSMALLINT col_decimal_digits;
+		SQLSMALLINT col_nullable;
+
+		// SQLDescribeColW returns the result descriptor (column name, column size, decimal digits, and nullability) for
+		// one column in a result set.
+		SQLRETURN ret = SQLDescribeColW(hstmt, col_num, col_name, sizeof(col_name), &col_name_len, &col_type, &col_size,
+		                                &col_decimal_digits, &col_nullable);
+		ODBC_CHECK(ret, "SQLDescribeColW", nullptr);
+
+		if (!expected_col_name.empty()) {
+			REQUIRE(expected_col_name == ConvertToString(col_name));
+		}
+		if (expected_col_name_len) {
+			REQUIRE(col_name_len == expected_col_name_len);
+		}
+		if (expected_col_data_type) {
+			REQUIRE(col_type == expected_col_data_type);
+		}
+		if (expected_col_size) {
+			REQUIRE(col_size == expected_col_size);
+		}
+		if (expected_col_decimal_digits) {
+			REQUIRE(col_decimal_digits == expected_col_decimal_digits);
+		}
+		if (expected_col_nullable) {
+			REQUIRE(col_nullable == expected_col_nullable);
+		}
 	}
 }
 
@@ -242,8 +310,34 @@ SQLCHAR *ConvertToSQLCHAR(const std::string &str) {
 	return reinterpret_cast<SQLCHAR *>(const_cast<char *>(str.c_str()));
 }
 
+std::vector<SQLWCHAR> ConvertToSQLWCHAR(const char *str) {
+	return duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(str), std::strlen(str));
+}
+
+std::vector<SQLWCHAR> ConvertToSQLWCHARNTS(const char *str) {
+	auto res = ConvertToSQLWCHAR(str);
+	res.push_back(0);
+	return res;
+}
+
+std::vector<SQLWCHAR> ConvertToSQLWCHAR(const std::string &str) {
+	return duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(str.data()), str.length());
+}
+
+std::vector<SQLWCHAR> ConvertToSQLWCHARNTS(const std::string &str) {
+	auto res = ConvertToSQLWCHAR(str);
+	res.push_back(0);
+	return res;
+}
+
 std::string ConvertToString(SQLCHAR *str) {
 	return {reinterpret_cast<char *>(str)};
+}
+
+std::string ConvertToString(SQLWCHAR *str) {
+	std::size_t len = duckdb::widechar::utf16_length(str);
+	auto vec = duckdb::widechar::utf16_to_utf8_lenient(str, len);
+	return std::string(reinterpret_cast<char *>(vec.data()), vec.size());
 }
 
 const char *ConvertToCString(SQLCHAR *str) {
