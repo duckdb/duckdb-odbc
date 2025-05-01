@@ -523,7 +523,7 @@ void OdbcHandleDesc::CopyFieldByField(const OdbcHandleDesc &other) {
 duckdb::DescRecord *OdbcHandleDesc::GetDescRecord(duckdb::idx_t param_idx) {
 	if (param_idx >= records.size()) {
 		records.resize(param_idx + 1);
-		header.sql_desc_count = records.size();
+		header.sql_desc_count = static_cast<SQLSMALLINT>(records.size());
 	}
 	return &records[param_idx];
 }

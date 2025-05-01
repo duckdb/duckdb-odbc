@@ -66,7 +66,7 @@ SQLRETURN duckdb::FinalizeStmt(duckdb::OdbcHandleStmt *hstmt) {
 		                            SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName()));
 	}
 
-	hstmt->param_desc->ResetParams(hstmt->stmt->named_param_map.size());
+	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->named_param_map.size()));
 
 	hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
 
@@ -452,7 +452,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		auto pos_dot = str_val.find('.');
 		if (pos_dot != string::npos) {
 			str_val.erase(std::remove(str_val.begin(), str_val.end(), '.'), str_val.end());
-			numeric->scale = str_val.size() - pos_dot;
+			numeric->scale = static_cast<SQLSCHAR>(str_val.size() - pos_dot);
 
 			string str_fraction = str_val.substr(pos_dot);
 			// case all digits in fraction is 0, remove them
@@ -461,9 +461,9 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 			}
 			width = str_val.size();
 		}
-		numeric->precision = width;
+		numeric->precision = static_cast<SQLCHAR>(width);
 
-		string_t str_t(str_val.c_str(), width);
+		string_t str_t(str_val.c_str(), static_cast<uint32_t>(width));
 		if (numeric->precision <= Decimal::MAX_WIDTH_INT64) {
 			int64_t val_i64;
 			if (!duckdb::TryCast::Operation(str_t, val_i64)) {
@@ -971,11 +971,11 @@ SQLRETURN duckdb::BindParameterStmt(SQLHSTMT statement_handle, SQLUSMALLINT para
 
 	ipd_record->sql_desc_parameter_type = input_output_type;
 	ipd_record->sql_desc_length = column_size;
-	ipd_record->sql_desc_precision = column_size;
+	ipd_record->sql_desc_precision = static_cast<SQLSMALLINT>(column_size);
 	ipd_record->sql_desc_scale = decimal_digits;
 	if (value_type == SQL_DECIMAL || value_type == SQL_NUMERIC || value_type == SQL_FLOAT || value_type == SQL_REAL ||
 	    value_type == SQL_DOUBLE) {
-		ipd_record->sql_desc_precision = column_size;
+		ipd_record->sql_desc_precision = static_cast<SQLSMALLINT>(column_size);
 	}
 
 	if (ipd_record->SetSqlDataType(parameter_type) == SQL_ERROR ||

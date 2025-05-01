@@ -82,7 +82,7 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 		if (value_ptr == nullptr) {
 			return SQL_ERROR;
 		}
-		hstmt->row_desc->ard->header.sql_desc_bind_type = (SQLULEN)value_ptr;
+		hstmt->row_desc->ard->header.sql_desc_bind_type = static_cast<SQLINTEGER>(reinterpret_cast<SQLLEN>(value_ptr));
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_ROW_STATUS_PTR: {
@@ -448,7 +448,8 @@ SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQ
 
 	string sql_tables = OdbcUtils::GetQueryDuckdbTables(schema_filter, table_filter, table_tp);
 
-	if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_tables.c_str(), sql_tables.size()))) {
+	if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_tables.c_str(),
+	                                          static_cast<SQLINTEGER>(sql_tables.size())))) {
 		return SQL_ERROR;
 	}
 
@@ -487,7 +488,8 @@ SQLRETURN SQL_API SQLColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, S
 
 	string sql_columns = OdbcUtils::GetQueryDuckdbColumns(catalog_filter, schema_filter, table_filter, column_filter);
 
-	ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_columns.c_str(), sql_columns.size());
+	ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_columns.c_str(),
+	                             static_cast<SQLINTEGER>(sql_columns.size()));
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
 	}
@@ -510,7 +512,8 @@ SELECT
 	CAST(0  AS SMALLINT) AS "PSEUDO_COLUMN"
 WHERE 1 < 0
 )#";
-	SQLRETURN ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), query.size());
+	SQLRETURN ret =
+	    duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), static_cast<SQLINTEGER>(query.size()));
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
 	}
@@ -537,7 +540,8 @@ SELECT
 	CAST('' AS VARCHAR ) AS "FILTER_CONDITION"
 WHERE 1 < 0
 )#";
-	SQLRETURN ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), query.size());
+	SQLRETURN ret =
+	    duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), static_cast<SQLINTEGER>(query.size()));
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
 	}
@@ -561,7 +565,7 @@ static SQLRETURN SetCharacterAttributePtr(duckdb::OdbcHandleStmt *hstmt, const s
                                           SQLSMALLINT *string_length_ptr) {
 	// user only wants the size of the character attribute
 	if (character_attribute_ptr == nullptr && string_length_ptr) {
-		*string_length_ptr = str.size();
+		*string_length_ptr = static_cast<SQLSMALLINT>(str.size());
 		return SQL_SUCCESS;
 	}
 	if (buffer_length <= 0) {
