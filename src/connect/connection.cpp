@@ -570,7 +570,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		if (string_length_ptr) {
 			SQLLEN len_ptr;
 			ret = SQLGetData(stmt, 1, SQL_C_CHAR, info_value_ptr, buffer_length, &len_ptr);
-			*string_length_ptr = len_ptr;
+			*string_length_ptr = static_cast<SQLSMALLINT>(len_ptr);
 		} else {
 			ret = SQLGetData(stmt, 1, SQL_C_CHAR, info_value_ptr, buffer_length, nullptr);
 		}
