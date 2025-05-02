@@ -18,9 +18,11 @@ namespace duckdb {
 
 constexpr column_t MultiFileReader::COLUMN_IDENTIFIER_FILENAME;
 constexpr column_t MultiFileReader::COLUMN_IDENTIFIER_FILE_ROW_NUMBER;
+constexpr column_t MultiFileReader::COLUMN_IDENTIFIER_FILE_INDEX;
 constexpr int32_t MultiFileReader::ORDINAL_FIELD_ID;
 constexpr int32_t MultiFileReader::FILENAME_FIELD_ID;
 constexpr int32_t MultiFileReader::ROW_ID_FIELD_ID;
+constexpr int32_t MultiFileReader::LAST_UPDATED_SEQUENCE_NUMBER_ID;
 
 MultiFileReaderGlobalState::~MultiFileReaderGlobalState() {
 }
@@ -38,6 +40,27 @@ unique_ptr<MultiFileReader> MultiFileReader::Create(const TableFunction &table_f
 		res->function_name = table_function.name;
 	}
 	return res;
+}
+
+unique_ptr<MultiFileReader> MultiFileReader::Copy() const {
+	return CreateDefault(function_name);
+}
+
+unique_ptr<FunctionData> MultiFileBindData::Copy() const {
+	auto result = make_uniq<MultiFileBindData>();
+	if (bind_data) {
+		result->bind_data = unique_ptr_cast<FunctionData, TableFunctionData>(bind_data->Copy());
+	}
+	result->file_list = make_uniq<SimpleMultiFileList>(file_list->GetAllFiles());
+	result->multi_file_reader = multi_file_reader->Copy();
+	result->columns = columns;
+	result->reader_bind = reader_bind;
+	result->file_options = file_options;
+	result->types = types;
+	result->names = names;
+	result->virtual_columns = virtual_columns;
+	result->table_columns = table_columns;
+	return std::move(result);
 }
 
 unique_ptr<MultiFileReader> MultiFileReader::CreateDefault(const string &function_name) {
@@ -261,6 +284,8 @@ void MultiFileReader::GetVirtualColumns(ClientContext &context, MultiFileReaderB
 		bind_data.filename_idx = COLUMN_IDENTIFIER_FILENAME;
 		result.insert(make_pair(COLUMN_IDENTIFIER_FILENAME, TableColumn("filename", LogicalType::VARCHAR)));
 	}
+	result.insert(make_pair(COLUMN_IDENTIFIER_FILE_INDEX, TableColumn("file_index", LogicalType::UBIGINT)));
+	result.insert(make_pair(COLUMN_IDENTIFIER_EMPTY, TableColumn("", LogicalType::BOOLEAN)));
 }
 
 void MultiFileReader::FinalizeBind(MultiFileReaderData &reader_data, const MultiFileOptions &file_options,
@@ -284,9 +309,14 @@ void MultiFileReader::FinalizeBind(MultiFileReaderData &reader_data, const Multi
 		auto &col_id = global_column_ids[i];
 		auto column_id = col_id.GetPrimaryIndex();
 		if ((options.filename_idx.IsValid() && column_id == options.filename_idx.GetIndex()) ||
-		    column_id == MultiFileReader::COLUMN_IDENTIFIER_FILENAME) {
+		    column_id == COLUMN_IDENTIFIER_FILENAME) {
 			// filename
 			reader_data.constant_map.Add(global_idx, Value(filename));
+			continue;
+		}
+		if (column_id == COLUMN_IDENTIFIER_FILE_INDEX) {
+			// filename
+			reader_data.constant_map.Add(global_idx, Value::UBIGINT(reader_data.reader->file_list_idx.GetIndex()));
 			continue;
 		}
 		if (IsVirtualColumn(column_id)) {
