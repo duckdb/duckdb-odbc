@@ -19,7 +19,7 @@ SQLRETURN SQL_API SQLGetFunctions(SQLHDBC connection_handle, SQLUSMALLINT functi
 	}
 }
 
-SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
+static SQLRETURN GetTypeInfoInternal(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -63,6 +63,14 @@ SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_typ
 	// clang-format on
 
 	return duckdb::ExecDirectStmt(hstmt, (SQLCHAR *)query.c_str(), static_cast<SQLINTEGER>(query.size()));
+}
+
+SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
+	return GetTypeInfoInternal(statement_handle, data_type);
+}
+
+SQLRETURN SQL_API SQLGetTypeInfoW(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
+	return GetTypeInfoInternal(statement_handle, data_type);
 }
 
 /*** ApiInfo private attributes ********************************/
@@ -128,6 +136,7 @@ const vector<duckdb::OdbcTypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 {                    "'FLOAT'",                     SQL_FLOAT,                       24,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC, SQL_FALSE, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,     SQL_FLOAT,                        -1,  2, -1},
 {                   "'DOUBLE'",                    SQL_DOUBLE,                       53,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC, SQL_FALSE, SQL_FALSE, SQL_FALSE,      "NULL",  0,  0,    SQL_DOUBLE,                        -1,  2, -1},
 {                  "'VARCHAR'",                   SQL_VARCHAR, ApiInfo::MAX_COLUMN_SIZE,  "''''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_SEARCHABLE,        -1, SQL_FALSE,        -1,      "NULL", -1, -1,   SQL_VARCHAR,                        -1, -1, -1},
+{                  "'VARCHAR'",                  SQL_WVARCHAR, ApiInfo::MAX_COLUMN_SIZE,  "''''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_SEARCHABLE,        -1, SQL_FALSE,        -1,      "NULL", -1, -1,  SQL_WVARCHAR,                        -1, -1, -1},
 {                     "'BLOB'",                 SQL_VARBINARY, ApiInfo::MAX_COLUMN_SIZE, "'x'''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL", -1, -1, SQL_VARBINARY,                        -1, -1, -1},
 {                     "'UUID'",              SQL_UNKNOWN_TYPE, ApiInfo::MAX_COLUMN_SIZE,  "''''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_PRED_BASIC,        -1, SQL_FALSE, SQL_FALSE,      "NULL", -1, -1,   SQL_VARCHAR,                        -1, -1, -1},
 {            "'INTERVAL YEAR'",             SQL_INTERVAL_YEAR,                        9,  "''''", "''''",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,        -1, SQL_FALSE,        -1,      "NULL",  0,  0,   SQL_VARCHAR,             SQL_CODE_YEAR, -1, -1},

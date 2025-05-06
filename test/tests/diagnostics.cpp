@@ -30,7 +30,7 @@ TEST_CASE("Test SQLGetDiagRec (returns diagnostic record)", "[odbc]") {
 	// Get the diagnostics again to make sure they are the same
 	std::string second_state;
 	std::string second_message;
-	ACCESS_DIAGNOSTIC(second_state, second_message, hstmt, SQL_HANDLE_STMT);
+	ACCESS_DIAGNOSTIC_WIDE(second_state, second_message, hstmt, SQL_HANDLE_STMT);
 
 	// Compare the diagnostics to make sure they are the same and that SQLGetDiagRec does not change the state of the
 	// statement

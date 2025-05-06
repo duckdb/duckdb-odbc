@@ -7,6 +7,7 @@
 #include "odbc_diagnostic.hpp"
 #include "odbc_fetch.hpp"
 #include "odbc_utils.hpp"
+#include "widechar.hpp"
 
 #include <locale>
 
@@ -198,9 +199,38 @@ SQLRETURN SQL_API SQLGetEnvAttr(SQLHENV environment_handle, SQLINTEGER attribute
 	return SQL_SUCCESS;
 }
 
-SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number, SQLCHAR *sql_state,
-                                SQLINTEGER *native_error_ptr, SQLCHAR *message_text, SQLSMALLINT buffer_length,
-                                SQLSMALLINT *text_length_ptr) {
+static void WriteStringWithLenInChars(const std::string msg_str, SQLCHAR *message_text, SQLSMALLINT buffer_length_chars,
+                                      SQLSMALLINT *text_length_chars_ptr) {
+	OdbcUtils::WriteString(msg_str, message_text, buffer_length_chars, text_length_chars_ptr);
+}
+
+static void WriteStringWithLenInChars(const std::string msg_str, SQLWCHAR *message_text,
+                                      SQLSMALLINT buffer_length_chars, SQLSMALLINT *text_length_chars_ptr) {
+	auto utf16_vec =
+	    duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(msg_str.c_str()), msg_str.length());
+	if (buffer_length_chars <= 1) {
+		if (message_text != nullptr && buffer_length_chars == 1) {
+			message_text[0] = 0;
+		}
+		if (text_length_chars_ptr != nullptr) {
+			*text_length_chars_ptr = 0;
+			return;
+		}
+	}
+	std::size_t len_chars = std::min(utf16_vec.size(), static_cast<std::size_t>(buffer_length_chars - 1));
+	if (message_text != nullptr) {
+		std::memcpy(message_text, utf16_vec.data(), len_chars * sizeof(SQLWCHAR));
+		message_text[len_chars] = 0;
+	}
+	if (text_length_chars_ptr != nullptr) {
+		*text_length_chars_ptr = static_cast<SQLSMALLINT>(len_chars);
+	}
+}
+
+template <typename CHAR_TYPE>
+static SQLRETURN GetDiagRecInternal(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number,
+                                    CHAR_TYPE *sql_state, SQLINTEGER *native_error_ptr, CHAR_TYPE *message_text,
+                                    SQLSMALLINT buffer_length, SQLSMALLINT *text_length_ptr) {
 
 	// lambda function that writes the diagnostic messages
 	std::function<bool(duckdb::OdbcHandle *, duckdb::OdbcHandleType)> is_valid_type_func =
@@ -208,7 +238,7 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 		    if (hdl->type != target_type) {
 			    std::string msg_str("Handle type " + duckdb::OdbcHandleTypeToString(hdl->type) + " mismatch with " +
 			                        duckdb::OdbcHandleTypeToString(target_type));
-			    OdbcUtils::WriteString(msg_str, message_text, buffer_length, text_length_ptr);
+			    WriteStringWithLenInChars(msg_str, message_text, buffer_length, text_length_ptr);
 			    return false;
 		    }
 		    return true;
@@ -247,11 +277,11 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 	}
 
 	if (rec_number <= 0) {
-		OdbcUtils::WriteString("Record number is less than 1", message_text, buffer_length, text_length_ptr);
+		WriteStringWithLenInChars("Record number is less than 1", message_text, buffer_length, text_length_ptr);
 		return SQL_SUCCESS;
 	}
 	if (buffer_length < 0) {
-		OdbcUtils::WriteString("Buffer length is negative", message_text, buffer_length, text_length_ptr);
+		WriteStringWithLenInChars("Buffer length is negative", message_text, buffer_length, text_length_ptr);
 		return SQL_SUCCESS;
 	}
 	if ((size_t)rec_number > hdl->odbc_diagnostic->GetTotalRecords()) {
@@ -262,7 +292,8 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 	auto &diag_record = hdl->odbc_diagnostic->GetDiagRecord(rec_idx);
 
 	if (sql_state) {
-		OdbcUtils::WriteString(diag_record.sql_diag_sqlstate, sql_state, 6);
+		SQLSMALLINT *len_out = nullptr;
+		WriteStringWithLenInChars(diag_record.sql_diag_sqlstate, sql_state, static_cast<SQLSMALLINT>(6), len_out);
 	}
 	if (native_error_ptr) {
 		duckdb::Store<SQLINTEGER>(diag_record.sql_diag_native, (duckdb::data_ptr_t)native_error_ptr);
@@ -279,10 +310,20 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 		return SQL_SUCCESS_WITH_INFO;
 	}
 
-	OdbcUtils::WriteString(msg, message_text, buffer_length, text_length_ptr);
+	WriteStringWithLenInChars(msg, message_text, buffer_length, text_length_ptr);
 
 	if (text_length_ptr) {
-		SQLSMALLINT remaining_chars = msg.size() - buffer_length;
+		SQLSMALLINT msg_len = 0;
+		if (!msg.empty()) {
+			if (sizeof(CHAR_TYPE) == sizeof(SQLWCHAR)) {
+				auto msg_utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(
+				    reinterpret_cast<const SQLCHAR *>(msg.c_str()), msg.length());
+				msg_len = static_cast<SQLSMALLINT>(msg_utf16_vec.size());
+			} else {
+				msg_len = static_cast<SQLSMALLINT>(msg.size());
+			}
+		}
+		SQLSMALLINT remaining_chars = static_cast<SQLSMALLINT>(msg_len - buffer_length);
 		if (remaining_chars > 0) {
 			// TODO needs to split the diagnostic message
 			hdl->odbc_diagnostic->AddNewRecIdx(rec_idx);
@@ -293,9 +334,24 @@ SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSM
 	return SQL_SUCCESS;
 }
 
-SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number,
-                                  SQLSMALLINT diag_identifier, SQLPOINTER diag_info_ptr, SQLSMALLINT buffer_length,
-                                  SQLSMALLINT *string_length_ptr) {
+SQLRETURN SQL_API SQLGetDiagRec(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number, SQLCHAR *sql_state,
+                                SQLINTEGER *native_error_ptr, SQLCHAR *message_text, SQLSMALLINT buffer_length,
+                                SQLSMALLINT *text_length_ptr) {
+	return GetDiagRecInternal(handle_type, handle, rec_number, sql_state, native_error_ptr, message_text, buffer_length,
+	                          text_length_ptr);
+}
+
+SQLRETURN SQL_API SQLGetDiagRecW(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number, SQLWCHAR *sql_state,
+                                 SQLINTEGER *native_error_ptr, SQLWCHAR *message_text, SQLSMALLINT buffer_length,
+                                 SQLSMALLINT *text_length_ptr) {
+	return GetDiagRecInternal(handle_type, handle, rec_number, sql_state, native_error_ptr, message_text, buffer_length,
+	                          text_length_ptr);
+}
+
+template <typename CHAR_TYPE>
+static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number,
+                                      SQLSMALLINT diag_identifier, SQLPOINTER diag_info_ptr, SQLSMALLINT buffer_length,
+                                      SQLSMALLINT *string_length_ptr) {
 	switch (handle_type) {
 	case SQL_HANDLE_ENV:
 	case SQL_HANDLE_DBC:
@@ -323,8 +379,9 @@ SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQL
 			if (hdl->type != duckdb::OdbcHandleType::STMT) {
 				return SQL_ERROR;
 			}
-			duckdb::OdbcUtils::WriteString(hdl->odbc_diagnostic->GetDiagDynamicFunction(), (SQLCHAR *)diag_info_ptr,
-			                               buffer_length, string_length_ptr);
+			duckdb::OdbcUtils::WriteString(hdl->odbc_diagnostic->GetDiagDynamicFunction(),
+			                               reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length,
+			                               string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_DYNAMIC_FUNCTION_CODE: {
@@ -374,8 +431,9 @@ SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQL
 		// diag record fields
 		switch (diag_identifier) {
 		case SQL_DIAG_CLASS_ORIGIN: {
-			duckdb::OdbcUtils::WriteString(hdl->odbc_diagnostic->GetDiagClassOrigin(rec_idx), (SQLCHAR *)diag_info_ptr,
-			                               buffer_length, string_length_ptr);
+			duckdb::OdbcUtils::WriteString(hdl->odbc_diagnostic->GetDiagClassOrigin(rec_idx),
+			                               reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length,
+			                               string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_COLUMN_NUMBER: {
@@ -388,12 +446,14 @@ SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQL
 		}
 		case SQL_DIAG_CONNECTION_NAME: {
 			// we do not support connection names
-			duckdb::OdbcUtils::WriteString("", (SQLCHAR *)diag_info_ptr, buffer_length, string_length_ptr);
+			duckdb::OdbcUtils::WriteString("", reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length,
+			                               string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_MESSAGE_TEXT: {
 			auto msg = diag_record.GetMessage(buffer_length);
-			duckdb::OdbcUtils::WriteString(msg, (SQLCHAR *)diag_info_ptr, buffer_length, string_length_ptr);
+			duckdb::OdbcUtils::WriteString(msg, reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length,
+			                               string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_NATIVE: {
@@ -409,18 +469,20 @@ SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQL
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_SERVER_NAME: {
-			duckdb::OdbcUtils::WriteString(diag_record.sql_diag_server_name, (SQLCHAR *)diag_info_ptr, buffer_length,
+			duckdb::OdbcUtils::WriteString(diag_record.sql_diag_server_name,
+			                               reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length,
 			                               string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_SQLSTATE: {
-			duckdb::OdbcUtils::WriteString(diag_record.sql_diag_sqlstate, (SQLCHAR *)diag_info_ptr, buffer_length,
-			                               string_length_ptr);
+			duckdb::OdbcUtils::WriteString(diag_record.sql_diag_sqlstate, reinterpret_cast<CHAR_TYPE *>(diag_info_ptr),
+			                               buffer_length, string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_SUBCLASS_ORIGIN: {
 			duckdb::OdbcUtils::WriteString(hdl->odbc_diagnostic->GetDiagSubclassOrigin(rec_idx),
-			                               (SQLCHAR *)diag_info_ptr, buffer_length, string_length_ptr);
+			                               reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length,
+			                               string_length_ptr);
 			return SQL_SUCCESS;
 		}
 		default:
@@ -432,9 +494,23 @@ SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQL
 	}
 }
 
-SQLRETURN SQL_API SQLDataSources(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *server_name,
-                                 SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLCHAR *description,
-                                 SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
+SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number,
+                                  SQLSMALLINT diag_identifier, SQLPOINTER diag_info_ptr, SQLSMALLINT buffer_length,
+                                  SQLSMALLINT *string_length_ptr) {
+	return GetDiagFieldInternal<SQLCHAR>(handle_type, handle, rec_number, diag_identifier, diag_info_ptr, buffer_length,
+	                                     string_length_ptr);
+}
+
+SQLRETURN SQL_API SQLGetDiagFieldW(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT rec_number,
+                                   SQLSMALLINT diag_identifier, SQLPOINTER diag_info_ptr, SQLSMALLINT buffer_length,
+                                   SQLSMALLINT *string_length_ptr) {
+	return GetDiagFieldInternal<SQLWCHAR>(handle_type, handle, rec_number, diag_identifier, diag_info_ptr,
+	                                      buffer_length, string_length_ptr);
+}
+
+static SQLRETURN DataSourcesInternal(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *server_name,
+                                     SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLCHAR *description,
+                                     SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
 	duckdb::OdbcHandleEnv *env = nullptr;
 	SQLRETURN ret = ConvertEnvironment(environment_handle, env);
 	if (ret != SQL_SUCCESS) {
@@ -443,6 +519,23 @@ SQLRETURN SQL_API SQLDataSources(SQLHENV environment_handle, SQLUSMALLINT direct
 
 	return duckdb::SetDiagnosticRecord(env, SQL_ERROR, "SQLDataSources", "Driver Manager only function",
 	                                   SQLStateType::ST_HY000, "");
+}
+
+SQLRETURN SQL_API SQLDataSources(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *server_name,
+                                 SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLCHAR *description,
+                                 SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
+	return DataSourcesInternal(environment_handle, direction, server_name, buffer_length1, name_length1_ptr,
+	                           description, buffer_length2, name_length2_ptr);
+}
+
+SQLRETURN SQL_API SQLDataSourcesW(SQLHENV environment_handle, SQLUSMALLINT direction, SQLWCHAR *server_name,
+                                  SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLWCHAR *description,
+                                  SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
+	auto server_name_conv = duckdb::widechar::utf16_conv(server_name, buffer_length1);
+	auto description_conv = duckdb::widechar::utf16_conv(description, buffer_length2);
+	return DataSourcesInternal(environment_handle, direction, server_name_conv.utf8_str,
+	                           server_name_conv.utf8_len_smallint(), name_length1_ptr, description_conv.utf8_str,
+	                           description_conv.utf8_len_smallint(), name_length2_ptr);
 }
 
 SQLRETURN SQL_API SQLDrivers(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *driver_description,

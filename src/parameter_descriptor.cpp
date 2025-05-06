@@ -3,6 +3,7 @@
 #include "duckdb/common/types/decimal.hpp"
 #include "handle_functions.hpp"
 #include "odbc_utils.hpp"
+#include "widechar.hpp"
 
 using duckdb::Decimal;
 using duckdb::OdbcHandleDesc;
@@ -262,7 +263,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 
 	switch (ipd->records[rec_idx].sql_desc_type) {
 	case SQL_CHAR:
-	case SQL_VARCHAR: {
+	case SQL_VARCHAR:
+	case SQL_LONGVARCHAR: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
@@ -274,19 +276,23 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		break;
 	}
 	case SQL_WCHAR:
-	case SQL_WVARCHAR: {
+	case SQL_WVARCHAR:
+	case SQL_WLONGVARCHAR: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
-		auto str_data = (wchar_t *)sql_data_ptr + (val_idx * buff_size);
+		auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
-			*sql_ind_ptr_val_set = wcslen(str_data);
+			*sql_ind_ptr_val_set = static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
 		}
-		auto str_len = *sql_ind_ptr_val_set;
-		value = Value(duckdb::OdbcUtils::ReadString(str_data, str_len));
+		auto utf16_len = static_cast<std::size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
+		auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
+		auto utf8_str = std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size());
+		value = Value(utf8_str);
 		break;
 	}
+	case SQL_BINARY:
 	case SQL_VARBINARY:
-	case SQL_BINARY: {
+	case SQL_LONGVARBINARY: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto blob_data = (duckdb::const_data_ptr_t)sql_data_ptr + (val_idx * buff_size);

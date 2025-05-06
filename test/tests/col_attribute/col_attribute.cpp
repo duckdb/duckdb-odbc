@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "widechar.hpp"
 
 using namespace odbc_col_attribute_test;
 
@@ -59,7 +60,16 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_BASE_COLUMN_NAME, nullptr, 0,
 		                  &base_col_name_size, nullptr);
 
-		REQUIRE(STR_EQUAL(col_name, base_col_name));
+		std::vector<SQLWCHAR> col_name_utf16;
+		col_name_utf16.resize(64);
+		SQLSMALLINT col_name_utf16_len_bytes = 0;
+		EXECUTE_AND_CHECK("SQLColAttributeW", hstmt, SQLColAttributeW, hstmt, i, SQL_DESC_NAME, col_name_utf16.data(),
+		                  col_name_utf16.size() * sizeof(SQLWCHAR), &col_name_utf16_len_bytes, nullptr);
+		auto utf16_len_calculated = duckdb::widechar::utf16_length(col_name_utf16.data());
+		REQUIRE(col_name_utf16_len_bytes == utf16_len_calculated * sizeof(SQLWCHAR));
+		std::string col_name_utf8 = ConvertToString(col_name_utf16.data());
+		REQUIRE(STR_EQUAL(col_name_utf8.c_str(), col_name));
+
 		switch (i) {
 		case 1:
 			REQUIRE(STR_EQUAL(buffer, "intcol"));
@@ -161,6 +171,57 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 	SQLLEN fixed_prec_scale;
 	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 1, SQL_DESC_FIXED_PREC_SCALE, nullptr, 0,
 	                  nullptr, &fixed_prec_scale);
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	// Disconnect from the database
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
+
+TEST_CASE("Test SQLColAttribute with unicode column name", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	std::vector<SQLCHAR> hello_bg_utf8 = {0xd0, 0x97, 0xd0, 0xb4, 0xd1, 0x80, 0xd0, 0xb0, 0xd0,
+	                                      0xb2, 0xd0, 0xb5, 0xd0, 0xb9, 0xd1, 0x82, 0xd0, 0xb5};
+	std::string hello_bg_utf8_str(reinterpret_cast<char *>(hello_bg_utf8.data()), hello_bg_utf8.size());
+	std::vector<SQLWCHAR> hello_bg_utf16 = {0x0417, 0x0434, 0x0440, 0x0430, 0x0432, 0x0435, 0x0439, 0x0442, 0x0435};
+
+	// Get column attributes of a simple query
+	EXECUTE_AND_CHECK("SQLExectDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("SELECT 42 as \"" + hello_bg_utf8_str + "\"").data(), SQL_NTS);
+
+	// Check column name UTF-16
+	std::vector<SQLWCHAR> col_name_utf16;
+	col_name_utf16.resize(64);
+	SQLSMALLINT col_name_utf16_len_bytes = 0;
+	EXECUTE_AND_CHECK("SQLColAttributeW", hstmt, SQLColAttributeW, hstmt, 1, SQL_DESC_NAME, col_name_utf16.data(),
+	                  col_name_utf16.size() * sizeof(SQLWCHAR), &col_name_utf16_len_bytes, nullptr);
+	auto utf16_len_calculated = duckdb::widechar::utf16_length(col_name_utf16.data());
+	REQUIRE(col_name_utf16_len_bytes == utf16_len_calculated * sizeof(SQLWCHAR));
+	std::string col_name_utf8_converted = ConvertToString(col_name_utf16.data());
+	REQUIRE(STR_EQUAL(col_name_utf8_converted.c_str(), hello_bg_utf8_str.c_str()));
+
+	// Check column name UTF-8
+	std::vector<SQLCHAR> col_name_utf8;
+	col_name_utf8.resize(64);
+	SQLSMALLINT col_name_utf8_len_bytes = 0;
+	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 1, SQL_DESC_NAME, col_name_utf8.data(),
+	                  col_name_utf8.size(), &col_name_utf8_len_bytes, nullptr);
+	auto utf8_len_calculated = std::strlen(reinterpret_cast<char *>(col_name_utf8.data()));
+	REQUIRE(col_name_utf8_len_bytes == utf8_len_calculated);
+	std::string col_name_utf8_str = std::string(reinterpret_cast<char *>(col_name_utf8.data()), utf8_len_calculated);
+	REQUIRE(STR_EQUAL(col_name_utf8_str.c_str(), hello_bg_utf8_str.c_str()));
 
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);

@@ -5,6 +5,7 @@
 #include "odbc_utils.hpp"
 #include "descriptor.hpp"
 #include "parameter_descriptor.hpp"
+#include "widechar.hpp"
 
 #include "duckdb/common/types/timestamp.hpp"
 #include "duckdb/common/types/decimal.hpp"
@@ -18,10 +19,6 @@
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/vector.hpp"
 #include "duckdb/common/enum_util.hpp"
-
-#include <algorithm>
-#include <codecvt>
-#include <locale>
 
 using duckdb::date_t;
 using duckdb::Decimal;
@@ -387,9 +384,9 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 
 		SQLRETURN ret = SQL_SUCCESS;
 
-		std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter_utf16;
-		std::u16string utf16_str = converter_utf16.from_bytes(str.data());
-		auto out_len = duckdb::MinValue(utf16_str.size(), (size_t)buffer_length);
+		auto utf16_vec =
+		    duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(str.c_str()), str.length());
+		auto out_len = duckdb::MinValue(utf16_vec.size(), static_cast<std::size_t>(buffer_length) / sizeof(SQLWCHAR));
 		// reserving two bytes for each char
 		out_len *= 2;
 		// check space for 2 null terminator char
@@ -405,7 +402,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 			    "specifief column prior to the current call to SQLGetData is returned in *StrLen_or_IndPtr.",
 			    duckdb::SQLStateType::ST_01004, hstmt->dbc->GetDataSourceName());
 		}
-		memcpy((char *)target_value_ptr, (char *)utf16_str.c_str(), out_len);
+		memcpy(static_cast<void *>(target_value_ptr), static_cast<void *>(utf16_vec.data()), out_len);
 
 		// null terminator char
 		((char *)target_value_ptr)[out_len] = '\0';
