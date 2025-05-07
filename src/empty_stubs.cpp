@@ -2,7 +2,7 @@
 #include "handle_functions.hpp"
 #include "statement_functions.hpp"
 
-//! ODBC stub functions not implemented yet,
+//! The following ODBC stub functions aren't implemented yet,
 //! when implementing the function must be moved to the proper source file
 
 // ============================================================================
