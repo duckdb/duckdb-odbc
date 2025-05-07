@@ -73,6 +73,7 @@ public:
 	static SQLUINTEGER SQLPointerToSQLUInteger(SQLPOINTER value);
 	static std::string ConvertSQLCHARToString(SQLCHAR *str);
 	static LPCSTR ConvertStringToLPCSTR(const std::string &str);
+	static SQLCHAR *ConvertStringToSQLCHAR(const std::string &str);
 };
 } // namespace duckdb
 #endif

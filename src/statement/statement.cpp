@@ -494,56 +494,6 @@ SQLRETURN SQL_API SQLColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, S
 	return SQL_SUCCESS;
 }
 
-SQLRETURN SQL_API SQLSpecialColumns(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
-                                    SQLSMALLINT name_length1, SQLCHAR *schema_name, SQLSMALLINT name_length2,
-                                    SQLCHAR *table_name, SQLSMALLINT name_length3, SQLUSMALLINT scope,
-                                    SQLUSMALLINT nullable) {
-	std::string query = R"#(
-SELECT
-	CAST(0  AS SMALLINT) AS "SCOPE",
-	CAST('' AS VARCHAR ) AS "COLUMN_NAME", 
-	CAST(0  AS SMALLINT) AS "DATA_TYPE",
-	CAST('' AS VARCHAR ) AS "TYPE_NAME",
-	CAST(0  AS INT     ) AS "COLUMN_SIZE",
-	CAST(0  AS INT     ) AS "BUFFER_LENGTH",
-	CAST(0  AS SMALLINT) AS "DECIMAL_DIGITS", 
-	CAST(0  AS SMALLINT) AS "PSEUDO_COLUMN"
-WHERE 1 < 0
-)#";
-	SQLRETURN ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), query.size());
-	if (!SQL_SUCCEEDED(ret)) {
-		return ret;
-	}
-	return SQL_SUCCESS;
-}
-
-SQLRETURN SQL_API SQLStatistics(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
-                                SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
-                                SQLSMALLINT name_length3, SQLUSMALLINT unique, SQLUSMALLINT reserved) {
-	std::string query = R"#(
-SELECT
-	CAST('' AS VARCHAR ) AS "TABLE_CAT",
-	CAST('' AS VARCHAR ) AS "TABLE_SCHEM",
-	CAST('' AS VARCHAR ) AS "TABLE_NAME",
-	CAST(0  AS SMALLINT) AS "NON_UNIQUE",
-	CAST('' AS VARCHAR ) AS "INDEX_QUALIFIER",
-	CAST('' AS VARCHAR ) AS "INDEX_NAME",
-	CAST(0  AS SMALLINT) AS "TYPE",
-	CAST(0  AS SMALLINT) AS "ORDINAL_POSITION",
-	CAST('' AS VARCHAR ) AS "COLUMN_NAME",
-	CAST('' AS CHAR(1) ) AS "ASC_OR_DESC",
-	CAST(0  AS INT     ) AS "CARDINALITY",
-	CAST(0  AS INT     ) AS "PAGES",
-	CAST('' AS VARCHAR ) AS "FILTER_CONDITION"
-WHERE 1 < 0
-)#";
-	SQLRETURN ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), query.size());
-	if (!SQL_SUCCEEDED(ret)) {
-		return ret;
-	}
-	return SQL_SUCCESS;
-}
-
 template <typename T>
 static SQLRETURN SetNumericAttributePtr(duckdb::OdbcHandleStmt *hstmt, const T &val, SQLLEN *numeric_attribute_ptr) {
 	if (numeric_attribute_ptr) {

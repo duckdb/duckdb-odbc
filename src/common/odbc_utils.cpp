@@ -246,6 +246,10 @@ std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str) {
 	return std::string(reinterpret_cast<char *>(str));
 }
 
-LPCSTR duckdb::OdbcUtils::ConvertStringToLPCSTR(const std::string &str) {
+LPCSTR OdbcUtils::ConvertStringToLPCSTR(const std::string &str) {
 	return reinterpret_cast<LPCSTR>(const_cast<char *>(str.c_str()));
+}
+
+SQLCHAR *OdbcUtils::ConvertStringToSQLCHAR(const std::string &str) {
+	return reinterpret_cast<SQLCHAR *>(const_cast<char *>(str.c_str()));
 }
