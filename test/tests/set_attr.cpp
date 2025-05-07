@@ -20,10 +20,18 @@ TEST_CASE("Test SQL_ATTR_ROW_BIND_TYPE and SQL_ATTR_MAX_LENGTH attributes in SQL
 	                  ConvertToSQLPOINTER(row_len), SQL_IS_INTEGER);
 
 	// Check the statement attribute SQL_ATTR_ROW_BIND_TYPE
-	SQLULEN buf;
-	EXECUTE_AND_CHECK("SQLGetStmtAttr (SQL_ATTR_ROW_BIND_TYPE)", hstmt, SQLGetStmtAttr, hstmt, SQL_ATTR_ROW_BIND_TYPE,
-	                  &buf, sizeof(buf), nullptr);
-	REQUIRE(row_len == buf);
+	{
+		SQLULEN buf;
+		EXECUTE_AND_CHECK("SQLGetStmtAttr (SQL_ATTR_ROW_BIND_TYPE)", hstmt, SQLGetStmtAttr, hstmt,
+		                  SQL_ATTR_ROW_BIND_TYPE, &buf, sizeof(buf), nullptr);
+		REQUIRE(row_len == buf);
+	}
+	{
+		SQLULEN buf;
+		EXECUTE_AND_CHECK("SQLGetStmtAttrW (SQL_ATTR_ROW_BIND_TYPE)", hstmt, SQLGetStmtAttrW, hstmt,
+		                  SQL_ATTR_ROW_BIND_TYPE, &buf, sizeof(buf), nullptr);
+		REQUIRE(row_len == buf);
+	}
 
 	// Check that SQL_ATTR_MAX_LENGTH client attr cant be set and is preserved
 	SQLULEN max_len_buf = 1;
@@ -97,8 +105,15 @@ TEST_CASE("Test SQL_ATTR_ACCESS_MODE and SQL_ATTR_METADATA_ID attribute in SQLSe
 	REQUIRE(SQL_MODE_READ_WRITE == buf);
 
 	// Set the Connect attribute SQL_ATTR_METADATA_ID to SQL_TRUE
-	EXECUTE_AND_CHECK("SQLSetConnectAttr (SQL_ATTR_METADATA_ID)", hstmt, SQLSetConnectAttr, dbc, SQL_ATTR_METADATA_ID,
+	EXECUTE_AND_CHECK("SQLSetConnectAttrW (SQL_ATTR_METADATA_ID)", hstmt, SQLSetConnectAttrW, dbc, SQL_ATTR_METADATA_ID,
 	                  ConvertToSQLPOINTER(SQL_TRUE), SQL_IS_INTEGER);
+
+	std::vector<SQLWCHAR> current_catalog_utf16;
+	current_catalog_utf16.resize(64);
+	EXECUTE_AND_CHECK("SQLGetConnectAttrW (SQL_ATTR_CURRENT_CATALOG)", hstmt, SQLGetConnectAttrW, dbc,
+	                  SQL_ATTR_CURRENT_CATALOG, current_catalog_utf16.data(), current_catalog_utf16.size(), nullptr);
+	auto current_catalog_utf8 = ConvertToString(current_catalog_utf16.data());
+	REQUIRE(current_catalog_utf8 == std::string(":memory:"));
 
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);

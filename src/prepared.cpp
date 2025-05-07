@@ -3,6 +3,7 @@
 #include "handle_functions.hpp"
 #include "api_info.hpp"
 #include "parameter_descriptor.hpp"
+#include "widechar.hpp"
 
 #include "duckdb/main/prepared_statement_data.hpp"
 
@@ -185,9 +186,10 @@ SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT param
 	return SQL_SUCCESS;
 }
 
-SQLRETURN SQL_API SQLDescribeCol(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLCHAR *column_name,
-                                 SQLSMALLINT buffer_length, SQLSMALLINT *name_length_ptr, SQLSMALLINT *data_type_ptr,
-                                 SQLULEN *column_size_ptr, SQLSMALLINT *decimal_digits_ptr, SQLSMALLINT *nullable_ptr) {
+static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLCHAR *column_name,
+                                     SQLSMALLINT buffer_length, SQLSMALLINT *name_length_ptr,
+                                     SQLSMALLINT *data_type_ptr, SQLULEN *column_size_ptr,
+                                     SQLSMALLINT *decimal_digits_ptr, SQLSMALLINT *nullable_ptr) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMTPrepared(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -220,6 +222,25 @@ SQLRETURN SQL_API SQLDescribeCol(SQLHSTMT statement_handle, SQLUSMALLINT column_
 		*nullable_ptr = SQL_NULLABLE_UNKNOWN;
 	}
 	return SQL_SUCCESS;
+}
+
+SQLRETURN SQL_API SQLDescribeCol(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLCHAR *column_name,
+                                 SQLSMALLINT buffer_length, SQLSMALLINT *name_length_ptr, SQLSMALLINT *data_type_ptr,
+                                 SQLULEN *column_size_ptr, SQLSMALLINT *decimal_digits_ptr, SQLSMALLINT *nullable_ptr) {
+	return DescribeColInternal(statement_handle, column_number, column_name, buffer_length, name_length_ptr,
+	                           data_type_ptr, column_size_ptr, decimal_digits_ptr, nullable_ptr);
+}
+
+SQLRETURN SQL_API SQLDescribeColW(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLWCHAR *column_name,
+                                  SQLSMALLINT buffer_length, SQLSMALLINT *name_length_ptr, SQLSMALLINT *data_type_ptr,
+                                  SQLULEN *column_size_ptr, SQLSMALLINT *decimal_digits_ptr,
+                                  SQLSMALLINT *nullable_ptr) {
+	auto column_name_vec = duckdb::widechar::utf8_alloc_out_vec(buffer_length);
+	auto ret = DescribeColInternal(statement_handle, column_number, column_name_vec.data(),
+	                               static_cast<SQLSMALLINT>(column_name_vec.size()), name_length_ptr, data_type_ptr,
+	                               column_size_ptr, decimal_digits_ptr, nullable_ptr);
+	duckdb::widechar::utf16_write_str(ret, column_name_vec, column_name, buffer_length, name_length_ptr);
+	return ret;
 }
 
 /**

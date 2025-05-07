@@ -21,6 +21,9 @@ TEST_CASE("Basic ODBC usage", "[odbc]") {
 	ret = SQLConnect(dbc, ConvertToSQLCHAR(dsn), SQL_NTS, nullptr, SQL_NTS, nullptr, SQL_NTS);
 	ODBC_CHECK(ret, "SQLConnect", nullptr);
 
+	ret = SQLConnectW(dbc, ConvertToSQLWCHARNTS(dsn).data(), SQL_NTS, nullptr, SQL_NTS, nullptr, SQL_NTS);
+	ODBC_CHECK(ret, "SQLConnectW", nullptr);
+
 	ret = SQLAllocHandle(SQL_HANDLE_STMT, dbc, &stmt);
 	ODBC_CHECK(ret, "SQLAllocHandle (STMT)", stmt);
 

@@ -29,6 +29,9 @@ add_executable(
   tests/test_empty_stubs.cpp
   tests/test_widechar.cpp
   tests/result_conversion.cpp
+  tests/test_timestamp.cpp
+  tests/test_widechar_conv.cpp
+  tests/test_widechar_data.cpp
   tests/col_attribute/col_attribute.cpp
   tests/col_attribute/char_query.cpp
   tests/col_attribute/int_query.cpp
@@ -37,8 +40,9 @@ add_executable(
   tests/col_attribute/utils.cpp)
 
 add_executable(
-  test_connection_odbc $<TARGET_OBJECTS:duckdb_core_obj> common.cpp
-                       tests/connect_with_ini.cpp connect_helpers.cpp)
+  test_connection_odbc
+  $<TARGET_OBJECTS:duckdb_core_obj> $<TARGET_OBJECTS:odbc_widechar> common.cpp
+  tests/connect_with_ini.cpp connect_helpers.cpp)
 
 if(WIN32)
   target_compile_options(test_odbc PRIVATE /bigobj)

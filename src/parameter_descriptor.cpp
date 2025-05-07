@@ -3,6 +3,7 @@
 #include "duckdb/common/types/decimal.hpp"
 #include "handle_functions.hpp"
 #include "odbc_utils.hpp"
+#include "widechar.hpp"
 
 using duckdb::Decimal;
 using duckdb::OdbcHandleDesc;
@@ -262,7 +263,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 
 	switch (ipd->records[rec_idx].sql_desc_type) {
 	case SQL_CHAR:
-	case SQL_VARCHAR: {
+	case SQL_VARCHAR:
+	case SQL_LONGVARCHAR: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
@@ -274,19 +276,23 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		break;
 	}
 	case SQL_WCHAR:
-	case SQL_WVARCHAR: {
+	case SQL_WVARCHAR:
+	case SQL_WLONGVARCHAR: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
-		auto str_data = (wchar_t *)sql_data_ptr + (val_idx * buff_size);
+		auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
-			*sql_ind_ptr_val_set = wcslen(str_data);
+			*sql_ind_ptr_val_set = static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
 		}
-		auto str_len = *sql_ind_ptr_val_set;
-		value = Value(duckdb::OdbcUtils::ReadString(str_data, str_len));
+		auto utf16_len = static_cast<std::size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
+		auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
+		auto utf8_str = std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size());
+		value = Value(utf8_str);
 		break;
 	}
+	case SQL_BINARY:
 	case SQL_VARBINARY:
-	case SQL_BINARY: {
+	case SQL_LONGVARBINARY: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto blob_data = (duckdb::const_data_ptr_t)sql_data_ptr + (val_idx * buff_size);
@@ -338,12 +344,13 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			return SQL_ERROR;
 		}
 		if (precision <= Decimal::MAX_WIDTH_INT64) {
-			value = Value::DECIMAL(Load<int64_t>(dataptr), precision, scale);
+			value =
+			    Value::DECIMAL(Load<int64_t>(dataptr), static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
 		} else {
 			hugeint_t dec_value;
 			memcpy(&dec_value.lower, dataptr, sizeof(dec_value.lower));
 			memcpy(&dec_value.upper, dataptr + sizeof(dec_value.lower), sizeof(dec_value.upper));
-			value = Value::DECIMAL(dec_value, precision, scale);
+			value = Value::DECIMAL(dec_value, static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
 		}
 		break;
 	}
@@ -351,6 +358,16 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		auto timestamp_struct = Load<SQL_TIMESTAMP_STRUCT>(dataptr);
 		value = Value::TIMESTAMP(timestamp_struct.year, timestamp_struct.month, timestamp_struct.day,
 		                         timestamp_struct.hour, timestamp_struct.minute, timestamp_struct.second, 0);
+		break;
+	}
+	case SQL_TYPE_DATE: {
+		auto date_struct = Load<SQL_DATE_STRUCT>(dataptr);
+		value = Value::DATE(date_struct.year, date_struct.month, date_struct.day);
+		break;
+	}
+	case SQL_TYPE_TIME: {
+		auto time_struct = Load<SQL_TIME_STRUCT>(dataptr);
+		value = Value::TIME(time_struct.hour, time_struct.minute, time_struct.second, 0);
 		break;
 	}
 

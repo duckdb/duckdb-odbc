@@ -1,6 +1,5 @@
 #include "connect_helpers.h"
 
-#include <iostream>
 #include <vector>
 
 #include <odbcinst.h>
@@ -47,6 +46,33 @@ void ConnectWithPowerQuerySDK(SQLHANDLE &env, SQLHANDLE &dbc) {
 	REQUIRE(out_str_len > 0);
 	auto out_str = std::string(reinterpret_cast<char *>(out_str_vec.data()), static_cast<std::size_t>(out_str_len));
 	REQUIRE(out_str == conn_str);
+
+	CheckConfig(dbc, "allow_unsigned_extensions", "true");
+}
+
+void ConnectWithPowerQuerySDKWide(SQLHANDLE &env, SQLHANDLE &dbc) {
+	std::string conn_str = "DRIVER={DuckDB Driver};database=" + GetTesterDirectory() + ";" +
+	                       "custom_user_agent=powerbi/v0.0(DuckDB);" + "Trusted_Connection=yes;" + "UID=user1;" +
+	                       "PWD=password1;" + "allow_unsigned_extensions=true;";
+	SQLWCHAR wstr[1024];
+	SQLSMALLINT wstr_len;
+
+	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
+	REQUIRE(ret == SQL_SUCCESS);
+
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+
+	EXECUTE_AND_CHECK("SQLDriverConnectW", nullptr, SQLDriverConnectW, dbc, nullptr,
+	                  ConvertToSQLWCHARNTS(conn_str).data(), SQL_NTS, wstr, sizeof(wstr), &wstr_len,
+	                  SQL_DRIVER_COMPLETE);
+
+	REQUIRE(wstr_len > 0);
+	REQUIRE(0 == wstr[static_cast<std::size_t>(wstr_len)]);
+	auto str = ConvertToString(wstr);
+	REQUIRE(str == std::string(conn_str));
 
 	CheckConfig(dbc, "allow_unsigned_extensions", "true");
 }
@@ -161,6 +187,7 @@ TEST_CASE("Test SQLConnect and SQLDriverConnect", "[odbc]") {
 
 	ConnectWithoutDSN(env, dbc);
 	ConnectWithPowerQuerySDK(env, dbc);
+	ConnectWithPowerQuerySDKWide(env, dbc);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
 

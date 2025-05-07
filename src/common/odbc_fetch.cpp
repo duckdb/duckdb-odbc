@@ -359,8 +359,8 @@ SQLRETURN OdbcFetch::ColumnWise(OdbcHandleStmt *hstmt) {
 				target_len_addr += row_idx;
 			}
 
-			ret = duckdb::GetDataStmtResult(hstmt, col_idx + 1, bound_col.type, target_val_addr, bound_col.len,
-			                                target_len_addr);
+			ret = duckdb::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type,
+			                                target_val_addr, bound_col.len, target_len_addr);
 			if (!SQL_SUCCEEDED(ret)) {
 				SetRowStatus(row_idx, SQL_ROW_ERROR);
 			}
@@ -400,8 +400,8 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt) {
 			uint8_t *target_val_addr = (uint8_t *)bound_col.ptr + row_offset;
 			uint8_t *target_len_addr = (uint8_t *)bound_col.strlen_or_ind + row_offset;
 
-			ret = duckdb::GetDataStmtResult(hstmt, col_idx + 1, bound_col.type, target_val_addr, bound_col.len,
-			                                (SQLLEN *)target_len_addr);
+			ret = duckdb::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type,
+			                                target_val_addr, bound_col.len, (SQLLEN *)target_len_addr);
 			if (!SQL_SUCCEEDED(ret)) {
 				SetRowStatus(row_idx, SQL_ROW_ERROR);
 			}
@@ -458,6 +458,6 @@ SQLLEN OdbcFetch::GetRowCount() {
 
 void OdbcFetch::SetRowStatus(idx_t row_idx, SQLINTEGER status) {
 	if (hstmt_ref->row_desc->ird->header.sql_desc_array_status_ptr) {
-		hstmt_ref->row_desc->ird->header.sql_desc_array_status_ptr[row_idx] = status;
+		hstmt_ref->row_desc->ird->header.sql_desc_array_status_ptr[row_idx] = static_cast<SQLUSMALLINT>(status);
 	}
 }

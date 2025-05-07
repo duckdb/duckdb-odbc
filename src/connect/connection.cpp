@@ -4,6 +4,7 @@
 #include "odbc_diagnostic.hpp"
 #include "odbc_utils.hpp"
 #include "handle_functions.hpp"
+#include "widechar.hpp"
 
 #include "duckdb/common/helper.hpp"
 
@@ -20,20 +21,15 @@ using duckdb::OdbcUtils;
 using duckdb::SQLStateType;
 using std::ptrdiff_t;
 
-SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                    SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
+template <typename CHAR_TYPE>
+static SQLRETURN GetConnectAttrInternal(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                        SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
 	duckdb::OdbcHandleDbc *dbc = nullptr;
 	SQLRETURN ret = ConvertConnection(connection_handle, dbc);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
 
-	// TODO: If value_ptr is NULL shouldn't we return the length of the attribute, instead of returning SQL_ERROR?
-	// From the docs: "If ValuePtr is NULL, StringLengthPtr will still return the total number of bytes (excluding the
-	// null-termination character for character data) available to return in the buffer pointed to by ValuePtr."
-	if (!value_ptr) {
-		return SQL_ERROR; // TODO: Incorrect return code? See above.
-	}
 	switch (attribute) {
 	case SQL_ATTR_AUTOCOMMIT: {
 		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(dbc->autocommit, value_ptr, string_length_ptr);
@@ -45,32 +41,9 @@ SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_CURRENT_CATALOG: {
-		if (value_ptr == nullptr) {
-			*string_length_ptr = dbc->sql_attr_current_catalog.size();
-			return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLGetConnectAttr",
-			                                   "Catalog attribute with null value pointer.", SQLStateType::ST_HY024,
-			                                   dbc->GetDataSourceName());
-		}
-
-		ret = SQL_SUCCESS;
-		auto out_len = duckdb::MinValue(dbc->sql_attr_current_catalog.size(), (size_t)buffer_length);
-		memcpy((char *)value_ptr, dbc->sql_attr_current_catalog.c_str(), out_len);
-
-		if (out_len == (size_t)buffer_length) {
-			ret = SQL_SUCCESS_WITH_INFO;
-			out_len = buffer_length - 1;
-			return duckdb::SetDiagnosticRecord(dbc, SQL_SUCCESS_WITH_INFO, "SQLGetConnectAttr",
-			                                   "Catalog attribute length mismatch.", SQLStateType::ST_22026,
-			                                   dbc->GetDataSourceName());
-		}
-
-		((char *)value_ptr)[out_len] = '\0';
-
-		if (string_length_ptr) {
-			*string_length_ptr = out_len;
-		}
-
-		return ret;
+		duckdb::OdbcUtils::WriteString(dbc->sql_attr_current_catalog, reinterpret_cast<CHAR_TYPE *>(value_ptr),
+		                               buffer_length, string_length_ptr);
+		return SQL_SUCCESS;
 	}
 #ifdef SQL_ATTR_ASYNC_DBC_EVENT
 	case SQL_ATTR_ASYNC_DBC_EVENT:
@@ -114,6 +87,27 @@ SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 	}
 }
 
+SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                    SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
+	return GetConnectAttrInternal<SQLCHAR>(connection_handle, attribute, value_ptr, buffer_length, string_length_ptr);
+}
+
+SQLRETURN SQL_API SQLGetConnectAttrW(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                     SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
+	return GetConnectAttrInternal<SQLWCHAR>(connection_handle, attribute, value_ptr, buffer_length, string_length_ptr);
+}
+
+static void SetCurrentCatalog(duckdb::OdbcHandleDbc *dbc, SQLCHAR *value, SQLINTEGER length) {
+	const char *val_chars = reinterpret_cast<char *>(value);
+	std::size_t val_len = length != SQL_NTS ? static_cast<std::size_t>(length) : std::strlen(val_chars);
+	dbc->sql_attr_current_catalog = std::string(val_chars, val_len);
+}
+
+static void SetCurrentCatalog(duckdb::OdbcHandleDbc *dbc, SQLWCHAR *value, SQLINTEGER length) {
+	auto value_conv = duckdb::widechar::utf16_conv(value, length);
+	dbc->sql_attr_current_catalog = value_conv.to_utf8_str();
+}
+
 /**
  * @brief Sets attribute for connection
  * @param connection_handle
@@ -125,8 +119,9 @@ SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
  * this value is ignored.
  * @return SQL return code
  */
-SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                    SQLINTEGER string_length) {
+template <typename CHAR_TYPE>
+static SQLRETURN SetConnectAttrInternal(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                        SQLINTEGER string_length) {
 	// attributes before connection
 	switch (attribute) {
 	case SQL_ATTR_LOGIN_TIMEOUT:
@@ -205,11 +200,7 @@ SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 			                                   "Connection already established, the database name could not be set.",
 			                                   SQLStateType::ST_01S00, dbc->GetDataSourceName());
 		}
-		if (string_length == SQL_NTS) {
-			dbc->sql_attr_current_catalog = std::string((char *)value_ptr);
-		} else {
-			dbc->sql_attr_current_catalog = std::string((char *)value_ptr, string_length);
-		}
+		SetCurrentCatalog(dbc, reinterpret_cast<CHAR_TYPE *>(value_ptr), string_length);
 		return SQL_SUCCESS;
 	}
 #ifdef SQL_ATTR_DBC_INFO_TOKEN
@@ -232,8 +223,19 @@ SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
 	}
 }
 
-SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
-                             SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr) {
+SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                    SQLINTEGER string_length) {
+	return SetConnectAttrInternal<SQLCHAR>(connection_handle, attribute, value_ptr, string_length);
+}
+
+SQLRETURN SQL_API SQLSetConnectAttrW(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                     SQLINTEGER string_length) {
+	return SetConnectAttrInternal<SQLWCHAR>(connection_handle, attribute, value_ptr, string_length);
+}
+
+template <typename CHAR_TYPE>
+static SQLRETURN GetInfoInternal(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
+                                 SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr) {
 
 	// https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetinfo-function?view=sql-server-ver15
 
@@ -256,11 +258,13 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 
 	switch (info_type) {
 	case SQL_ACCESSIBLE_PROCEDURES: {
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ACCESSIBLE_TABLES: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_ACTIVE_ENVIRONMENTS: {
@@ -324,17 +328,20 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_CATALOG_NAME: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CATALOG_NAME_SEPARATOR: {
 		std::string cat_separator(".");
-		duckdb::OdbcUtils::WriteString(cat_separator, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(cat_separator, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CATALOG_TERM: {
 		std::string empty_str("");
-		duckdb::OdbcUtils::WriteString(empty_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(empty_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CATALOG_USAGE: {
@@ -348,11 +355,13 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	}
 	case SQL_COLLATION_SEQ: {
 		std::string default_collation("UTF-8");
-		duckdb::OdbcUtils::WriteString(default_collation, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(default_collation, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_COLUMN_ALIAS: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_CONCAT_NULL_BEHAVIOR: {
@@ -506,12 +515,13 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 			return ret;
 		}
 
-		duckdb::OdbcUtils::WriteString(dbc->GetDataSourceName(), (SQLCHAR *)info_value_ptr, buffer_length,
-		                               string_length_ptr);
+		duckdb::OdbcUtils::WriteString(dbc->GetDataSourceName(), reinterpret_cast<CHAR_TYPE *>(info_value_ptr),
+		                               buffer_length, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DATA_SOURCE_READ_ONLY: {
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DATABASE_NAME: {
@@ -525,7 +535,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		if (db_name == IN_MEMORY_PATH) {
 			db_name = "";
 		}
-		duckdb::OdbcUtils::WriteString(db_name, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(db_name, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DATETIME_LITERALS: {
@@ -543,7 +554,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	case SQL_DRIVER_NAME:
 	case SQL_DBMS_NAME: {
 		std::string dbname = "DuckDB";
-		duckdb::OdbcUtils::WriteString(dbname, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(dbname, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DBMS_VER: {
@@ -570,7 +582,7 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		if (string_length_ptr) {
 			SQLLEN len_ptr;
 			ret = SQLGetData(stmt, 1, SQL_C_CHAR, info_value_ptr, buffer_length, &len_ptr);
-			*string_length_ptr = len_ptr;
+			*string_length_ptr = static_cast<SQLSMALLINT>(len_ptr);
 		} else {
 			ret = SQLGetData(stmt, 1, SQL_C_CHAR, info_value_ptr, buffer_length, nullptr);
 		}
@@ -591,7 +603,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_DESCRIBE_PARAMETER: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DM_VER: {
@@ -601,7 +614,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		std::string dm_build_version = ".####.####";
 
 		std::string dm_version(odbc_major + "." + odbc_minor + dm_build_version);
-		duckdb::OdbcUtils::WriteString(dm_version, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(dm_version, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 #ifdef SQL_DRIVER_AWARE_POOLING_SUPPORTED
@@ -617,13 +631,15 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		// case SQL_DRIVER_HSTMT:
 
 	case SQL_DRIVER_ODBC_VER: {
-		std::string driver_ver = "03.00";
-		duckdb::OdbcUtils::WriteString(driver_ver, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		std::string driver_ver = "03.51";
+		duckdb::OdbcUtils::WriteString(driver_ver, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DRIVER_VER: {
-		std::string driver_ver = "03.00.0000";
-		duckdb::OdbcUtils::WriteString(driver_ver, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		std::string driver_ver = "03.51.0000";
+		duckdb::OdbcUtils::WriteString(driver_ver, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DROP_ASSERTION: {
@@ -671,7 +687,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_EXPRESSIONS_IN_ORDERBY: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_FILE_USAGE: {
@@ -701,7 +718,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	}
 	case SQL_IDENTIFIER_QUOTE_CHAR: {
 		std::string quote_char("\"");
-		duckdb::OdbcUtils::WriteString(quote_char, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(quote_char, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_INDEX_KEYWORDS: {
@@ -717,7 +735,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_INTEGRITY: {
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_KEYSET_CURSOR_ATTRIBUTES1: {
@@ -768,11 +787,13 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		free(keyword);
 		duckdb::FreeHandle(SQL_HANDLE_STMT, hstmt);
 
-		duckdb::OdbcUtils::WriteString(reserved_keywords, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(reserved_keywords, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_LIKE_ESCAPE_CLAUSE: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_MAX_ASYNC_CONCURRENT_STATEMENTS:
@@ -808,20 +829,24 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_MAX_ROW_SIZE_INCLUDES_LONG: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_MULT_RESULT_SETS: {
 		// saying NO beucase of SQLite
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_MULTIPLE_ACTIVE_TXN: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_NEED_LONG_DATA_LEN: {
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_NON_NULLABLE_COLUMNS: {
@@ -858,7 +883,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_ORDER_BY_COLUMNS_IN_SELECT: {
-		duckdb::OdbcUtils::WriteString(yes_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(yes_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_PARAM_ARRAY_ROW_COUNTS: {
@@ -874,11 +900,13 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_PROCEDURE_TERM: {
-		duckdb::OdbcUtils::WriteString("", (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString("", reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_PROCEDURES: {
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_QUOTED_IDENTIFIER_CASE: {
@@ -886,11 +914,13 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_ROW_UPDATES: {
-		duckdb::OdbcUtils::WriteString(no_str, (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString(no_str, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SCHEMA_TERM: {
-		duckdb::OdbcUtils::WriteString("schema", (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString("schema", reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SCHEMA_USAGE: {
@@ -903,16 +933,18 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_SEARCH_PATTERN_ESCAPE: {
-		duckdb::OdbcUtils::WriteString("\\", (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString("\\", reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SERVER_NAME: {
-		duckdb::OdbcUtils::WriteString("", (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString("", reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SPECIAL_CHARACTERS: {
-		duckdb::OdbcUtils::WriteString("!%&'()*+,-./;:<=>?@[]^{}|~", (SQLCHAR *)info_value_ptr, buffer_length,
-		                               string_length_ptr);
+		duckdb::OdbcUtils::WriteString("!%&'()*+,-./;:<=>?@[]^{}|~", reinterpret_cast<CHAR_TYPE *>(info_value_ptr),
+		                               buffer_length, string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_SQL_CONFORMANCE: {
@@ -1000,7 +1032,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		return SQL_SUCCESS;
 	}
 	case SQL_TABLE_TERM: {
-		duckdb::OdbcUtils::WriteString("table", (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString("table", reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_TIMEDATE_ADD_INTERVALS:
@@ -1034,7 +1067,8 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 	}
 	case SQL_USER_NAME:
 	case SQL_XOPEN_CLI_YEAR: {
-		duckdb::OdbcUtils::WriteString("", (SQLCHAR *)info_value_ptr, buffer_length, string_length_ptr);
+		duckdb::OdbcUtils::WriteString("", reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
+		                               string_length_ptr);
 		return SQL_SUCCESS;
 	}
 	case SQL_DTC_TRANSACTION_COST: {
@@ -1058,6 +1092,16 @@ SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, 
 		                                   dbc->GetDataSourceName());
 	}
 } // end SQLGetInfo
+
+SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
+                             SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr) {
+	return GetInfoInternal<SQLCHAR>(connection_handle, info_type, info_value_ptr, buffer_length, string_length_ptr);
+}
+
+SQLRETURN SQL_API SQLGetInfoW(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
+                              SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr) {
+	return GetInfoInternal<SQLWCHAR>(connection_handle, info_type, info_value_ptr, buffer_length, string_length_ptr);
+}
 
 /**
  * @brief Requests a commit or rollback operation for all active operations on all statements associated with a

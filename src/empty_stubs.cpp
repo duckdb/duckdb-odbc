@@ -8,6 +8,18 @@
 // ============================================================================
 // Functions returning valid empty result sets (i.e., SELECT ... WHERE 1 < 0)
 // ============================================================================
+SQLRETURN SQL_API SQLNativeSqlW(SQLHDBC connection_handle, SQLWCHAR *in_statement_text, SQLINTEGER text_length1,
+                                SQLWCHAR *out_statement_text, SQLINTEGER buffer_length, SQLINTEGER *text_length2_ptr) {
+	std::cout << "***** SQLNativeSqlW" << std::endl;
+	return SQL_ERROR;
+}
+
+SQLRETURN SQL_API SQLBrowseConnect(SQLHDBC connection_handle, SQLCHAR *in_connection_string, SQLSMALLINT string_length1,
+                                   SQLCHAR *out_connection_string, SQLSMALLINT buffer_length,
+                                   SQLSMALLINT *string_length2_ptr) {
+	std::cout << "***** SQLBrowseConnect" << std::endl;
+	return SQL_ERROR;
+}
 
 SQLRETURN SQL_API SQLPrimaryKeys(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                  SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
@@ -29,6 +41,13 @@ WHERE 1 < 0
 	}
 
 	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+}
+
+SQLRETURN SQL_API SQLColumnPrivilegesW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                                       SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
+                                       SQLSMALLINT name_length3, SQLWCHAR *column_name, SQLSMALLINT name_length4) {
+	std::cout << "***** SQLColumnPrivilegesW" << std::endl;
+	return SQL_ERROR;
 }
 
 SQLRETURN SQL_API SQLForeignKeys(SQLHSTMT statement_handle, SQLCHAR *pk_catalog_name, SQLSMALLINT name_length1,
@@ -61,7 +80,23 @@ WHERE 1 < 0
 		return ret;
 	}
 
+SQLRETURN SQL_API SQLForeignKeysW(SQLHSTMT statement_handle, SQLWCHAR *pk_catalog_name, SQLSMALLINT name_length1,
+                                  SQLWCHAR *pk_schema_name, SQLSMALLINT name_length2, SQLWCHAR *pk_table_name,
+                                  SQLSMALLINT name_length3, SQLWCHAR *fk_catalog_name, SQLSMALLINT name_length4,
+                                  SQLWCHAR *fk_schema_name, SQLSMALLINT name_length5, SQLWCHAR *fk_table_name,
+                                  SQLSMALLINT name_length6) {
+	std::cout << "***** SQLForeignKeysW" << std::endl;
+	return SQL_ERROR;
+}
+
 	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+}
+
+SQLRETURN SQL_API SQLPrimaryKeysW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                                  SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
+                                  SQLSMALLINT name_length3) {
+	std::cout << "***** SQLPrimaryKeysW" << std::endl;
+	return SQL_ERROR;
 }
 
 SQLRETURN SQL_API SQLProcedureColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -91,6 +126,13 @@ WHERE 1 < 0
 	}
 
 	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+}
+
+SQLRETURN SQL_API SQLProcedureColumnsW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                                       SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *proc_name,
+                                       SQLSMALLINT name_length3, SQLWCHAR *column_name, SQLSMALLINT name_length4) {
+	std::cout << "***** SQLProcedureColumnsW" << std::endl;
+	return SQL_ERROR;
 }
 
 SQLRETURN SQL_API SQLProcedures(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -135,6 +177,17 @@ WHERE 1 < 0
 		return ret;
 	}
 
+SQLRETURN SQL_API SQLProceduresW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                                 SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *proc_name,
+                                 SQLSMALLINT name_length3) {
+	std::cout << "***** SQLProceduresW" << std::endl;
+	return SQL_ERROR;
+}
+
+SQLRETURN SQL_API SQLSetPos(SQLHSTMT statement_handle, SQLSETPOSIROW row_number, SQLUSMALLINT operation,
+                            SQLUSMALLINT lock_type) {
+	std::cout << "***** SQLSetPos" << std::endl;
+	return SQL_ERROR;
 	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
 }
 
@@ -267,4 +320,11 @@ SQLRETURN SQL_API SQLSetPos(SQLHSTMT statement_handle, SQLSETPOSIROW row_number,
 	}
 
 	return SetNotImplemented(hdl, "SQLSetPos");
+}
+
+SQLRETURN SQL_API SQLTablePrivilegesW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                                      SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
+                                      SQLSMALLINT name_length3) {
+	std::cout << "***** SQLTablePrivilegesW" << std::endl;
+	return SQL_ERROR;
 }

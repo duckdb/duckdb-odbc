@@ -8,6 +8,7 @@
 #include "row_descriptor.hpp"
 #include "statement_functions.hpp"
 #include "handle_functions.hpp"
+#include "widechar.hpp"
 
 #include "duckdb/common/constants.hpp"
 
@@ -33,8 +34,8 @@ using std::string;
  * https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlsetstmtattr-function for details.
  * @return SQL return code
  */
-SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                 SQLINTEGER string_length) {
+static SQLRETURN SetStmtAttrInternal(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                     SQLINTEGER string_length) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -82,7 +83,7 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 		if (value_ptr == nullptr) {
 			return SQL_ERROR;
 		}
-		hstmt->row_desc->ard->header.sql_desc_bind_type = (SQLULEN)value_ptr;
+		hstmt->row_desc->ard->header.sql_desc_bind_type = static_cast<SQLINTEGER>(reinterpret_cast<SQLLEN>(value_ptr));
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_ROW_STATUS_PTR: {
@@ -167,6 +168,16 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 	return SQL_SUCCESS;
 }
 
+SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                 SQLINTEGER string_length) {
+	return SetStmtAttrInternal(statement_handle, attribute, value_ptr, string_length);
+}
+
+SQLRETURN SQL_API SQLSetStmtAttrW(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                  SQLINTEGER string_length) {
+	return SetStmtAttrInternal(statement_handle, attribute, value_ptr, string_length);
+}
+
 /**
  * @brief SQLGetStmtAttr returns attributes that govern aspects of a statement.
  * @param statement_handle
@@ -181,8 +192,8 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
  * @param string_length_ptr
  * @return
  */
-SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                 SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
+static SQLRETURN GetStmtAttrInternal(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                     SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -326,6 +337,16 @@ SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
 	}
 }
 
+SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                 SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
+	return GetStmtAttrInternal(statement_handle, attribute, value_ptr, buffer_length, string_length_ptr);
+}
+
+SQLRETURN SQL_API SQLGetStmtAttrW(SQLHSTMT statement_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
+                                  SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
+	return GetStmtAttrInternal(statement_handle, attribute, value_ptr, buffer_length, string_length_ptr);
+}
+
 /**
  * @brief Prepares an SQL string for execution
  * https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlprepare-function?view=sql-server-ver16
@@ -334,7 +355,7 @@ SQLRETURN SQL_API SQLGetStmtAttr(SQLHSTMT statement_handle, SQLINTEGER attribute
  * @param text_length The length of the statement text in characters
  * @return
  */
-SQLRETURN SQL_API SQLPrepare(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
+static SQLRETURN PrepareInternal(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -345,6 +366,15 @@ SQLRETURN SQL_API SQLPrepare(SQLHSTMT statement_handle, SQLCHAR *statement_text,
 	hstmt->stmt = hstmt->dbc->conn->Prepare(query);
 
 	return FinalizeStmt(hstmt);
+}
+
+SQLRETURN SQL_API SQLPrepare(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
+	return PrepareInternal(statement_handle, statement_text, text_length);
+}
+
+SQLRETURN SQL_API SQLPrepareW(SQLHSTMT statement_handle, SQLWCHAR *statement_text, SQLINTEGER text_length) {
+	auto statement_text_conv = duckdb::widechar::utf16_conv(statement_text, text_length);
+	return PrepareInternal(statement_handle, statement_text_conv.utf8_str, statement_text_conv.utf8_len_int());
 }
 
 /**
@@ -372,14 +402,23 @@ SQLRETURN SQL_API SQLCancel(SQLHSTMT statement_handle) {
  * @param text_length The length of the query text in characters.
  * @return
  */
-SQLRETURN SQL_API SQLExecDirect(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
+static SQLRETURN ExecDirectInternal(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
 	return duckdb::ExecDirectStmt(statement_handle, statement_text, text_length);
 }
 
+SQLRETURN SQL_API SQLExecDirect(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
+	return ExecDirectInternal(statement_handle, statement_text, text_length);
+}
+
+SQLRETURN SQL_API SQLExecDirectW(SQLHSTMT statement_handle, SQLWCHAR *statement_text, SQLINTEGER text_length) {
+	auto statement_text_conv = duckdb::widechar::utf16_conv(statement_text, text_length);
+	return ExecDirectInternal(statement_handle, statement_text_conv.utf8_str, statement_text_conv.utf8_len_int());
+}
+
 // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function
-SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
-                            SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
-                            SQLSMALLINT name_length3, SQLCHAR *table_type, SQLSMALLINT name_length4) {
+static SQLRETURN TablesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                                SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                                SQLSMALLINT name_length3, SQLCHAR *table_type, SQLSMALLINT name_length4) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (!SQL_SUCCEEDED(ret)) {
@@ -448,16 +487,37 @@ SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQ
 
 	string sql_tables = OdbcUtils::GetQueryDuckdbTables(schema_filter, table_filter, table_tp);
 
-	if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_tables.c_str(), sql_tables.size()))) {
+	if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_tables.c_str(),
+	                                          static_cast<SQLINTEGER>(sql_tables.size())))) {
 		return SQL_ERROR;
 	}
 
 	return SQL_SUCCESS;
 }
 
-SQLRETURN SQL_API SQLColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
-                             SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
-                             SQLSMALLINT name_length3, SQLCHAR *column_name, SQLSMALLINT name_length4) {
+SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                            SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                            SQLSMALLINT name_length3, SQLCHAR *table_type, SQLSMALLINT name_length4) {
+	return TablesInternal(statement_handle, catalog_name, name_length1, schema_name, name_length2, table_name,
+	                      name_length3, table_type, name_length4);
+}
+
+SQLRETURN SQL_API SQLTablesW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                             SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
+                             SQLSMALLINT name_length3, SQLWCHAR *table_type, SQLSMALLINT name_length4) {
+	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
+	auto table_name_conv = duckdb::widechar::utf16_conv(table_name, name_length3);
+	auto table_type_conv = duckdb::widechar::utf16_conv(table_type, name_length4);
+	return TablesInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
+	                      schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(), table_name_conv.utf8_str,
+	                      table_name_conv.utf8_len_smallint(), table_type_conv.utf8_str,
+	                      table_type_conv.utf8_len_smallint());
+}
+
+static SQLRETURN ColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                                 SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                                 SQLSMALLINT name_length3, SQLCHAR *column_name, SQLSMALLINT name_length4) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -487,11 +547,125 @@ SQLRETURN SQL_API SQLColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, S
 
 	string sql_columns = OdbcUtils::GetQueryDuckdbColumns(catalog_filter, schema_filter, table_filter, column_filter);
 
-	ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_columns.c_str(), sql_columns.size());
+	ret = duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_columns.c_str(),
+	                             static_cast<SQLINTEGER>(sql_columns.size()));
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
 	}
 	return SQL_SUCCESS;
+}
+
+SQLRETURN SQL_API SQLColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                             SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                             SQLSMALLINT name_length3, SQLCHAR *column_name, SQLSMALLINT name_length4) {
+	return ColumnsInternal(statement_handle, catalog_name, name_length1, schema_name, name_length2, table_name,
+	                       name_length3, column_name, name_length4);
+}
+
+SQLRETURN SQL_API SQLColumnsW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                              SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
+                              SQLSMALLINT name_length3, SQLWCHAR *column_name, SQLSMALLINT name_length4) {
+
+	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
+	auto table_name_conv = duckdb::widechar::utf16_conv(table_name, name_length3);
+	auto column_name_conv = duckdb::widechar::utf16_conv(column_name, name_length4);
+
+	return ColumnsInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
+	                       schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(), table_name_conv.utf8_str,
+	                       table_name_conv.utf8_len_smallint(), column_name_conv.utf8_str,
+	                       column_name_conv.utf8_len_smallint());
+}
+
+static SQLRETURN SpecialColumnsInternal(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
+                                        SQLSMALLINT name_length1, SQLCHAR *schema_name, SQLSMALLINT name_length2,
+                                        SQLCHAR *table_name, SQLSMALLINT name_length3, SQLUSMALLINT scope,
+                                        SQLUSMALLINT nullable) {
+	std::string query = R"#(
+SELECT
+	CAST(0  AS SMALLINT) AS "SCOPE",
+	CAST('' AS VARCHAR ) AS "COLUMN_NAME",
+	CAST(0  AS SMALLINT) AS "DATA_TYPE",
+	CAST('' AS VARCHAR ) AS "TYPE_NAME",
+	CAST(0  AS INT     ) AS "COLUMN_SIZE",
+	CAST(0  AS INT     ) AS "BUFFER_LENGTH",
+	CAST(0  AS SMALLINT) AS "DECIMAL_DIGITS",
+	CAST(0  AS SMALLINT) AS "PSEUDO_COLUMN"
+WHERE 1 < 0
+)#";
+	SQLRETURN ret =
+	    duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), static_cast<SQLINTEGER>(query.size()));
+	if (!SQL_SUCCEEDED(ret)) {
+		return ret;
+	}
+	return SQL_SUCCESS;
+}
+
+SQLRETURN SQL_API SQLSpecialColumns(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
+                                    SQLSMALLINT name_length1, SQLCHAR *schema_name, SQLSMALLINT name_length2,
+                                    SQLCHAR *table_name, SQLSMALLINT name_length3, SQLUSMALLINT scope,
+                                    SQLUSMALLINT nullable) {
+	return SpecialColumnsInternal(statement_handle, identifier_type, catalog_name, name_length1, schema_name,
+	                              name_length2, table_name, name_length3, scope, nullable);
+}
+
+SQLRETURN SQL_API SQLSpecialColumnsW(SQLHSTMT statement_handle, SQLSMALLINT identifier_type, SQLWCHAR *catalog_name,
+                                     SQLSMALLINT name_length1, SQLWCHAR *schema_name, SQLSMALLINT name_length2,
+                                     SQLWCHAR *table_name, SQLSMALLINT name_length3, SQLSMALLINT scope,
+                                     SQLSMALLINT nullable) {
+	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
+	auto table_name_conv = duckdb::widechar::utf16_conv(table_name, name_length3);
+	return SpecialColumnsInternal(statement_handle, identifier_type, catalog_name_conv.utf8_str,
+	                              catalog_name_conv.utf8_len_smallint(), schema_name_conv.utf8_str,
+	                              schema_name_conv.utf8_len_smallint(), table_name_conv.utf8_str,
+	                              table_name_conv.utf8_len_smallint(), scope, nullable);
+}
+
+static SQLRETURN StatisticsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                                    SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                                    SQLSMALLINT name_length3, SQLUSMALLINT unique, SQLUSMALLINT reserved) {
+	std::string query = R"#(
+SELECT
+	CAST('' AS VARCHAR ) AS "TABLE_CAT",
+	CAST('' AS VARCHAR ) AS "TABLE_SCHEM",
+	CAST('' AS VARCHAR ) AS "TABLE_NAME",
+	CAST(0  AS SMALLINT) AS "NON_UNIQUE",
+	CAST('' AS VARCHAR ) AS "INDEX_QUALIFIER",
+	CAST('' AS VARCHAR ) AS "INDEX_NAME",
+	CAST(0  AS SMALLINT) AS "TYPE",
+	CAST(0  AS SMALLINT) AS "ORDINAL_POSITION",
+	CAST('' AS VARCHAR ) AS "COLUMN_NAME",
+	CAST('' AS CHAR(1) ) AS "ASC_OR_DESC",
+	CAST(0  AS INT     ) AS "CARDINALITY",
+	CAST(0  AS INT     ) AS "PAGES",
+	CAST('' AS VARCHAR ) AS "FILTER_CONDITION"
+WHERE 1 < 0
+)#";
+	SQLRETURN ret =
+	    duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)query.c_str(), static_cast<SQLINTEGER>(query.size()));
+	if (!SQL_SUCCEEDED(ret)) {
+		return ret;
+	}
+	return SQL_SUCCESS;
+}
+
+SQLRETURN SQL_API SQLStatistics(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
+                                SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
+                                SQLSMALLINT name_length3, SQLUSMALLINT unique, SQLUSMALLINT reserved) {
+	return StatisticsInternal(statement_handle, catalog_name, name_length1, schema_name, name_length2, table_name,
+	                          name_length3, unique, reserved);
+}
+
+SQLRETURN SQL_API SQLStatisticsW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
+                                 SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
+                                 SQLSMALLINT name_length3, SQLUSMALLINT unique, SQLUSMALLINT reserved) {
+	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
+	auto table_name_conv = duckdb::widechar::utf16_conv(table_name, name_length3);
+	return StatisticsInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
+	                          schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(), table_name_conv.utf8_str,
+	                          table_name_conv.utf8_len_smallint(), unique, reserved);
 }
 
 template <typename T>
@@ -506,12 +680,13 @@ static SQLRETURN SetNumericAttributePtr(duckdb::OdbcHandleStmt *hstmt, const T &
 	                                   SQLStateType::ST_HY013, hstmt->dbc->GetDataSourceName());
 }
 
+template <typename CHAR_TYPE>
 static SQLRETURN SetCharacterAttributePtr(duckdb::OdbcHandleStmt *hstmt, const string &str,
-                                          SQLCHAR *character_attribute_ptr, SQLSMALLINT buffer_length,
+                                          CHAR_TYPE *character_attribute_ptr, SQLSMALLINT buffer_length,
                                           SQLSMALLINT *string_length_ptr) {
 	// user only wants the size of the character attribute
 	if (character_attribute_ptr == nullptr && string_length_ptr) {
-		*string_length_ptr = str.size();
+		*string_length_ptr = static_cast<SQLSMALLINT>(str.size());
 		return SQL_SUCCESS;
 	}
 	if (buffer_length <= 0) {
@@ -528,10 +703,11 @@ static SQLRETURN SetCharacterAttributePtr(duckdb::OdbcHandleStmt *hstmt, const s
 	                                   SQLStateType::ST_HY013, hstmt->dbc->GetDataSourceName());
 }
 
-static SQLRETURN GetColAttribute(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLUSMALLINT field_identifier,
-                                 SQLPOINTER character_attribute_ptr, SQLSMALLINT buffer_length,
-                                 SQLSMALLINT *string_length_ptr, SQLLEN *numeric_attribute_ptr) {
-
+template <typename CHAR_TYPE>
+static SQLRETURN ColAttributeInternal(SQLHSTMT statement_handle, SQLUSMALLINT column_number,
+                                      SQLUSMALLINT field_identifier, CHAR_TYPE *character_attribute_ptr,
+                                      SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr,
+                                      SQLLEN *numeric_attribute_ptr) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMTPrepared(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
@@ -673,13 +849,6 @@ static SQLRETURN GetColAttribute(SQLHSTMT statement_handle, SQLUSMALLINT column_
 	}
 }
 
-SQLRETURN SQL_API SQLColAttributes(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLUSMALLINT field_identifier,
-                                   SQLPOINTER character_attribute_ptr, SQLSMALLINT buffer_length,
-                                   SQLSMALLINT *string_length_ptr, SQLLEN *numeric_attribute_ptr) {
-	return GetColAttribute(statement_handle, column_number, field_identifier, character_attribute_ptr, buffer_length,
-	                       string_length_ptr, numeric_attribute_ptr);
-}
-
 /**
  * @brief Returns description of a column in a result set
  * https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlcolattribute-function?view=sql-server-ver16
@@ -701,8 +870,55 @@ SQLRETURN SQL_API SQLColAttributes(SQLHSTMT statement_handle, SQLUSMALLINT colum
 SQLRETURN SQL_API SQLColAttribute(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLUSMALLINT field_identifier,
                                   SQLPOINTER character_attribute_ptr, SQLSMALLINT buffer_length,
                                   SQLSMALLINT *string_length_ptr, SQLLEN *numeric_attribute_ptr) {
-	return GetColAttribute(statement_handle, column_number, field_identifier, character_attribute_ptr, buffer_length,
-	                       string_length_ptr, numeric_attribute_ptr);
+	return ColAttributeInternal(statement_handle, column_number, field_identifier,
+	                            reinterpret_cast<SQLCHAR *>(character_attribute_ptr), buffer_length, string_length_ptr,
+	                            numeric_attribute_ptr);
+}
+
+/**
+ * @brief Returns description of a column in a result set
+ * https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlcolattribute-function?view=sql-server-ver16
+ * @param statement_handle
+ * @param column_number [INPUT] The column number for which to return information. Column numbers start at 1.
+ * @param field_identifier [INPUT] The description field to return.
+ * @param character_attribute_ptr [OUTPUT] A pointer to a buffer in which to return the value of the requested
+ * descriptor field, if the field is a string. If the ptr is NULL, string_length_ptr return the total number of
+ * characters available to return.
+ * @param buffer_length [OUTPUT] Optional parameter that specifies the length of the character_attribute_ptr buffer. If
+ * the field is a string, the buffer_length parameter must be large enough to hold the entire string, including the
+ * null-termination character.
+ * @param string_length_ptr [OUTPUT] A pointer to a buffer in which to return the number of characters (excluding the
+ * null-termination character) available to return in character_attribute_ptr.
+ * @param numeric_attribute_ptr [OUTPUT] A pointer to a buffer in which to return the value of the requested descriptor
+ * field, if the field is a numeric value.
+ * @return
+ */
+SQLRETURN SQL_API SQLColAttributeW(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLUSMALLINT field_identifier,
+                                   SQLPOINTER character_attribute_ptr, SQLSMALLINT buffer_length,
+                                   SQLSMALLINT *string_length_ptr, SQLLEN *numeric_attribute_ptr) {
+	auto character_attribute_vec = duckdb::widechar::utf8_alloc_out_vec(buffer_length);
+	auto ret = ColAttributeInternal(statement_handle, column_number, field_identifier, character_attribute_vec.data(),
+	                                static_cast<SQLSMALLINT>(character_attribute_vec.size()), string_length_ptr,
+	                                numeric_attribute_ptr);
+
+	SQLSMALLINT buf_len_chars = buffer_length / sizeof(SQLWCHAR);
+	SQLSMALLINT written_chars = 0;
+	duckdb::widechar::utf16_write_str(ret, character_attribute_vec,
+	                                  reinterpret_cast<SQLWCHAR *>(character_attribute_ptr), buf_len_chars,
+	                                  &written_chars);
+	if (string_length_ptr != nullptr) {
+		*string_length_ptr = written_chars * sizeof(SQLWCHAR);
+	}
+
+	return ret;
+}
+
+SQLRETURN SQL_API SQLColAttributes(SQLHSTMT statement_handle, SQLUSMALLINT column_number, SQLUSMALLINT field_identifier,
+                                   SQLPOINTER character_attribute_ptr, SQLSMALLINT buffer_length,
+                                   SQLSMALLINT *string_length_ptr, SQLLEN *numeric_attribute_ptr) {
+	return ColAttributeInternal(statement_handle, column_number, field_identifier,
+	                            reinterpret_cast<SQLCHAR *>(character_attribute_ptr), buffer_length, string_length_ptr,
+	                            numeric_attribute_ptr);
 }
 
 /**

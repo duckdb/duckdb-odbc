@@ -34,12 +34,15 @@ struct MultiFileReader {
 public:
 	static constexpr column_t COLUMN_IDENTIFIER_FILENAME = UINT64_C(9223372036854775808);
 	static constexpr column_t COLUMN_IDENTIFIER_FILE_ROW_NUMBER = UINT64_C(9223372036854775809);
+	static constexpr column_t COLUMN_IDENTIFIER_FILE_INDEX = UINT64_C(9223372036854775810);
 	// Reserved field id used for the "_file" field according to the iceberg spec (used for file_row_number)
 	static constexpr int32_t ORDINAL_FIELD_ID = 2147483645;
 	// Reserved field id used for the "_pos" field according to the iceberg spec (used for file_row_number)
 	static constexpr int32_t FILENAME_FIELD_ID = 2147483646;
-	// Reserved field id used for the "_row_id" field according to the iceberg spec (used for file_row_number)
+	// Reserved field id used for the "_row_id" field according to the iceberg spec
 	static constexpr int32_t ROW_ID_FIELD_ID = 2147483540;
+	// Reserved field id used for the "_last_updated_sequence_number" field according to the iceberg spec
+	static constexpr int32_t LAST_UPDATED_SEQUENCE_NUMBER_ID = 2147483539;
 
 public:
 	virtual ~MultiFileReader();
@@ -237,6 +240,8 @@ public:
 	                           const vector<MultiFileColumnDefinition> &local_columns, idx_t &column_id,
 	                           const LogicalType &type, MultiFileLocalIndex local_index,
 	                           optional_ptr<MultiFileColumnDefinition> &global_column_reference);
+
+	DUCKDB_API virtual unique_ptr<MultiFileReader> Copy() const;
 
 protected:
 	//! Used in errors to report which function is using this MultiFileReader

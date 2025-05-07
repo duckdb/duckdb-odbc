@@ -32,7 +32,8 @@ env:
 jobs:
   format-check:
     name: Format Check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'vendoring') }}
 
     env:
       CC: gcc-10
@@ -46,7 +47,10 @@ jobs:
 
       - name: Install
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build clang-format-11 && sudo pip3 install cmake-format black
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get install -y -qq ninja-build clang-format-11
+          sudo pip3 install cmake-format black clang_format==11.0.1
 
       - name: Format Check
         shell: bash

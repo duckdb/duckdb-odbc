@@ -13,7 +13,6 @@ on:
 env:
   GH_TOKEN: ${{ secrets.GH_TOKEN }}
   OVERRIDE_GIT_DESCRIBE: ${{ inputs.override_git_describe }}
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 concurrency:
   group: ODBC-${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}-${{ inputs.override_git_describe }}
@@ -24,8 +23,8 @@ jobs:
     name: ODBC Linux (amd64)
     runs-on: ubuntu-latest
     env:
-      GEN: ninja
-      DUCKDB_PLATFORM: linux_amd64
+      MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_x86_64
+      MANYLINUX_PACKAGES: unixODBC-devel ninja-build
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,12 +33,22 @@ jobs:
 
       - name: Build
         shell: bash
-        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 bash -c 'cd /duckdb && ./scripts/install_unixodbc.sh && ODBC_CONFIG=../../build/unixodbc/build/bin/odbc_config make release'
+        run: |
+          docker run                  \
+          -v.:/duckdb                 \
+          -e GEN=ninja                \
+          ${{ env.MANYLINUX_IMAGE }}  \
+          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && make -C /duckdb release'
 
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
-        run: docker run -v.:/duckdb quay.io/pypa/manylinux2014_x86_64 /duckdb/build/release/test/test_odbc
+        run: |
+          docker run                  \
+          -v.:/duckdb                 \
+          -e GEN=ninja                \
+          ${{ env.MANYLINUX_IMAGE }}  \
+          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && /duckdb/build/release/test/test_odbc'
 
       - name: Deploy
         shell: bash
@@ -57,37 +66,35 @@ jobs:
 
   odbc-linux-aarch64:
     name: ODBC Linux (aarch64)
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.04
+    runs-on: ubuntu-24.04-arm
     needs: odbc-linux-amd64
     env:
-      GEN: ninja
-      DUCKDB_PLATFORM: linux_arm64
-      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+      MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_aarch64
+      MANYLINUX_PACKAGES: unixODBC-devel ninja-build
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
-      - uses: ./.github/actions/ubuntu_18_setup
-        with:
-          ccache: 1
-          aarch64_cross_compile: 1
-
-      - name: Install unixODBC
-        shell: bash
-        run: | # we need an x86 odbc_config tool to run cmake. fun.
-          apt-get remove -y unixodbc unixodbc-dev
-          CC=gcc ./scripts/install_unixodbc.sh
-          cp build/unixodbc/build/bin/odbc_config .
-          CC=aarch64-linux-gnu-gcc ./scripts/install_unixodbc.sh --host aarch64-linux-gnu
-          cp odbc_config build/unixodbc/build/bin/odbc_config
-
       - name: Build
         shell: bash
-        run: CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ make release
+        run: |
+          docker run                  \
+          -v.:/duckdb                 \
+          -e GEN=ninja                \
+          ${{ env.MANYLINUX_IMAGE }}  \
+          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && make -C /duckdb release'
+
+      - name: ODBC Tests
+        shell: bash
+        if: ${{ inputs.skip_tests != 'true' }}
+        run: |
+          docker run                  \
+          -v.:/duckdb                 \
+          -e GEN=ninja                \
+          ${{ env.MANYLINUX_IMAGE }}  \
+          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && /duckdb/build/release/test/test_odbc'
 
       - name: Deploy
         shell: bash
@@ -342,3 +349,38 @@ jobs:
         shell: bash
         run: ./test/run_pyodbc_tests.sh
 
+  odbc-merge-vendoring-pr:
+    name: Merge vendoring PR 
+    if: ${{ github.repository == 'duckdb/duckdb-odbc' && github.event_name == 'pull_request' && github.head_ref == format('vendoring-{0}', github.ref_name) }}
+    needs:
+      - odbc-linux-amd64
+      - odbc-linux-aarch64
+      - odbc-windows-amd64
+      - debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge vendoring PR
+        id: merge_vendoring_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+            # echo "Merging PR number: ${{ github.event.pull_request.number }} with message: ${{ github.event.pull_request.title }}"
+            gh pr merge vendoring-${{ github.ref_name }} \
+             --rebase \
+             --subject "${{ github.event.pull_request.title }}" \
+             --body ""
+
+      - name: Update vendoring branch
+        id: update_vendoring_branch
+        if: ${{ steps.merge_vendoring_pr.outcome == 'success' }}
+        run: |
+            # Delete vendoring-${{ github.ref_name }} branch and re-create it for future PRs
+            git push --delete origin vendoring-${{ github.ref_name }}
+            git checkout --track origin/main
+            git pull --ff-only
+            git branch vendoring-${{ github.ref_name }}
+            git push origin vendoring-${{ github.ref_name }}

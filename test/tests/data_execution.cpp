@@ -1,13 +1,11 @@
 #include "odbc_test_common.h"
 
-#include <iostream>
-
 using namespace odbc_test;
 
 static void DataAtExecution(HSTMT &hstmt) {
 	// Prepare a statement
-	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
-	                  ConvertToSQLCHAR("SELECT id FROM bytea_table WHERE t = ? OR t = ?"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLPrepareW", hstmt, SQLPrepareW, hstmt,
+	                  ConvertToSQLWCHARNTS("SELECT id FROM bytea_table WHERE t = ? OR t = ?").data(), SQL_NTS);
 
 	SQLCHAR *param_1 = ConvertToSQLCHAR("bar");
 	SQLLEN param_1_bytes = strlen(ConvertToCString(param_1));
@@ -58,7 +56,7 @@ static void ArrayBindingDataAtExecution(HSTMT &hstmt) {
 	// Set STMT attributes PARAM_BIND_TYPE, PARAM_STATUS_PTR, PARAMS_PROCESSED_PTR, and PARAMSET_SIZE
 	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt,
 	                  SQL_ATTR_PARAM_BIND_TYPE, reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
-	EXECUTE_AND_CHECK("SQLSetStmtAttr(SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	EXECUTE_AND_CHECK("SQLSetStmtAttrW(SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttrW, hstmt,
 	                  SQL_ATTR_PARAM_STATUS_PTR, status, 0);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr(SQL_ATTR_PARAMS_PROCESSED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
 	                  SQL_ATTR_PARAMS_PROCESSED_PTR, &num_processed, 0);
