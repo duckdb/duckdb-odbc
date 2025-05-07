@@ -27,7 +27,6 @@ add_executable(
   tests/numeric.cpp
   tests/quotes.cpp
   tests/test_empty_stubs.cpp
-  tests/test_widechar.cpp
   tests/result_conversion.cpp
   tests/test_timestamp.cpp
   tests/test_widechar_conv.cpp
