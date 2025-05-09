@@ -4,6 +4,7 @@
 // needs to be first because BOOL
 #include "duckdb.hpp"
 
+#include <cstdint>
 #include <cstring>
 
 #ifdef _WIN32
@@ -92,6 +93,8 @@ public:
 	static SQLUINTEGER SQLPointerToSQLUInteger(SQLPOINTER value);
 	static std::string ConvertSQLCHARToString(SQLCHAR *str);
 	static LPCSTR ConvertStringToLPCSTR(const std::string &str);
+
+	static int64_t GetUTCOffsetMicrosFromOS(HSTMT hstmt, int64_t utc_micros);
 };
 } // namespace duckdb
 #endif
