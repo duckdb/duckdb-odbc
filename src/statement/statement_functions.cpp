@@ -332,6 +332,11 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		*str_len_or_ind_ptr = SQL_NULL_DATA;
 		return SQL_SUCCESS;
 	}
+	if (val.type().id() == LogicalType::TIMESTAMP_TZ) {
+		int64_t utc_micros = val.GetValue<int64_t>();
+		int64_t utc_offset_micros = duckdb::OdbcUtils::GetUTCOffsetMicrosFromOS(hstmt, utc_micros);
+		val = Value::TIMESTAMP(timestamp_t(utc_micros + utc_offset_micros));
+	}
 
 	SQLSMALLINT target_type_resolved = target_type;
 	if (target_type_resolved == SQL_C_DEFAULT) {
