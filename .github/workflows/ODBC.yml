@@ -294,7 +294,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -y -qq
-          sudo apt-get install -y -qq ninja-build unixodbc-dev
+          sudo apt-get install -y -qq ninja-build unixodbc-dev odbcinst dotnet-sdk-8.0
           pip3 install pyodbc
 
       - name: Install nanodbc
@@ -348,6 +348,11 @@ jobs:
       - name: Test Python ODBC
         shell: bash
         run: ./test/run_pyodbc_tests.sh
+
+      - name: Test .NET Linux ODBC
+        shell: bash
+        working-directory: ./test/tests/dotnet-linux
+        run: dotnet run
 
   odbc-merge-vendoring-pr:
     name: Merge vendoring PR 

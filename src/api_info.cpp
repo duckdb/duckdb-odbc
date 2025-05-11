@@ -255,9 +255,12 @@ SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb::LogicalTypeId type_id) {
 		return SQL_BIGINT;
 	case LogicalTypeId::UBIGINT:
 		return SQL_BIGINT;
+	case LogicalTypeId::HUGEINT:
+		return SQL_NUMERIC;
+	case LogicalTypeId::UHUGEINT:
+		return SQL_NUMERIC;
 	case LogicalTypeId::FLOAT:
 		return SQL_FLOAT;
-	case LogicalTypeId::HUGEINT:
 	case LogicalTypeId::DOUBLE:
 		return SQL_DOUBLE;
 	case LogicalTypeId::DATE:
@@ -273,7 +276,7 @@ SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb::LogicalTypeId type_id) {
 	case LogicalTypeId::INTERVAL:
 		return SQL_INTERVAL;
 	case LogicalTypeId::DECIMAL:
-		return SQL_DOUBLE;
+		return SQL_DECIMAL;
 	case LogicalTypeId::LIST:
 		return SQL_VARCHAR;
 	case LogicalTypeId::BIT:

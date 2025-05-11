@@ -100,6 +100,8 @@ ignored_files = [
 ignored_directories = [
     'src/duckdb',
     'scripts/__pycache__',
+    'test/tests/dotnet',
+    'test/tests/dotnet-linux',
 ]
 format_all = False
 check_only = True
