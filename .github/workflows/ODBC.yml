@@ -351,7 +351,7 @@ jobs:
 
   odbc-merge-vendoring-pr:
     name: Merge vendoring PR 
-    if: ${{ github.repository == 'duckdb/duckdb-odbc' && github.event_name == 'pull_request' && github.head_ref == format('vendoring-{0}', github.ref_name) }}
+    if: ${{ github.repository == 'duckdb/duckdb-odbc' && github.event_name == 'pull_request' && github.head_ref == format('vendoring-{0}', github.base_ref) }}
     needs:
       - odbc-linux-amd64
       - odbc-linux-aarch64
@@ -368,8 +368,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-            # echo "Merging PR number: ${{ github.event.pull_request.number }} with message: ${{ github.event.pull_request.title }}"
-            gh pr merge vendoring-${{ github.ref_name }} \
+            echo "Merging PR number: ${{ github.event.pull_request.number }} with message: ${{ github.event.pull_request.title }}"
+            gh pr merge vendoring-${{ github.base_ref }} \
              --rebase \
              --subject "${{ github.event.pull_request.title }}" \
              --body ""
@@ -378,9 +378,9 @@ jobs:
         id: update_vendoring_branch
         if: ${{ steps.merge_vendoring_pr.outcome == 'success' }}
         run: |
-            # Delete vendoring-${{ github.ref_name }} branch and re-create it for future PRs
-            git push --delete origin vendoring-${{ github.ref_name }}
+            # Delete vendoring-${{ github.base_ref }} branch and re-create it for future PRs
+            git push --delete origin vendoring-${{ github.base_ref }}
             git checkout --track origin/main
             git pull --ff-only
-            git branch vendoring-${{ github.ref_name }}
-            git push origin vendoring-${{ github.ref_name }}
+            git branch vendoring-${{ github.base_ref }}
+            git push origin vendoring-${{ github.base_ref }}
