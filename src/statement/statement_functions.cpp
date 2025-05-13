@@ -194,49 +194,93 @@ static bool CastTimestampValue(duckdb::OdbcHandleStmt *hstmt, const duckdb::Valu
 	}
 }
 
-SQLRETURN GetVariableValue(const std::string &val_str, SQLUSMALLINT col_idx, duckdb::OdbcHandleStmt *hstmt,
-                           SQLPOINTER target_value_ptr, SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr) {
-	if (!target_value_ptr) {
-		if (OdbcUtils::SetStringValueLength(val_str, str_len_or_ind_ptr) == SQL_ERROR) {
-			return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetVariableValue", "Could not set str_len_or_ind_ptr",
-			                                   duckdb::SQLStateType::ST_HY090, hstmt->dbc->GetDataSourceName());
+// To retrieve data from a column in parts, the application calls SQLGetData multiple times in succession for the same
+// column. On each call, SQLGetData returns the next part of the data. It is up to the application to reassemble the
+// parts, taking care to remove the null-termination character from intermediate parts of character data. If there is
+// more data to return or not enough buffer was allocated for the terminating character, SQLGetData returns
+// SQL_SUCCESS_WITH_INFO and SQLSTATE 01004 (Data truncated). When it returns the last part of the data, SQLGetData
+// returns SQL_SUCCESS. If SQLGetData is called after this, it returns SQL_NO_DATA.
+//
+// Null-termination:
+//  - SQL_WCHAR: 2 bytes
+//  - SQL_CHAR: 1 byte
+//  - SQL_BINARY: None
+template <typename CHAR_TYPE>
+static SQLRETURN GetVariableValue(SQLUSMALLINT col_idx, duckdb::OdbcHandleStmt *hstmt, SQLPOINTER target_value_ptr,
+                                  SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr, CHAR_TYPE *val_buf,
+                                  std::size_t val_buf_len_bytes, bool null_terminate = true) {
+
+	// Reset stored length if the column has changed
+	hstmt->odbc_fetcher->SetLastFetchedVariableVal(static_cast<duckdb::row_t>(col_idx));
+
+	// Get the length of the part of the field that was returned previously
+	std::size_t last_len = hstmt->odbc_fetcher->GetLastFetchedLength();
+
+	// Resulting data is not empty and according to last_len was already returned in full in the previous call,
+	// so we just returning SQL_NO_DATA.
+	if (val_buf_len_bytes > 0 && last_len >= val_buf_len_bytes) {
+		return SQL_NO_DATA;
+	}
+
+	// Note that the driver counts the null-termination character when returning character data to *TargetValuePtr.
+	// *TargetValuePtr must therefore contain space for the null-termination character.
+	if (null_terminate && buffer_length < sizeof(CHAR_TYPE)) {
+		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetData", "TargetValuePtr size is insufficient",
+		                                   duckdb::SQLStateType::ST_HY090, hstmt->dbc->GetDataSourceName());
+	}
+
+	// Reserve space for null-termination if necessary
+	std::size_t buffer_effective_size = static_cast<std::size_t>(buffer_length);
+	if (null_terminate) {
+		buffer_effective_size -= sizeof(CHAR_TYPE);
+	}
+
+	// Calculate the remaining length and actual out_len to copy
+	std::size_t remaining_len = val_buf_len_bytes - last_len;
+
+	// Only the length is requested by the client
+	if (target_value_ptr == nullptr) {
+		if (str_len_or_ind_ptr != nullptr) {
+			*str_len_or_ind_ptr = static_cast<SQLLEN>(remaining_len);
+			return SQL_SUCCESS;
 		}
-		return SQL_SUCCESS;
+		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetData", "Could not set StrLen_or_IndPtr",
+		                                   duckdb::SQLStateType::ST_HY090, hstmt->dbc->GetDataSourceName());
 	}
+
+	// Expect that remaining data fits the buffer
 	SQLRETURN ret = SQL_SUCCESS;
-	hstmt->odbc_fetcher->SetLastFetchedVariableVal((duckdb::row_t)col_idx);
+	std::size_t out_len = remaining_len;
 
-	auto last_len = hstmt->odbc_fetcher->GetLastFetchedLength();
-	// case already reached the end of the current variable value, reset the length
-	if (last_len >= val_str.size()) {
-		last_len = 0;
-	}
-
-	uint64_t out_len = val_str.size() - last_len;
-	if (buffer_length != 0) {
-		out_len = duckdb::MinValue(val_str.size() - last_len, (size_t)buffer_length);
-	}
-	memcpy((char *)target_value_ptr, val_str.c_str() + last_len, out_len);
-
-	if (out_len == (size_t)buffer_length) {
+	// If buffer is too small - more calls from client will be required
+	if (out_len > buffer_effective_size) {
+		out_len = buffer_effective_size;
 		ret = duckdb::SetDiagnosticRecord(
 		    hstmt, SQL_SUCCESS_WITH_INFO, "SQLGetData",
 		    "Not all the data for the specified column could be retrieved, the length of the data remaining in the "
 		    "specific column prior to the current call to SQLGetData is returned in *StrLen_or_IndPtr.",
 		    duckdb::SQLStateType::ST_01004, hstmt->dbc->GetDataSourceName());
-		out_len = buffer_length - 1;
-		last_len += out_len;
-	} else {
-		last_len = 0;
 	}
 
-	// null terminator char
-	((char *)target_value_ptr)[out_len] = '\0';
-	hstmt->odbc_fetcher->SetLastFetchedLength(last_len);
+	// Copy the data
+	std::memcpy(static_cast<void *>(target_value_ptr), reinterpret_cast<const char *>(val_buf) + last_len, out_len);
 
-	if (str_len_or_ind_ptr) {
-		*str_len_or_ind_ptr = out_len;
+	// Write the null-terminator that may be 1 or 2 bytes
+	if (null_terminate) {
+		char *target_value_ptr_chars = reinterpret_cast<char *>(target_value_ptr);
+		for (std::size_t i = 0; i < sizeof(CHAR_TYPE); i++) {
+			target_value_ptr_chars[out_len + i] = '\0';
+		}
 	}
+
+	// Write the length of the data after conversion and before truncation due to BufferLength.
+	// Null-termination bytes are excluded.
+	if (str_len_or_ind_ptr != nullptr) {
+		*str_len_or_ind_ptr = remaining_len;
+	}
+
+	// Save the length of data already written for future calls
+	hstmt->odbc_fetcher->SetLastFetchedLength(last_len + out_len);
 
 	return ret;
 }
@@ -377,51 +421,24 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		return GetInternalValue<uint64_t, SQLUBIGINT>(hstmt, val, LogicalType::UBIGINT, target_value_ptr,
 		                                              str_len_or_ind_ptr);
 	case SQL_C_WCHAR: {
-		std::string str = val.GetValue<std::string>();
-		if (!target_value_ptr) {
-			return OdbcUtils::SetStringValueLength(str, str_len_or_ind_ptr);
-		}
-
-		SQLRETURN ret = SQL_SUCCESS;
-
-		auto utf16_vec =
-		    duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(str.c_str()), str.length());
-		auto out_len = duckdb::MinValue(utf16_vec.size(), static_cast<std::size_t>(buffer_length) / sizeof(SQLWCHAR));
-		// reserving two bytes for each char
-		out_len *= 2;
-		// check space for 2 null terminator char
-		if (out_len > (size_t)(buffer_length - 2)) {
-			out_len = buffer_length - 2;
-			// check odd length
-			if ((out_len % 2) != 0) {
-				out_len -= 1;
-			}
-			ret = duckdb::SetDiagnosticRecord(
-			    hstmt, SQL_SUCCESS_WITH_INFO, "SQLGetData",
-			    "Not all the data for the specified column could be retrieved, the length of the data remaining in the "
-			    "specifief column prior to the current call to SQLGetData is returned in *StrLen_or_IndPtr.",
-			    duckdb::SQLStateType::ST_01004, hstmt->dbc->GetDataSourceName());
-		}
-		memcpy(static_cast<void *>(target_value_ptr), static_cast<void *>(utf16_vec.data()), out_len);
-
-		// null terminator char
-		((char *)target_value_ptr)[out_len] = '\0';
-		((char *)target_value_ptr)[out_len + 1] = '\0';
-
-		if (str_len_or_ind_ptr) {
-			*str_len_or_ind_ptr = out_len;
-		}
-		return ret;
+		std::string val_str = val.GetValue<std::string>();
+		// We need to convert the result to UTF-16 to get its length (in bytes) even if we are not going to return it
+		auto utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(val_str.c_str()),
+		                                                         val_str.length());
+		return GetVariableValue(col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr,
+		                        utf16_vec.data(), utf16_vec.size() * sizeof(SQLWCHAR));
 	}
 	// case SQL_C_VARBOOKMARK: // same ODBC type (\\TODO we don't support bookmark types)
 	case SQL_C_BINARY: {
-		// threating binary values as BLOB type
-		string blob = duckdb::Blob::ToBlob(duckdb::string_t(val.GetValue<string>().c_str()));
-		return GetVariableValue(blob, col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr);
+		// treating binary values as BLOB type
+		std::string blob = duckdb::Blob::ToBlob(duckdb::string_t(val.GetValue<string>().c_str()));
+		return GetVariableValue(col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr,
+		                        blob.c_str(), blob.length(), false);
 	}
 	case SQL_C_CHAR: {
 		std::string val_str = val.GetValue<std::string>();
-		return GetVariableValue(val_str, col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr);
+		return GetVariableValue(col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr,
+		                        val_str.c_str(), val_str.length());
 	}
 	case SQL_C_NUMERIC: {
 		if (ValidateType(val.type().id(), LogicalTypeId::DECIMAL, hstmt) != SQL_SUCCESS) {
