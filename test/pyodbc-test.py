@@ -9,27 +9,64 @@ def assert_equals(st1, st2):
         raise Exception(f"'{st1}' != '{st2}'")
 
 
-conn = pyodbc.connect('Driver={DuckDB Driver}')
-cur = conn.cursor()
+def gen_str(length):
+    arr = []
+    while True:
+        for i in range(48, 127):
+            arr.append(chr(i))
+            if len(arr) >= length:
+                return "".join(arr)
 
-# Basic queries
-cur.execute("CREATE TABLE tab1 (id INTEGER, st STRING)")
-cur.execute("INSERT INTO tab1 VALUES (42, 'Hello'), (43, 'World'), (NULL, NULL)")
-cur.execute("SELECT * FROM tab1 ORDER BY id")
-result = cur.fetchall()
-assert_equals(str(result), "[(42, 'Hello'), (43, 'World'), (None, None)]")
 
-# Unicode literal insert and fetch
-cur.execute("INSERT INTO tab1 VALUES (44, '" + HELLO_BG + "')")
-cur.execute("SELECT st FROM tab1 WHERE id = 44")
-assert_equals(cur.fetchone()[0], HELLO_BG)
+def test_basic():
+    conn = pyodbc.connect('Driver={DuckDB Driver}')
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE tab1 (id INTEGER, st STRING)")
 
-# Unicode parameter insert and fetch
-cur.execute("INSERT INTO tab1 VALUES (45, ?)", HELLO_BG)
-cur.execute("SELECT st FROM tab1 WHERE id = 45")
-assert_equals(cur.fetchone()[0], HELLO_BG)
+    # Basic queries
+    cur.execute("INSERT INTO tab1 VALUES (42, 'Hello'), (43, 'World'), (NULL, NULL)")
+    cur.execute("SELECT * FROM tab1 ORDER BY id")
+    result = cur.fetchall()
+    assert_equals(str(result), "[(42, 'Hello'), (43, 'World'), (None, None)]")
 
-# Emoji literal insert and fetch
-cur.execute("INSERT INTO tab1 VALUES (46, '" + EMOJI + "')")
-cur.execute("SELECT st FROM tab1 WHERE id = 46")
-assert_equals(cur.fetchone()[0], EMOJI)
+
+def test_unicode():
+    conn = pyodbc.connect('Driver={DuckDB Driver}')
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE tab1 (id INTEGER, st STRING)")
+
+    # Unicode literal insert and fetch
+    cur.execute(f"INSERT INTO tab1 VALUES (44, '{HELLO_BG}')")
+    cur.execute("SELECT st FROM tab1 WHERE id = 44")
+    assert_equals(cur.fetchone()[0], HELLO_BG)
+
+    # Unicode parameter insert and fetch
+    cur.execute("INSERT INTO tab1 VALUES (45, ?)", HELLO_BG)
+    cur.execute("SELECT st FROM tab1 WHERE id = 45")
+    assert_equals(cur.fetchone()[0], HELLO_BG)
+
+    # Emoji literal insert and fetch
+    cur.execute(f"INSERT INTO tab1 VALUES (46, '{EMOJI}')")
+    cur.execute("SELECT st FROM tab1 WHERE id = 46")
+    assert_equals(cur.fetchone()[0], EMOJI)
+
+
+def test_longdata():
+    conn = pyodbc.connect('Driver={DuckDB Driver}')
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE tab1 (id INTEGER, st STRING)")
+
+    for i in range((1 << 16) - 8, (1 << 16) + 8):
+        # print(f"Checking string, length: {i}")
+        st = gen_str(i)
+        cur.execute(f"INSERT INTO tab1 VALUES ({i}, '{st}')")
+        cur.execute(f"SELECT st FROM tab1 WHERE id = {i}")
+        assert_equals(cur.fetchone()[0], str(st))
+
+
+if __name__ == "__main__":
+    test_basic()
+    test_unicode()
+    test_longdata()
+
+    print("PyODBC tests passed successfully")
