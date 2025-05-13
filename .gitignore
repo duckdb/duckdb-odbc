@@ -1,3 +1,9 @@
-.idea
-build
-cmake-build-debug
+/.idea
+/.vscode
+/build
+/cmake-build-debug
+/scripts/__pycache__
+/*.db
+/test/tests/dotnet-linux/bin
+/test/tests/dotnet-linux/obj
+/test/sql/storage_version/storage_version.dbtest.duckdb

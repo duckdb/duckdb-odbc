@@ -101,8 +101,9 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
                 'UINTEGER': 4, -- SQL_INTEGER
                 'BIGINT': -5, -- SQL_BIGINT
                 'UBIGINT': -5, -- SQL_BIGINT
+                'HUGEINT': 2, -- SQL_NUMERIC
+                'UHUGEINT': 2, -- SQL_NUMERIC
                 'FLOAT': 6, -- SQL_FLOAT
-                'HUGEINT': 8, -- SQL_DOUBLE
                 'DOUBLE': 8, -- SQL_DOUBLE
                 'DATE': 91, -- SQL_TYPE_DATE
                 'TIMESTAMP': 93, -- SQL_TYPE_TIMESTAMP

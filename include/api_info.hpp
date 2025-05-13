@@ -78,7 +78,13 @@ public:
 		switch (sql_type) {
 		case SQL_DECIMAL:
 		case SQL_NUMERIC:
-			return duckdb::DecimalType::GetWidth(logical_type) + duckdb::DecimalType::GetScale(logical_type);
+			switch (logical_type.id()) {
+				case LogicalType::HUGEINT:
+				case LogicalType::UHUGEINT:
+					return 39;
+				default:
+					return duckdb::DecimalType::GetWidth(logical_type) + duckdb::DecimalType::GetScale(logical_type);
+			}
 		case SQL_BIT:
 			return 1;
 		case SQL_TINYINT:
