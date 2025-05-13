@@ -33,7 +33,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLPrimaryKeys(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -87,7 +88,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLForeignKeys(SQLHSTMT statement_handle, SQLCHAR *pk_catalog_name, SQLSMALLINT name_length1,
@@ -155,7 +157,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLProcedureColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -171,7 +174,7 @@ SQLRETURN SQL_API SQLProcedureColumnsW(SQLHSTMT statement_handle, SQLWCHAR *cata
 	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
 	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
 	auto proc_name_conv = duckdb::widechar::utf16_conv(proc_name, name_length3);
-	auto column_name_conv = duckdb::widechar::utf16_conv(column_name, name_length3);
+	auto column_name_conv = duckdb::widechar::utf16_conv(column_name, name_length4);
 	return ProcedureColumnsInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
 	                                schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(),
 	                                proc_name_conv.utf8_str, proc_name_conv.utf8_len_smallint(),
@@ -203,7 +206,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLProcedures(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -216,11 +220,12 @@ SQLRETURN SQL_API SQLProcedures(SQLHSTMT statement_handle, SQLCHAR *catalog_name
 SQLRETURN SQL_API SQLProceduresW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
                                  SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *proc_name,
                                  SQLSMALLINT name_length3) {
-	const auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
-	const auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
-	const auto proc_name_conv = duckdb::widechar::utf16_conv(proc_name, name_length3);
-	return ProceduresInternal(statement_handle, catalog_name_conv.utf8_str, name_length1, schema_name_conv.utf8_str,
-	                          name_length2, proc_name_conv.utf8_str, name_length3);
+	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
+	auto proc_name_conv = duckdb::widechar::utf16_conv(proc_name, name_length3);
+	return ProceduresInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
+	                          schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(), proc_name_conv.utf8_str,
+	                          proc_name_conv.utf8_len_smallint());
 }
 
 // -----------------------------------------------------------------------------
@@ -248,7 +253,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLColumnPrivileges(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -295,7 +301,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLTablePrivileges(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -342,7 +349,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLSpecialColumns(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
@@ -396,7 +404,8 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query), query.size());
+	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
+	                              static_cast<SQLINTEGER>(query.size()));
 }
 
 SQLRETURN SQL_API SQLStatistics(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -421,7 +430,7 @@ SQLRETURN SQL_API SQLStatisticsW(SQLHSTMT statement_handle, SQLWCHAR *catalog_na
 // Functions explicitly marked as not implemented (SetNotImplemented)
 // ============================================================================
 
-SQLRETURN SetNotImplemented(duckdb::OdbcHandle *handle, const std::string &func_name) {
+static SQLRETURN SetNotImplemented(duckdb::OdbcHandle *handle, const std::string &func_name) {
 	return SetDiagnosticRecord(handle, SQL_ERROR, func_name, func_name + " is not implemented",
 	                           duckdb::SQLStateType::ST_HYC00, "");
 }
@@ -452,17 +461,18 @@ SQLRETURN SQL_API SQLNativeSqlW(SQLHDBC connection_handle, SQLWCHAR *in_statemen
                                 SQLWCHAR *out_statement_text, SQLINTEGER buffer_length, SQLINTEGER *text_length2_ptr) {
 	auto in_statement_text_conv = duckdb::widechar::utf16_conv(in_statement_text, text_length1);
 	auto out_statement_text_conv = duckdb::widechar::utf16_conv(out_statement_text, buffer_length);
-	return NativeSQLInternal(connection_handle, in_statement_text_conv.utf8_str, in_statement_text_conv.utf8_len(),
-	                         out_statement_text_conv.utf8_str, buffer_length, text_length2_ptr);
+	return NativeSQLInternal(connection_handle, in_statement_text_conv.utf8_str,
+	                         in_statement_text_conv.utf8_len_smallint(), out_statement_text_conv.utf8_str,
+	                         out_statement_text_conv.utf8_len_smallint(), text_length2_ptr);
 }
 
 // --------------------------------------------------------------
 // SQLBrowseConnect
 // --------------------------------------------------------------
 
-SQLRETURN SQL_API SQLBrowseConnect(SQLHDBC connection_handle, SQLCHAR *in_connection_string, SQLSMALLINT string_length1,
-                                   SQLCHAR *out_connection_string, SQLSMALLINT buffer_length,
-                                   SQLSMALLINT *string_length2_ptr) {
+static SQLRETURN BrowseConnectInternal(SQLHDBC connection_handle, SQLCHAR *in_connection_string,
+                                       SQLSMALLINT string_length1, SQLCHAR *out_connection_string,
+                                       SQLSMALLINT buffer_length, SQLSMALLINT *string_length2_ptr) {
 	duckdb::OdbcHandle *hdl;
 	const auto ret = ConvertHandle(connection_handle, hdl);
 	if (ret != SQL_SUCCESS) {
@@ -470,6 +480,23 @@ SQLRETURN SQL_API SQLBrowseConnect(SQLHDBC connection_handle, SQLCHAR *in_connec
 	}
 
 	return SetNotImplemented(hdl, "SQLBrowseConnect");
+}
+
+SQLRETURN SQL_API SQLBrowseConnect(SQLHDBC connection_handle, SQLCHAR *in_connection_string, SQLSMALLINT string_length1,
+                                   SQLCHAR *out_connection_string, SQLSMALLINT buffer_length,
+                                   SQLSMALLINT *string_length2_ptr) {
+	return BrowseConnectInternal(connection_handle, in_connection_string, string_length1, out_connection_string,
+	                             buffer_length, string_length2_ptr);
+}
+
+SQLRETURN SQL_API SQLBrowseConnectW(SQLHDBC connection_handle, SQLWCHAR *in_connection_string,
+                                    SQLSMALLINT string_length1, SQLWCHAR *out_connection_string,
+                                    SQLSMALLINT buffer_length, SQLSMALLINT *string_length2_ptr) {
+	auto in_connection_string_conv = duckdb::widechar::utf16_conv(in_connection_string, string_length1);
+	auto out_connection_string_conv = duckdb::widechar::utf16_conv(out_connection_string, buffer_length);
+	return BrowseConnectInternal(connection_handle, in_connection_string_conv.utf8_str,
+	                             in_connection_string_conv.utf8_len_smallint(), out_connection_string_conv.utf8_str,
+	                             out_connection_string_conv.utf8_len_smallint(), string_length2_ptr);
 }
 
 // --------------------------------------------------------------

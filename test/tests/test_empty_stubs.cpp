@@ -234,6 +234,18 @@ TEST_CASE("Test Empty Stubs -- Should return error", "[odbc]") {
 		CheckForErrorAndDiagnosticRecord(ret, dbc, SQL_HANDLE_DBC);
 	}
 
+	{
+		// SQLBrowseConnectW
+		const std::string connect_str = "DRIVER={Dummy};";
+		SQLWCHAR output_conn[256];
+		SQLSMALLINT output_len = 0;
+
+		const auto ret = SQLBrowseConnectW(dbc, ConvertToSQLWCHARNTS(connect_str).data(),
+		                                   static_cast<SQLSMALLINT>(connect_str.size()), output_conn,
+		                                   sizeof(output_conn) / sizeof(SQLWCHAR), &output_len);
+		CheckForErrorAndDiagnosticRecord(ret, dbc, SQL_HANDLE_DBC);
+	}
+
 	// Allocate a statement handle
 	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
 
