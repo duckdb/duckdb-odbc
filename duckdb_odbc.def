@@ -475,6 +475,7 @@ SQLAllocHandle
 SQLBindCol
 SQLBindParameter
 SQLBrowseConnect
+SQLBrowseConnectW
 SQLBulkOperations
 SQLCancel
 SQLCloseCursor
