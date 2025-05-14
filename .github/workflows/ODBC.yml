@@ -125,9 +125,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
         with:
@@ -161,6 +163,13 @@ jobs:
         shell: bash
         run: |
           ./build/release/bin/Release/test_odbc.exe
+
+      - name: Test PyODBC
+        if: ${{ inputs.skip_tests != 'true' }}
+        shell: bash
+        run: |
+          pip install pyodbc
+          python ./test/pyodbc-test.py
 
       - name: Setup Register For Connection Tests
         shell: bash
