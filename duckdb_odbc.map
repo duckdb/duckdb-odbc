@@ -474,6 +474,7 @@ DUCKDB_ODBC {
     SQLBindCol;
     SQLBindParameter;
     SQLBrowseConnect;
+    SQLBrowseConnectW;
     SQLBulkOperations;
     SQLCancel;
     SQLCloseCursor;
