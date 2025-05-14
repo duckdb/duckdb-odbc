@@ -3,9 +3,17 @@
 #include "sqlext.h"
 
 #include <sql.h>
+
+#include <mutex>
 #include <regex>
+
+#ifndef _WIN32
+#include <time.h>
+#endif //!_WIN32
+
 #include "duckdb/common/vector.hpp"
 
+#include "handle_functions.hpp"
 #include "widechar.hpp"
 
 using duckdb::OdbcUtils;
@@ -106,7 +114,6 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
                 'FLOAT': 6, -- SQL_FLOAT
                 'DOUBLE': 8, -- SQL_DOUBLE
                 'DATE': 91, -- SQL_TYPE_DATE
-                'TIMESTAMP': 93, -- SQL_TYPE_TIMESTAMP
                 'TIME': 92, -- SQL_TYPE_TIME
                 'VARCHAR': 12, -- SQL_VARCHAR
                 'BLOB': -3, -- SQL_VARBINARY
@@ -117,11 +124,15 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             } AS mapping,
             STRING_SPLIT(data_type, '(')[1] AS data_type_no_typmod,
             CASE
+                -- value 93 is SQL_TIMESTAMP
+                -- TODO: investigate why map key with spaces and regexes don't work
+                WHEN data_type LIKE 'TIMESTAMP%' THEN 93::SMALLINT
                 WHEN mapping[data_type_no_typmod] IS NOT NULL THEN mapping[data_type_no_typmod]::SMALLINT
                 ELSE data_type_id::SMALLINT
             END AS "DATA_TYPE",
             CASE
                 WHEN data_type_no_typmod = 'DECIMAL' THEN 'NUMERIC'
+                WHEN data_type LIKE 'TIMESTAMP%' THEN 'TIMESTAMP'
                 ELSE data_type_no_typmod
             END AS "TYPE_NAME",
             CASE
@@ -140,8 +151,8 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             END AS "COLUMN_SIZE",
             CASE
                 WHEN data_type='DATE' THEN 4
-                WHEN data_type='TIME' THEN 8
                 WHEN data_type LIKE 'TIMESTAMP%' THEN 8
+                WHEN data_type LIKE 'TIME%' THEN 8 
                 WHEN data_type='CHAR'
                     OR data_type='BOOLEAN' THEN 1
                 WHEN data_type='VARCHAR'
@@ -166,13 +177,14 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
             '' AS "REMARKS",
             column_default AS "COLUMN_DEF",
             CASE
+                WHEN data_type LIKE 'TIMESTAMP%' THEN 93::SMALLINT
                 WHEN mapping[data_type_no_typmod] IS NOT NULL THEN mapping[data_type_no_typmod]::SMALLINT
                 ELSE data_type_id::SMALLINT
             END AS "SQL_DATA_TYPE",
             CASE
-                WHEN data_type='DATE'
-                     OR data_type='TIME'
-                     OR data_type LIKE 'TIMESTAMP%' THEN data_type_id::SMALLINT
+                WHEN data_type='DATE' then 1::SMALLINT
+                WHEN data_type LIKE 'TIMESTAMP%' THEN 3::SMALLINT
+                WHEN data_type LIKE 'TIME%' THEN 2::SMALLINT
                 ELSE NULL::SMALLINT
             END AS "SQL_DATETIME_SUB",
             CASE
@@ -308,4 +320,132 @@ void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, std::s
 void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf,
                                     SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes) {
 	return WriteStringInternal(utf8_vec.data(), utf8_vec_len, out_buf, buf_len_bytes, out_len_bytes);
+}
+
+int64_t duckdb::OdbcUtils::GetUTCOffsetMicrosFromOS(HSTMT hstmt_ptr, int64_t utc_micros) {
+
+	// Casting here to not complicate header dependencies
+	auto hstmt = reinterpret_cast<duckdb::OdbcHandleStmt *>(hstmt_ptr);
+
+#ifdef _WIN32
+
+	// Convert microseconds to seconds for SYSTEMTIME
+	int64_t seconds_since_epoch = utc_micros / 1000000;
+
+	// Convert seconds to FILETIME
+	FILETIME ft_utc;
+	ULARGE_INTEGER utc_time;
+	// Add Windows epoch offset
+	utc_time.QuadPart = static_cast<uint64_t>(seconds_since_epoch) * 10000000 + 11644473600LL * 10000000;
+	ft_utc.dwLowDateTime = utc_time.LowPart;
+	ft_utc.dwHighDateTime = utc_time.HighPart;
+
+	// Convert FILETIME to SYSTEMTIME
+	SYSTEMTIME utc_system_time;
+	auto res_fttt = FileTimeToSystemTime(&ft_utc, &utc_system_time);
+	if (res_fttt == 0) {
+		std::string msg = "FileTimeToSystemTime failed, input value: " + std::to_string(utc_micros) +
+		                  ", error code: " + std::to_string(GetLastError());
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+
+	// Get the default time zone information
+	TIME_ZONE_INFORMATION tz_info;
+	DWORD res_tzinfo = GetTimeZoneInformation(&tz_info);
+	if (res_tzinfo == TIME_ZONE_ID_INVALID) {
+		std::string msg = "GetTimeZoneInformation failed, input value: " + std::to_string(utc_micros) +
+		                  ", error code: " + std::to_string(GetLastError());
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+
+	// Convert UTC SYSTEMTIME to local SYSTEMTIME
+	SYSTEMTIME local_system_time;
+	auto res_tzspec = SystemTimeToTzSpecificLocalTime(&tz_info, &utc_system_time, &local_system_time);
+	if (res_tzspec == 0) {
+		std::string msg = "SystemTimeToTzSpecificLocalTime failed, input value: " + std::to_string(utc_micros) +
+		                  ", error code: " + std::to_string(GetLastError());
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+
+	// Convert local SYSTEMTIME back to FILETIME
+	FILETIME ft_local;
+	auto res_sttft = SystemTimeToFileTime(&local_system_time, &ft_local);
+	if (res_sttft == 0) {
+		std::string msg = "SystemTimeToFileTime failed, input value: " + std::to_string(utc_micros) +
+		                  ", error code: " + std::to_string(GetLastError());
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+
+	// Convert both FILETIMEs to ULARGE_INTEGER for arithmetic
+	ULARGE_INTEGER local_time;
+	local_time.LowPart = ft_local.dwLowDateTime;
+	local_time.HighPart = ft_local.dwHighDateTime;
+
+	// Calculate the offset in microseconds
+	return static_cast<int64_t>(local_time.QuadPart - utc_time.QuadPart) / 10;
+
+#else //!_WiN32
+
+	// Convert microseconds to seconds
+	time_t utc_seconds_since_epoch = utc_micros / 1000000;
+
+	// Break down UTC time into a tm struct
+	struct tm utc_time_struct;
+	// Thread-safe UTC conversion
+	auto res_gmt = gmtime_r(&utc_seconds_since_epoch, &utc_time_struct);
+	if (res_gmt == nullptr) {
+		std::string msg =
+		    "gmtime_r failed, input value: " + std::to_string(utc_micros) + ", error code: " + std::to_string(errno);
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+
+	// Convert UTC time to local time in the default time zone
+	struct tm local_time_struct;
+	// Thread-safe local time conversion
+	auto res_local = localtime_r(&utc_seconds_since_epoch, &local_time_struct);
+	if (res_local == nullptr) {
+		std::string msg =
+		    "localtime_r failed, input value: " + std::to_string(utc_micros) + ", error code: " + std::to_string(errno);
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+	// DST confuses mktime
+	local_time_struct.tm_isdst = 0;
+
+	// Convert broken-down times to time_t (seconds since epoch)
+	time_t local_time = mktime(&local_time_struct);
+	if (local_time == -1) {
+		std::string msg = "mktime local failed, input value: " + std::to_string(utc_micros) +
+		                  ", error code: " + std::to_string(errno);
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+	time_t utc_time = mktime(&utc_time_struct);
+	if (utc_time == -1) {
+		std::string msg =
+		    "mktime utc failed, input value: " + std::to_string(utc_micros) + ", error code: " + std::to_string(errno);
+		duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "timezone", msg, duckdb::SQLStateType::ST_HY000,
+		                            hstmt->dbc->GetDataSourceName());
+		return 0;
+	}
+
+	// Calculate the offset in seconds
+	int64_t offset_seconds = static_cast<int64_t>(difftime(local_time, utc_time));
+
+	// Convert offset to microseconds
+	return offset_seconds * 1000000;
+
+#endif // _WIN32
 }

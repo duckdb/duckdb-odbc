@@ -52,7 +52,7 @@ class Program
             // Date time types
             CheckFileldType(conn, "SELECT '1970-01-01'::Date", "System.DateTime");
             CheckFileldType(conn, "SELECT '12:34'::TIME", "System.TimeSpan");
-            CheckFileldType(conn, "SELECT '2020-01-02 12:34:45+01'::TIMESTAMP WITH TIME ZONE", "System.String");
+            CheckFileldType(conn, "SELECT '2020-01-02 12:34:45+01'::TIMESTAMP WITH TIME ZONE", "System.DateTime");
             CheckFileldType(conn, "SELECT '2020-01-02 12:34:45'::TIMESTAMP WITHOUT TIME ZONE", "System.DateTime");
             CheckFileldType(conn, "SELECT '1 day'::INTERVAL", "System.String");
 
