@@ -1,5 +1,7 @@
 #include "connect_helpers.h"
 
+#include <iostream>
+#include <thread>
 #include <vector>
 
 #include <odbcinst.h>
@@ -167,6 +169,20 @@ static void TestSettingConfigs() {
 	SetConfig("unsupported_option_1=value_1;allow_unsigned_extensions=true;", "allow_unsigned_extensions", "true");
 }
 
+static void CheckWorkerThreads(SQLHANDLE dbc, std::size_t expected_threads_count) {
+	HSTMT hstmt = nullptr;
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLExecDirect (worker_threads)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT current_setting('worker_threads')"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch (worker_threads)", hstmt, SQLFetch, hstmt);
+	uint64_t fetched = -1;
+	EXECUTE_AND_CHECK("SQLGetData (worker_threads)", hstmt, SQLGetData, hstmt, 1, SQL_C_UBIGINT, &fetched,
+	                  sizeof(fetched), nullptr);
+	REQUIRE(fetched == expected_threads_count);
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+}
+
 TEST_CASE("Test SQLConnect and SQLDriverConnect", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
@@ -322,5 +338,25 @@ TEST_CASE("Connect with named file, disconnect and reconnect", "[odbc]") {
 	DATA_CHECK(hstmt, 1, "1");
 
 	// Disconnect from the database
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
+
+TEST_CASE("Test worker threads", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	// Single thread
+	DRIVER_CONNECT_TO_DATABASE(env, dbc, "threads=1");
+	CheckWorkerThreads(dbc, 1);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+
+	// Default, must be the number of CPU cores
+	const auto processor_count = std::thread::hardware_concurrency();
+	if (0 == processor_count) {
+		std::cout << "Cannot detect the number of CPU cores, skipping 'Test worker threads' test" << std::endl;
+		return;
+	}
+	DRIVER_CONNECT_TO_DATABASE(env, dbc, "");
+	CheckWorkerThreads(dbc, processor_count);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
