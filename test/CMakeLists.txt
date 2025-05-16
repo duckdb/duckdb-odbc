@@ -31,6 +31,7 @@ add_executable(
   tests/test_allowed_paths.cpp
   tests/test_long_data.cpp
   tests/test_timestamp.cpp
+  tests/test_unbound_params.cpp
   tests/test_widechar_conv.cpp
   tests/test_widechar_data.cpp
   tests/col_attribute/col_attribute.cpp
