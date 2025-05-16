@@ -19,6 +19,7 @@
 #include "duckdb/common/string.hpp"
 #include "duckdb/common/vector.hpp"
 #include "duckdb/common/enum_util.hpp"
+#include "duckdb/main/prepared_statement_data.hpp"
 
 using duckdb::date_t;
 using duckdb::Decimal;
@@ -54,22 +55,38 @@ string duckdb::GetQueryAsString(duckdb::OdbcHandleStmt *hstmt, SQLCHAR *statemen
 }
 
 SQLRETURN duckdb::FinalizeStmt(duckdb::OdbcHandleStmt *hstmt) {
-	if (hstmt->stmt->data && !hstmt->stmt->GetStatementProperties().bound_all_parameters) {
-		return (SetDiagnosticRecord(hstmt, SQL_ERROR, "PrepareStmt", "Not all parameters are bound",
-		                            SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName()));
-	}
 	if (hstmt->stmt->HasError()) {
-		return (SetDiagnosticRecord(hstmt, SQL_ERROR, "PrepareStmt", hstmt->stmt->error.Message(),
-		                            SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName()));
+		return SetDiagnosticRecord(hstmt, SQL_ERROR, "PrepareStmt", hstmt->stmt->error.Message(),
+		                           SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName());
 	}
 
+	D_ASSERT(hstmt->stmt->data);
+
+	SQLRETURN ret = SQL_SUCCESS;
+
+	// Prepare call may be unable to bind the query when parameter types cannot be determined,
+	// for example: 'SELECT ?'.
+	// In this case the plan is not created at all and resulting columns (their types and names)
+	// returned with a partially-filled state, so we need to clear them. They are going to be re-filled after
+	// each execution and may be different depending on input parameters supplied for execution.
+	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
+		hstmt->stmt->data->types.clear();
+		hstmt->stmt->data->names.clear();
+		ret = SetDiagnosticRecord(hstmt, SQL_SUCCESS_WITH_INFO, "PrepareStmt", "Not all parameters are bound",
+		                          SQLStateType::ST_01000, hstmt->dbc->GetDataSourceName());
+	}
+
+	// named_param_map is created on successfull parse stage, does not need to be corrected on rebind
 	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->named_param_map.size()));
 
+	// Bound columns and IRD records depend on resulting columns. When
+	// bound_all_parameters=false, we don't have resulting columns defined, so
+	// bound columns and IRD records are kept empty and are re-filled after
+	// every execution.
 	hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
-
 	hstmt->FillIRD();
 
-	return SQL_SUCCESS;
+	return ret;
 }
 
 //! Execute stmt in a batch manner while there is a parameter set to process,
@@ -80,13 +97,32 @@ SQLRETURN duckdb::BatchExecuteStmt(duckdb::OdbcHandleStmt *hstmt) {
 		ret = SingleExecuteStmt(hstmt);
 	} while (ret == SQL_STILL_EXECUTING);
 
-	// now, fetching the first chunk to verify constant folding (See: PR #2462 and issue #2452)
-	if (ret == SQL_SUCCESS) {
-		auto fetch_ret = hstmt->odbc_fetcher->FetchFirst(hstmt);
-		if (fetch_ret == SQL_ERROR) {
-			return fetch_ret;
-		}
+	// Early exit on error
+	if (!SQL_SUCCEEDED(ret)) {
+		return ret;
 	}
+
+	// now, fetching the first chunk to verify constant folding (See: PR #2462 and issue #2452)
+	auto fetch_ret = hstmt->odbc_fetcher->FetchFirst(hstmt);
+	if (fetch_ret == SQL_ERROR) {
+		return fetch_ret;
+	}
+
+	// When parameters were not bound (plan was not created) on Prepare call, then
+	// we need to correct IRD records after every execution
+	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
+		D_ASSERT(hstmt->stmt->data);
+		D_ASSERT(hstmt->res);
+
+		// Copy up to date result types and names from the execution result
+		hstmt->stmt->data->types = hstmt->res->types;
+		hstmt->stmt->data->names = hstmt->res->names;
+
+		// Correct bounded columns and re-fill IRD records
+		hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
+		hstmt->FillIRD();
+	}
+
 	return ret;
 }
 
