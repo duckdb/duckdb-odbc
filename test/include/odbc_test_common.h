@@ -62,6 +62,17 @@ void DATA_CHECK(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_c
 
 /**
  * @brief
+ * Runs SQLGetData to get the data in UTF-16 from the column of the current row, converts it to UTF-8
+ * and compares it with the expected content.
+ *
+ * @param hstmt A statement handle
+ * @param col_num The number of the column in the result set
+ * @param expected_content The expected content of the column
+ */
+void DATA_CHECK_WIDE(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_content);
+
+/**
+ * @brief
  * Runs SQLDescribeCol to get the metadata of the column and compares it with the expected metadata.
  * If the expected metadata is not provided (ie empty or NULL), the function won't check for it.
  *
