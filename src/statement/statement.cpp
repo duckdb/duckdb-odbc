@@ -425,13 +425,9 @@ static SQLRETURN TablesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name
 		return ret;
 	}
 
+	// String search pattern for catalog name
 	auto catalog_n = OdbcUtils::ReadString(catalog_name, name_length1);
-	string catalog_filter;
-	if (catalog_n.empty()) {
-		catalog_filter = "\"TABLE_CAT\" IS NULL";
-	} else if (hstmt->dbc->sql_attr_metadata_id == SQL_TRUE) {
-		catalog_filter = "\"TABLE_CAT\"=" + OdbcUtils::GetStringAsIdentifier(catalog_n);
-	}
+	string catalog_filter = OdbcUtils::ParseStringFilter("\"TABLE_CAT\"", catalog_n, hstmt->dbc->sql_attr_metadata_id);
 
 	// String search pattern for schema name
 	auto schema_n = OdbcUtils::ReadString(schema_name, name_length2);
@@ -441,58 +437,78 @@ static SQLRETURN TablesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name
 	auto table_n = OdbcUtils::ReadString(table_name, name_length3);
 	string table_filter = OdbcUtils::ParseStringFilter("\"TABLE_NAME\"", table_n, hstmt->dbc->sql_attr_metadata_id);
 
+	// Table types
 	auto table_tp = OdbcUtils::ReadString(table_type, name_length4);
 
-	// .Net ODBC driver GetSchema() call includes "SYSTEM TABLE" (doesn't exist in DuckDB),
-	// and the regex tweaks below break if "SYSTEM TABLE" is in the query, so remove it
-	table_tp = std::regex_replace(table_tp, std::regex("('SYSTEM TABLE'|SYSTEM TABLE)"), "");
-	table_tp = std::regex_replace(table_tp, std::regex(",\\s*,"), ",");
+	std::string tables_query;
 
-	table_tp = std::regex_replace(table_tp, std::regex("('TABLE'|TABLE)"), "'BASE TABLE'");
-	table_tp = std::regex_replace(table_tp, std::regex("('VIEW'|VIEW)"), "'VIEW'");
-	table_tp = std::regex_replace(table_tp, std::regex("('%'|%)"), "'%'");
+	// Note, Excel violates the special cases spec by passing CatalogName=SQL_ALL_CATALOGS and TableType="TABLE,VIEW" to
+	// list tables, so we also check for empty TableType below.
+	if (catalog_n == std::string(SQL_ALL_CATALOGS) && schema_n.empty() && table_n.empty() && table_tp.empty()) {
+		// If CatalogName is SQL_ALL_CATALOGS and SchemaName and TableName are empty strings, the result set contains a
+		// list of valid catalogs for the data source. (All columns except the TABLE_CAT column contain NULLs.)
+		tables_query = R"#(
+SELECT DISTINCT
+	CAST(catalog_name AS VARCHAR) AS "TABLE_CAT",
+	CAST(NULL         AS VARCHAR) AS "TABLE_SCHEM",
+	CAST(NULL         AS VARCHAR) AS "TABLE_NAME",
+	CAST(NULL         AS VARCHAR) AS "TABLE_TYPE",
+	CAST(NULL         AS VARCHAR) AS "REMARKS"
+FROM information_schema.schemata
+WHERE catalog_name NOT IN (
+	'system',
+	'temp')
+AND catalog_name NOT LIKE '__ducklake_%'
+ORDER BY "TABLE_CAT"
+)#";
+	} else if (schema_n == std::string(SQL_ALL_SCHEMAS) && catalog_n.empty() && table_n.empty() && table_tp.empty()) {
+		// If SchemaName is SQL_ALL_SCHEMAS and CatalogName and TableName are empty strings, the result set contains a
+		// list of valid schemas for the data source. (All columns except the TABLE_SCHEM column contain NULLs.)
+		tables_query = R"#(
+SELECT
+	CAST(NULL        AS VARCHAR) AS "TABLE_CAT",
+	CAST(schema_name AS VARCHAR) AS "TABLE_SCHEM",
+	CAST(NULL        AS VARCHAR) AS "TABLE_NAME",
+	CAST(NULL        AS VARCHAR) AS "TABLE_TYPE",
+	CAST(NULL        AS VARCHAR) AS "REMARKS"
+FROM information_schema.schemata
+WHERE catalog_name NOT IN (
+	'system',
+	'temp')
+AND catalog_name NOT LIKE '__ducklake_%'
+ORDER BY "TABLE_SCHEM"
+)#";
+	} else if (table_tp == std::string(SQL_ALL_TABLE_TYPES) && catalog_n.empty() && schema_n.empty() &&
+	           table_n.empty()) {
+		// If TableType is SQL_ALL_TABLE_TYPES and CatalogName, SchemaName, and TableName are empty strings, the result
+		// set contains a list of valid table types for the data source. (All columns except the TABLE_TYPE column
+		// contain NULLs.)
+		tables_query = R"#(
+SELECT
+	CAST(NULL AS VARCHAR) AS "TABLE_CAT",
+	CAST(NULL AS VARCHAR) AS "TABLE_SCHEM",
+	CAST(NULL AS VARCHAR) AS "TABLE_NAME",
+	UNNEST([
+		CAST('TABLE' AS VARCHAR),
+		CAST('VIEW'  AS VARCHAR)
+	]) AS "TABLE_TYPE",
+	CAST(NULL AS VARCHAR) AS "REMARKS"
+)#";
+	} else {
+		// .Net ODBC driver GetSchema() call includes "SYSTEM TABLE" (doesn't exist in DuckDB),
+		// and the regex tweaks below break if "SYSTEM TABLE" is in the query, so remove it
+		table_tp = std::regex_replace(table_tp, std::regex("('SYSTEM TABLE'|SYSTEM TABLE)"), "");
+		table_tp = std::regex_replace(table_tp, std::regex(",\\s*,"), ",");
 
-	// special cases
-	if (catalog_n == std::string(SQL_ALL_CATALOGS) && name_length2 == 0 && name_length3 == 0 && name_length4 == 0) {
-		if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(statement_handle,
-		                                          (SQLCHAR *)"SELECT '' \"TABLE_CAT\", NULL \"TABLE_SCHEM\", NULL "
-		                                                     "\"TABLE_NAME\", NULL \"TABLE_TYPE\" , NULL \"REMARKS\"",
-		                                          SQL_NTS))) {
-			return SQL_ERROR;
-		}
-		return SQL_SUCCESS;
+		table_tp = std::regex_replace(table_tp, std::regex("('TABLE'|TABLE)"), "'BASE TABLE'");
+		table_tp = std::regex_replace(table_tp, std::regex("('VIEW'|VIEW)"), "'VIEW'");
+		table_tp = std::regex_replace(table_tp, std::regex("('%'|%)"), "'%'");
+
+		tables_query = OdbcUtils::GetQueryDuckdbTables(catalog_filter, schema_filter, table_filter, table_tp);
 	}
 
-	if (schema_n == std::string(SQL_ALL_SCHEMAS) && catalog_n.empty() && name_length3 == 0) {
-		if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(
-		        statement_handle,
-		        (SQLCHAR *)"SELECT '' \"TABLE_CAT\", schema_name \"TABLE_SCHEM\", NULL \"TABLE_NAME\", "
-		                   "NULL \"TABLE_TYPE\" , NULL \"REMARKS\" FROM information_schema.schemata",
-		        SQL_NTS))) {
-			return SQL_ERROR;
-		}
-		return SQL_SUCCESS;
-	}
-
-	if (table_n == std::string(SQL_ALL_TABLE_TYPES) && name_length1 == 0 && name_length2 == 0 && name_length3 == 0) {
-		if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(
-		        statement_handle,
-		        (SQLCHAR *)"SELECT * FROM (VALUES(NULL, NULL, NULL, 'TABLE'),(NULL, NULL, NULL, 'VIEW')) AS "
-		                   "tbl(TABLE_CAT, TABLE_SCHEM, TABLE_NAME, TABLE_TYPE)",
-		        SQL_NTS))) {
-			return SQL_ERROR;
-		}
-		return SQL_SUCCESS;
-	}
-
-	string sql_tables = OdbcUtils::GetQueryDuckdbTables(schema_filter, table_filter, table_tp);
-
-	if (!SQL_SUCCEEDED(duckdb::ExecDirectStmt(statement_handle, (SQLCHAR *)sql_tables.c_str(),
-	                                          static_cast<SQLINTEGER>(sql_tables.size())))) {
-		return SQL_ERROR;
-	}
-
-	return SQL_SUCCESS;
+	return duckdb::ExecDirectStmt(statement_handle, OdbcUtils::ConvertStringToSQLCHAR(tables_query),
+	                              static_cast<SQLINTEGER>(tables_query.length()));
 }
 
 SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
