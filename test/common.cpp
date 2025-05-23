@@ -111,6 +111,22 @@ void DATA_CHECK(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_c
 	REQUIRE(ConvertToString(content) == expected_content);
 }
 
+void DATA_CHECK_WIDE(HSTMT &hstmt, SQLSMALLINT col_num, const std::string &expected_content) {
+	std::vector<SQLWCHAR> content;
+	content.resize(256);
+	SQLLEN content_len = -1;
+
+	// SQLGetData returns data for a single column in the result set.
+	SQLRETURN ret =
+	    SQLGetData(hstmt, col_num, SQL_C_WCHAR, content.data(), content.size() * sizeof(SQLWCHAR), &content_len);
+	ODBC_CHECK(ret, "SQLGetData (wide)", hstmt);
+	if (content_len == SQL_NULL_DATA) {
+		REQUIRE(expected_content.empty());
+		return;
+	}
+	REQUIRE(ConvertToString(content.data()) == expected_content);
+}
+
 void METADATA_CHECK(HSTMT &hstmt, SQLUSMALLINT col_num, const std::string &expected_col_name,
                     SQLSMALLINT expected_col_name_len, SQLSMALLINT expected_col_data_type, SQLULEN expected_col_size,
                     SQLSMALLINT expected_col_decimal_digits, SQLSMALLINT expected_col_nullable) {
