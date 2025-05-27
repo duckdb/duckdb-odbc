@@ -147,6 +147,14 @@ SQLRETURN Connect::SetConnection() {
 	ReadFromIniFile();
 #endif
 	auto database = seen_config_options["database"] ? config_map["database"].ToString() : IN_MEMORY_PATH;
+
+	// special handling for database=ducklake:path/to/lake.db option
+	std::string ducklake_path;
+	if (database.rfind("ducklake:", 0) == 0) {
+		ducklake_path = database;
+		database = IN_MEMORY_PATH;
+	}
+
 	dbc->SetDatabaseName(database);
 
 	// remove the database and dsn from the config map since they aren't config options
@@ -191,6 +199,16 @@ SQLRETURN Connect::SetConnection() {
 		dbc->conn = make_uniq<Connection>(*dbc->env->db);
 		dbc->conn->SetAutoCommit(dbc->autocommit);
 	}
+
+	if (!ducklake_path.empty()) {
+		try {
+			dbc->conn->Query("ATTACH '" + ducklake_path + "'");
+		} catch (std::exception &ex) {
+			ErrorData error(ex);
+			return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", error.Message(), SQLStateType::ST_01000, "");
+		}
+	}
+
 	return SQL_SUCCESS;
 }
 
