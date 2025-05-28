@@ -227,31 +227,33 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
 	return sql_duckdb_columns;
 }
 
-string OdbcUtils::GetQueryDuckdbTables(const string &schema_filter, const string &table_filter,
-                                       const string &table_type_filter) {
+string OdbcUtils::GetQueryDuckdbTables(const string &catalog_filter, const string &schema_filter,
+                                       const string &table_filter, const string &table_type_filter) {
 	string sql_duckdb_tables = R"(
 		SELECT
 			table_catalog::VARCHAR "TABLE_CAT",
-			table_schema "TABLE_SCHEM",
-			table_name "TABLE_NAME",
+			table_schema::VARCHAR "TABLE_SCHEM",
+			table_name::VARCHAR "TABLE_NAME",
 			CASE
 				WHEN table_type='BASE TABLE'
-				THEN 'TABLE'
-				ELSE table_type
+				THEN 'TABLE'::VARCHAR
+				ELSE table_type::VARCHAR
 			END "TABLE_TYPE",
-			'' "REMARKS"
+			''::VARCHAR "REMARKS"
 			FROM information_schema.tables
 	)";
 
-	sql_duckdb_tables += " WHERE " + schema_filter + " AND " + table_filter;
+	sql_duckdb_tables += " WHERE " + catalog_filter + "\n AND " + schema_filter + "\n AND " + table_filter;
 
 	if (!table_type_filter.empty()) {
 		if (table_type_filter != "'%'") {
-			sql_duckdb_tables += " AND table_type IN (" + table_type_filter + ") ";
+			sql_duckdb_tables += "\n AND table_type IN (" + table_type_filter + ") ";
 		}
 	}
 
-	sql_duckdb_tables += "ORDER BY TABLE_TYPE, TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME";
+	sql_duckdb_tables += "\n AND table_catalog NOT LIKE '__ducklake_%' ";
+
+	sql_duckdb_tables += "\n ORDER BY TABLE_TYPE, TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME";
 
 	return sql_duckdb_tables;
 }

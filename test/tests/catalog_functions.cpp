@@ -176,22 +176,6 @@ static void TestSQLTables(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_ma
 	} while (ret == SQL_SUCCESS);
 }
 
-static void TestSQLTablesLong(HSTMT &hstmt) {
-	// FIXME: this test is broken
-	return;
-
-	EXECUTE_AND_CHECK(
-	    "SQLTablesW", hstmt, SQLTablesW, hstmt, ConvertToSQLWCHARNTS("").data(), SQL_NTS,
-	    ConvertToSQLWCHARNTS("main").data(), SQL_NTS, ConvertToSQLWCHARNTS("test_table_%").data(), SQL_NTS,
-	    ConvertToSQLWCHARNTS("1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,'TABLE'").data(),
-	    SQL_NTS);
-
-	DATA_CHECK(hstmt, 1, "memory");
-	DATA_CHECK(hstmt, 2, "main");
-	DATA_CHECK(hstmt, 3, "test_table_1");
-	DATA_CHECK(hstmt, 4, "TABLE");
-}
-
 static void TestSQLTablesSchema(HSTMT &hstmt) {
 	SQLRETURN ret;
 
@@ -235,6 +219,13 @@ static void TestSQLTablesSchema(HSTMT &hstmt) {
 		DATA_CHECK(hstmt, 3, entry[0]);
 		DATA_CHECK(hstmt, 4, "TABLE");
 	}
+
+	// List schemas only
+	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR(SQL_ALL_SCHEMAS), SQL_NTS,
+	                  nullptr, SQL_NTS, nullptr, SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 2, "ducks");
+	DATA_CHECK_WIDE(hstmt, 4, "");
 }
 
 // Check that complex table type can be processed without errors
@@ -242,6 +233,98 @@ static void TestSQLTablesSystemTable(HSTMT &hstmt) {
 	EXECUTE_AND_CHECK("SQLTables", hstmt, SQLTables, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
 	                  ConvertToSQLCHAR("%"), SQL_NTS,
 	                  ConvertToSQLCHAR("'TABLE','VIEW','SYSTEM TABLE','ALIAS','SYNONYM'"), SQL_NTS);
+}
+
+static void TestSQLTablesCatalog(HSTMT &hstmt) {
+	// Prepare 2 catalogs with tables
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("CREATE TABLE tab0(col1 INT)").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("ATTACH ':memory:' as mem1db").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("CREATE TABLE mem1db.tab1(col1 INT)").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("ATTACH ':memory:' as mem2db").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("CREATE TABLE mem2db.tab2(col2 INT)").data(), SQL_NTS);
+	// Mimic DuckLate catalog that has '__ducklake_metadata_<db_name>' naming
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("ATTACH ':memory:' as __ducklake_metadata_foo").data(), SQL_NTS);
+
+	// List catalogs without passing the length
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, ConvertToSQLWCHARNTS(SQL_ALL_CATALOGS).data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS("").data(), SQL_NTS, ConvertToSQLWCHARNTS("").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS("").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem1db");
+	DATA_CHECK_WIDE(hstmt, 4, "");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem2db");
+	DATA_CHECK_WIDE(hstmt, 4, "");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "memory");
+	DATA_CHECK_WIDE(hstmt, 4, "");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+
+	// List catalogs with with explicit length
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, ConvertToSQLWCHARNTS(SQL_ALL_CATALOGS).data(), 1,
+	                  ConvertToSQLWCHARNTS("foo").data(), 0, ConvertToSQLWCHARNTS("bar").data(), 0,
+	                  ConvertToSQLWCHARNTS("baz").data(), 0);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem1db");
+	DATA_CHECK_WIDE(hstmt, 4, "");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem2db");
+	DATA_CHECK_WIDE(hstmt, 4, "");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "memory");
+	DATA_CHECK_WIDE(hstmt, 4, "");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+
+	// Empty catalog
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, ConvertToSQLWCHARNTS("").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS("").data(), SQL_NTS, ConvertToSQLWCHARNTS("").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS("").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem1db");
+	DATA_CHECK_WIDE(hstmt, 3, "tab1");
+	DATA_CHECK_WIDE(hstmt, 4, "TABLE");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem2db");
+	DATA_CHECK_WIDE(hstmt, 3, "tab2");
+	DATA_CHECK_WIDE(hstmt, 4, "TABLE");
+
+	// Filter by catalog
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, ConvertToSQLWCHARNTS("mem1%").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS("").data(), SQL_NTS, ConvertToSQLWCHARNTS("").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS("").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 1, "mem1db");
+	DATA_CHECK_WIDE(hstmt, 3, "tab1");
+	DATA_CHECK_WIDE(hstmt, 4, "TABLE");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+
+	// Clean up
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("DETACH __ducklake_metadata_foo").data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt, ConvertToSQLWCHARNTS("DETACH mem2db").data(),
+	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt, ConvertToSQLWCHARNTS("DETACH mem1db").data(),
+	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirectW", hstmt, SQLExecDirectW, hstmt, ConvertToSQLWCHARNTS("DROP TABLE tab0").data(),
+	                  SQL_NTS);
+}
+
+static void TestSQLTablesTypes(HSTMT &hstmt) {
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, nullptr, SQL_NTS, nullptr, SQL_NTS, nullptr, SQL_NTS,
+	                  ConvertToSQLWCHARNTS(SQL_ALL_TABLE_TYPES).data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 3, "");
+	DATA_CHECK_WIDE(hstmt, 4, "TABLE");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 3, "");
+	DATA_CHECK_WIDE(hstmt, 4, "VIEW");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
 }
 
 static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
@@ -310,7 +393,7 @@ static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_m
 	}
 }
 
-TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGetInfo)", "[odbc]") {
+TEST_CASE("Test Catalog Functions (SQLGetTypeInfo; SQLTables; SQLColumns; SQLGetInfo)", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
 
@@ -335,9 +418,10 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo, SQLTables, SQLColumns, SQLGet
 
 	// Check for SQLTables
 	TestSQLTables(hstmt, types_map);
-	TestSQLTablesLong(hstmt);
 	TestSQLTablesSchema(hstmt);
+	TestSQLTablesCatalog(hstmt);
 	TestSQLTablesSystemTable(hstmt);
+	TestSQLTablesTypes(hstmt);
 
 	// Check for SQLColumns
 	TestSQLColumns(hstmt, types_map);
