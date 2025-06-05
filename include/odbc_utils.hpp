@@ -85,7 +85,7 @@ public:
 	static std::string ParseStringFilter(const std::string &filter_name, const std::string &filter_value,
 	                                     SQLUINTEGER sql_attr_metadata_id, const std::string &coalesce_str = "");
 
-	static std::string GetQueryDuckdbTables(const std::string &schema_filter, const std::string &table_filter,
+	static std::string GetQueryDuckdbTables(const std::string &catalog_filter, const std::string &schema_filter, const std::string &table_filter,
 	                                        const std::string &table_type_filter);
 	static std::string GetQueryDuckdbColumns(const std::string &catalog_filter, const std::string &schema_filter,
 	                                         const std::string &table_filter, const std::string &column_filter);
