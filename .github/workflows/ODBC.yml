@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_x86_64
-      MANYLINUX_PACKAGES: unixODBC-devel ninja-build
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,21 +33,35 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          docker run                  \
-          -v.:/duckdb                 \
-          -e GEN=ninja                \
-          ${{ env.MANYLINUX_IMAGE }}  \
-          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && make -C /duckdb release'
+          docker run                 \
+          -v.:/duckdb                \
+          -e GEN=ninja               \
+          ${{ env.MANYLINUX_IMAGE }} \
+          bash -c "
+            set -e
+            cat /etc/os-release
+            dnf install -y   \
+              unixODBC-devel \
+              ninja-build    \
+              gcc-toolset-12-gcc-c++
+            source /opt/rh/gcc-toolset-12/enable
+            make -C /duckdb release
+          "
 
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
         run: |
-          docker run                  \
-          -v.:/duckdb                 \
-          -e GEN=ninja                \
-          ${{ env.MANYLINUX_IMAGE }}  \
-          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && /duckdb/build/release/test/test_odbc'
+          docker run                 \
+          -v.:/duckdb                \
+          ${{ env.MANYLINUX_IMAGE }} \
+          bash -c "
+            set -e
+            cat /etc/os-release
+            dnf install -y \
+              unixODBC-devel
+            /duckdb/build/release/test/test_odbc
+          "
 
       - name: Deploy
         shell: bash
@@ -70,7 +83,6 @@ jobs:
     needs: odbc-linux-amd64
     env:
       MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_aarch64
-      MANYLINUX_PACKAGES: unixODBC-devel ninja-build
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,21 +92,35 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          docker run                  \
-          -v.:/duckdb                 \
-          -e GEN=ninja                \
-          ${{ env.MANYLINUX_IMAGE }}  \
-          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && make -C /duckdb release'
+          docker run                 \
+          -v.:/duckdb                \
+          -e GEN=ninja               \
+          ${{ env.MANYLINUX_IMAGE }} \
+          bash -c "
+            set -e
+            cat /etc/os-release
+            dnf install -y   \
+              unixODBC-devel \
+              ninja-build    \
+              gcc-toolset-12-gcc-c++
+            source /opt/rh/gcc-toolset-12/enable
+            make -C /duckdb release
+          "
 
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
         run: |
-          docker run                  \
-          -v.:/duckdb                 \
-          -e GEN=ninja                \
-          ${{ env.MANYLINUX_IMAGE }}  \
-          bash -c 'dnf install ${{ env.MANYLINUX_PACKAGES }} -y && /duckdb/build/release/test/test_odbc'
+          docker run                 \
+          -v.:/duckdb                \
+          ${{ env.MANYLINUX_IMAGE }} \
+          bash -c "
+            set -e
+            cat /etc/os-release
+            dnf install -y \
+              unixODBC-devel
+            /duckdb/build/release/test/test_odbc
+          "
 
       - name: Deploy
         shell: bash
