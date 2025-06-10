@@ -29,7 +29,7 @@ static SQLRETURN DriverConnectInternal(SQLHDBC connection_handle, SQLHWND window
 		return ret;
 	}
 
-	const std::string in_conn_str = OdbcUtils::ConvertSQLCHARToString(in_connection_string);
+	const std::string in_conn_str = OdbcUtils::ConvertSQLCHARToString(in_connection_string, string_length1);
 	duckdb::Connect connect(dbc, in_conn_str);
 
 	ret = connect.ParseInputStr();
@@ -86,8 +86,9 @@ static SQLRETURN ConnectInternal(SQLHDBC connection_handle, SQLCHAR *server_name
 		return ret;
 	}
 
-	dbc->dsn = OdbcUtils::ConvertSQLCHARToString(server_name);
-	duckdb::Connect connect(dbc, OdbcUtils::ConvertSQLCHARToString(server_name));
+	std::string server_name_st = OdbcUtils::ConvertSQLCHARToString(server_name, name_length1);
+	dbc->dsn = server_name_st;
+	duckdb::Connect connect(dbc, server_name_st);
 
 	return connect.SetConnection();
 }

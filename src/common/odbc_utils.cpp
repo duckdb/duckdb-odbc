@@ -262,8 +262,13 @@ SQLUINTEGER OdbcUtils::SQLPointerToSQLUInteger(SQLPOINTER value) {
 	return static_cast<SQLUINTEGER>(reinterpret_cast<SQLULEN>(value));
 }
 
-std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str) {
-	return std::string(reinterpret_cast<char *>(str));
+std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str, SQLSMALLINT str_len) {
+	if (str_len == SQL_NTS) {
+		return std::string(reinterpret_cast<char *>(str));
+	} else {
+		std::size_t len = str_len > 0 ? static_cast<std::size_t>(str_len) : 0;
+		return std::string(reinterpret_cast<char *>(str), len);
+	}
 }
 
 LPCSTR OdbcUtils::ConvertStringToLPCSTR(const std::string &str) {
