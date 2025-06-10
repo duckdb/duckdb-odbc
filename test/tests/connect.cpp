@@ -360,3 +360,31 @@ TEST_CASE("Test worker threads", "[odbc]") {
 	CheckWorkerThreads(dbc, processor_count);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test connection string without null terminator", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	EXECUTE_AND_CHECK("SQLAllocHandle", nullptr, SQLAllocHandle, SQL_HANDLE_ENV, nullptr, &env);
+
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+
+	std::string conn_string_prefix = "Driver={DuckDB Driver};";
+	// This connection option is deliverately invalid
+	std::string conn_string_suffix = "threads=0;";
+	SQLSMALLINT conn_string_len = static_cast<SQLSMALLINT>(conn_string_prefix.length());
+
+	SQLRETURN ret =
+	    SQLDriverConnectW(dbc, nullptr, ConvertToSQLWCHARNTS(conn_string_prefix + conn_string_suffix).data(), SQL_NTS,
+	                      nullptr, SQL_NTS, nullptr, SQL_DRIVER_COMPLETE);
+	REQUIRE(SQL_ERROR == ret);
+
+	EXECUTE_AND_CHECK("SQLDriverConnectW", nullptr, SQLDriverConnectW, dbc, nullptr,
+	                  ConvertToSQLWCHAR(conn_string_prefix + conn_string_suffix).data(), conn_string_len, nullptr,
+	                  SQL_NTS, nullptr, SQL_DRIVER_COMPLETE);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
