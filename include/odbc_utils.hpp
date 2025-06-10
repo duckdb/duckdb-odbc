@@ -91,7 +91,7 @@ public:
 	                                         const std::string &table_filter, const std::string &column_filter);
 
 	static SQLUINTEGER SQLPointerToSQLUInteger(SQLPOINTER value);
-	static std::string ConvertSQLCHARToString(SQLCHAR *str);
+	static std::string ConvertSQLCHARToString(SQLCHAR *str, SQLSMALLINT str_len);
 	static LPCSTR ConvertStringToLPCSTR(const std::string &str);
 	static SQLCHAR *ConvertStringToSQLCHAR(const std::string &str);
 
