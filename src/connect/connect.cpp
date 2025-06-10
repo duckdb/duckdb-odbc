@@ -171,16 +171,16 @@ SQLRETURN Connect::SetConnection() {
 	NormalizeWindowsPathSeparators(config_map, "allowed_directories");
 #endif // _WIN32
 
-	// Validate and set all options
-	config.SetOptionsByName(config_map);
-
-	if (!enable_external_access.empty()) {
-		config.SetOptionByName("enable_external_access", duckdb::Value(enable_external_access));
-	}
-
-	bool cache_instance = database != IN_MEMORY_PATH;
-
 	try {
+		// Validate and set all options
+		config.SetOptionsByName(config_map);
+
+		if (!enable_external_access.empty()) {
+			config.SetOptionByName("enable_external_access", duckdb::Value(enable_external_access));
+		}
+
+		bool cache_instance = database != IN_MEMORY_PATH;
+
 		dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
 	} catch (std::exception &ex) {
 		ErrorData error(ex);
