@@ -276,9 +276,6 @@ jobs:
           key: ${{ github.job }}
           save: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install Ninja
-        run: brew install ninja
-
       - name: Install UnixODBC
         shell: bash
         run: CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
@@ -396,6 +393,7 @@ jobs:
       - odbc-linux-amd64
       - odbc-linux-aarch64
       - odbc-windows-amd64
+      - odbc-osx-universal
       - debug
     runs-on: ubuntu-latest
     steps:
