@@ -167,6 +167,14 @@ static void TestSettingConfigs() {
 
 	// Test handling unsupported connection string options
 	SetConfig("unsupported_option_1=value_1;allow_unsigned_extensions=true;", "allow_unsigned_extensions", "true");
+
+	// Test mixed case
+	SetConfig("Allow_Unsigned_Extensions=True", "allow_unsigned_extensions", "true");
+	SetConfig("Allow_Unsigned_Extensions=False", "allow_unsigned_extensions", "false");
+
+	// Test options trimming
+	SetConfig("foo1=bar1;  allow_unsigned_extensions = true ;foo2=bar2;", "allow_unsigned_extensions", "true");
+	SetConfig("foo1=bar1;  allow_unsigned_extensions = false ;foo2=bar2;", "allow_unsigned_extensions", "false");
 }
 
 static void CheckWorkerThreads(SQLHANDLE dbc, std::size_t expected_threads_count) {

@@ -8,12 +8,12 @@ add_executable(
   $<TARGET_OBJECTS:odbc_widechar>
   common.cpp
   connect_helpers.cpp
+  temp_directory.cpp
   tests/alter.cpp
   tests/basic_usage.cpp
   tests/bind_col.cpp
   tests/bools_as_char.cpp
   tests/catalog_functions.cpp
-  tests/connect.cpp
   tests/diagnostics.cpp
   tests/extension.cpp
   tests/select.cpp
@@ -29,7 +29,9 @@ add_executable(
   tests/test_empty_stubs.cpp
   tests/result_conversion.cpp
   tests/test_allowed_paths.cpp
+  tests/test_connect.cpp
   tests/test_long_data.cpp
+  tests/test_session_init.cpp
   tests/test_timestamp.cpp
   tests/test_unbound_params.cpp
   tests/test_widechar_conv.cpp

@@ -4,6 +4,7 @@
 
 #include <sql.h>
 
+#include <algorithm>
 #include <mutex>
 #include <regex>
 
@@ -455,4 +456,14 @@ int64_t duckdb::OdbcUtils::GetUTCOffsetMicrosFromOS(HSTMT hstmt_ptr, int64_t utc
 	return offset_seconds * 1000000;
 
 #endif // _WIN32
+}
+
+static bool IsSpace(char c) {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+}
+
+std::string duckdb::OdbcUtils::TrimString(const std::string &str) {
+	auto front = std::find_if_not(str.begin(), str.end(), IsSpace);
+	auto back = std::find_if_not(str.rbegin(), str.rend(), IsSpace).base();
+	return (back <= front ? std::string() : std::string(front, back));
 }
