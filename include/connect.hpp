@@ -26,6 +26,8 @@ public:
 	SQLRETURN ReadFromIniFile();
 	// Executes the connection
 	SQLRETURN SetConnection();
+	std::string GetOptionFromConfigMap(const std::string &key, const std::string &default_val = std::string());
+	void NormalizeWindowsPathSeparators(const std::string &option_name);
 
 	// getters
 	std::string GetInputStr() {
