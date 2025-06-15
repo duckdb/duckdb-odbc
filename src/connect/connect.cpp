@@ -1,12 +1,11 @@
 #include "connect.hpp"
+
 #include "duckdb/main/db_instance_cache.hpp"
 #include "duckdb/common/virtual_file_system.hpp"
-#include <iostream>
+
 #include <utility>
 
-#if WIN32
-#include <windows.h>
-#endif
+#include "session_init.hpp"
 
 using namespace duckdb;
 
@@ -45,16 +44,17 @@ SQLRETURN Connect::FindMatchingKey(const std::string &input, string &key) {
 }
 
 SQLRETURN Connect::FindKeyValPair(const std::string &row) {
-	string key;
+	std::string key;
 
 	size_t val_pos = row.find(KEY_VAL_DEL);
 	if (val_pos == std::string::npos) {
 		// an equal '=' char must be present (syntax error)
-		return (SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", "Invalid connection string",
-		                            SQLStateType::ST_HY000, ""));
+		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", "Invalid connection string",
+		                           SQLStateType::ST_HY000, "");
 	}
 
-	std::string key_candidate = StringUtil::Lower(row.substr(0, val_pos));
+	std::string key_candidate_spaces = StringUtil::Lower(row.substr(0, val_pos));
+	std::string key_candidate = OdbcUtils::TrimString(key_candidate_spaces);
 
 	// Check if the key can be ignored
 	if (std::find(IGNORE_KEYS.begin(), IGNORE_KEYS.end(), key_candidate) != IGNORE_KEYS.end()) {
@@ -66,7 +66,18 @@ SQLRETURN Connect::FindKeyValPair(const std::string &row) {
 		return ret;
 	}
 
-	config_map[key] = row.substr(val_pos + 1);
+	if (key == SessionInit::SQL_FILE_OPTION || key == SessionInit::SQL_FILE_SHA256_OPTION) {
+		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect",
+		                           "Options '" + SessionInit::SQL_FILE_OPTION + "' and '" +
+		                               SessionInit::SQL_FILE_SHA256_OPTION +
+		                               "' can only be specified in DSN configuration in a file or registry.",
+		                           SQLStateType::ST_01S09, "");
+	}
+
+	std::string val_spaces = row.substr(val_pos + 1);
+	std::string val = OdbcUtils::TrimString(val_spaces);
+
+	config_map[key] = val;
 	seen_config_options[key] = true;
 	return SQL_SUCCESS;
 }
@@ -96,7 +107,7 @@ SQLRETURN Connect::ParseInputStr() {
 	}
 
 	// Extract the DSN from the config map as it is needed to read from the .odbc.ini file
-	dbc->dsn = seen_config_options["dsn"] ? config_map["dsn"].ToString() : "";
+	dbc->dsn = GetOptionFromConfigMap("dsn");
 
 	return GetSuccessWithInfo() ? SQL_SUCCESS_WITH_INFO : SQL_SUCCESS;
 }
@@ -130,48 +141,42 @@ SQLRETURN Connect::ReadFromIniFile() {
 	return SQL_SUCCESS;
 }
 
-static void NormalizeWindowsPathSeparators(case_insensitive_map_t<duckdb::Value> &config_map,
-                                           const std::string &option_name) {
-	auto it = config_map.find(option_name);
-	if (it == config_map.end()) {
-		return;
-	}
-	auto value_str = it->second.GetValue<std::string>();
-	auto value_str_norm = duckdb::StringUtil::Replace(value_str, "\\", "/");
-	config_map.erase(option_name);
-	config_map.emplace(option_name, std::move(value_str_norm));
-}
-
 SQLRETURN Connect::SetConnection() {
 #if defined ODBC_LINK_ODBCINST || defined WIN32
 	ReadFromIniFile();
 #endif
-	auto database = seen_config_options["database"] ? config_map["database"].ToString() : IN_MEMORY_PATH;
+	std::string database = GetOptionFromConfigMap("database", IN_MEMORY_PATH);
 	dbc->SetDatabaseName(database);
-
-	// remove the database and dsn from the config map since they aren't config options
-	config_map.erase("database");
-	config_map.erase("dsn");
 
 	config.SetOptionByName("duckdb_api", "odbc");
 
 	// When 'enable_external_access' is set to 'false' then it is not allowed to change
 	// 'allowed_paths' or 'allowed_directories' options, so we are setting 'enable_external_access'
 	// after all other options
-	std::string enable_external_access;
-	auto it = config_map.find("enable_external_access");
-	if (it != config_map.end()) {
-		enable_external_access = it->second.GetValue<std::string>();
-		config_map.erase(it);
-	}
+	std::string enable_external_access = GetOptionFromConfigMap("enable_external_access");
 
-#ifdef _WIN32
 	// Back slashes are not accepted for 'allowed_paths' or 'allowed_directories' options
-	NormalizeWindowsPathSeparators(config_map, "allowed_paths");
-	NormalizeWindowsPathSeparators(config_map, "allowed_directories");
-#endif // _WIN32
+	NormalizeWindowsPathSeparators("allowed_paths");
+	NormalizeWindowsPathSeparators("allowed_directories");
 
+	// Session init SQL file
+	std::string session_init_sql_file = GetOptionFromConfigMap(SessionInit::SQL_FILE_OPTION);
+	std::string session_init_sql_file_sha256 = GetOptionFromConfigMap(SessionInit::SQL_FILE_SHA256_OPTION);
+	SessionInitSQLFile session_init_content;
+
+	// Remove ODBC-local options from the config map
+	config_map.erase("database");
+	config_map.erase("dsn");
+	config_map.erase(SessionInit::SQL_FILE_OPTION);
+	config_map.erase(SessionInit::SQL_FILE_SHA256_OPTION);
+
+	// Remove 'enable_external_access' option because it is handled separately
+	config_map.erase("enable_external_access");
+
+	bool db_created = false;
 	try {
+		session_init_content = SessionInit::ReadSQLFile(session_init_sql_file, session_init_sql_file_sha256);
+
 		// Validate and set all options
 		config.SetOptionsByName(config_map);
 
@@ -181,7 +186,8 @@ SQLRETURN Connect::SetConnection() {
 
 		bool cache_instance = database != IN_MEMORY_PATH;
 
-		dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance);
+		dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance,
+		                                                  [&db_created](DuckDB &_) { db_created = true; });
 	} catch (std::exception &ex) {
 		ErrorData error(ex);
 		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", error.Message(), SQLStateType::ST_IM003, "");
@@ -191,7 +197,17 @@ SQLRETURN Connect::SetConnection() {
 		dbc->conn = make_uniq<Connection>(*dbc->env->db);
 		dbc->conn->SetAutoCommit(dbc->autocommit);
 	}
-	return SQL_SUCCESS;
+
+	SQLRETURN ret = SQL_SUCCESS;
+
+	if (!session_init_content.IsEmpty()) {
+		ret = SessionInit::Run(dbc, session_init_content, db_created);
+		if (!SQL_SUCCEEDED(ret)) {
+			dbc->conn.reset();
+		}
+	}
+
+	return ret;
 }
 
 Connect::Connect(OdbcHandleDbc *dbc_p, string input_str_p) : dbc(dbc_p), input_str(std::move(input_str_p)) {
@@ -201,10 +217,40 @@ Connect::Connect(OdbcHandleDbc *dbc_p, string input_str_p) : dbc(dbc_p), input_s
 		// They are all set to false as they haven't been set yet
 		seen_config_options[option] = false;
 	}
-	seen_config_options["dsn"] = false;
+
+	// Register ODBC-local options
 	seen_config_options["database"] = false;
+	seen_config_options["dsn"] = false;
+	seen_config_options[SessionInit::SQL_FILE_OPTION] = false;
+	seen_config_options[SessionInit::SQL_FILE_SHA256_OPTION] = false;
 
 	// Required for settings like 'allowed_directories' that use
 	// file separator when checking the property value.
 	config.file_system = duckdb::make_uniq<duckdb::VirtualFileSystem>();
+}
+
+std::string Connect::GetOptionFromConfigMap(const std::string &option_name, const std::string &default_val) {
+	D_ASSERT(seen_config_options.count(option_name) == 1);
+
+	if (!seen_config_options[option_name]) {
+		return default_val;
+	}
+
+	auto it = config_map.find(option_name);
+	D_ASSERT(it != config_map.end());
+	return it->second.GetValue<std::string>();
+}
+
+void Connect::NormalizeWindowsPathSeparators(const std::string &option_name) {
+#ifdef _WIN32
+	auto value_str = GetOptionFromConfigMap(option_name);
+	if (value_str.empty()) {
+		return;
+	}
+	auto value_str_norm = duckdb::StringUtil::Replace(value_str, "\\", "/");
+	config_map.erase(option_name);
+	config_map.emplace(option_name, std::move(value_str_norm));
+#else  // !_WIN32
+	(void)option_name;
+#endif // _WIN32
 }

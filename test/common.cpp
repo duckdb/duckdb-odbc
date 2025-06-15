@@ -1,7 +1,9 @@
 #define CATCH_CONFIG_MAIN
 #include "include/odbc_test_common.h"
 #include <cstring>
+#include <fstream>
 #include <vector>
+#include <odbcinst.h>
 #include "widechar.hpp"
 
 namespace odbc_test {
@@ -390,6 +392,26 @@ std::string GetTesterDirectory() {
 		return s;
 	}
 	return current_directory;
+}
+
+void WriteStringToFile(const std::string &file_path, const std::string &text) {
+	std::ofstream file;
+	file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+	file.open(file_path, std::ios::out | std::ios::binary);
+	file << text;
+	file.close();
+}
+
+UserOdbcIni::UserOdbcIni(std::vector<std::pair<std::string, std::string>> entries_in) : entries(std::move(entries_in)) {
+	for (auto &en : entries) {
+		SQLWritePrivateProfileString("DuckDB", en.first.c_str(), en.second.c_str(), "odbc.ini");
+	}
+}
+
+UserOdbcIni::~UserOdbcIni() {
+	for (auto &en : entries) {
+		SQLWritePrivateProfileString("DuckDB", en.first.c_str(), "", "odbc.ini");
+	}
 }
 
 } // namespace odbc_test

@@ -4,6 +4,10 @@
 #include "catch.hpp"
 #include "odbc_utils.hpp"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -144,6 +148,19 @@ SQLPOINTER ConvertToSQLPOINTER(const char *str);
 std::string ConvertHexToString(SQLCHAR val[16], int precision);
 
 std::string GetTesterDirectory();
+
+void WriteStringToFile(const std::string &file_path, const std::string &text);
+
+class UserOdbcIni {
+	std::vector<std::pair<std::string, std::string>> entries;
+
+public:
+	UserOdbcIni(std::vector<std::pair<std::string, std::string>> entries_in);
+	~UserOdbcIni();
+
+	UserOdbcIni(const UserOdbcIni &) = delete;
+	UserOdbcIni &operator=(const UserOdbcIni &) = delete;
+};
 
 } // namespace odbc_test
 
