@@ -96,6 +96,8 @@ public:
 	static SQLCHAR *ConvertStringToSQLCHAR(const std::string &str);
 
 	static int64_t GetUTCOffsetMicrosFromOS(HSTMT hstmt, int64_t utc_micros);
+
+	static std::string TrimString(const std::string& str);
 };
 } // namespace duckdb
 #endif
