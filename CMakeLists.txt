@@ -66,6 +66,7 @@ target_compile_definitions(duckdb_core_obj PRIVATE
   -DDUCKDB_EXTENSION_AUTOINSTALL_DEFAULT )
 if(WIN32)
   target_compile_options(duckdb_core_obj PRIVATE /bigobj)
+  target_compile_definitions(duckdb_core_obj PRIVATE -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_core_obj>)
@@ -79,6 +80,7 @@ add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
 target_compile_definitions(duckdb_odbc PRIVATE -DDUCKDB_STATIC_BUILD)
 if(WIN32)
   target_compile_options(duckdb_odbc PRIVATE /bigobj)
+  target_compile_definitions(duckdb_odbc PRIVATE -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")

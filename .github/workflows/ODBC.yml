@@ -190,6 +190,15 @@ jobs:
         run: |
           ./build/release/bin/Release/test_odbc.exe
 
+      - name: Test Standard ODBC tests with VS2019 C++ stdlib
+        if: ${{ inputs.skip_tests != 'true' }}
+        shell: bash
+        run: |
+          choco install wget -y --no-progress
+          wget -P build/release/bin/Release https://blobs.duckdb.org/ci/msvcp140.dll
+          ./build/release/bin/Release/test_odbc.exe
+          rm build/release/bin/Release/msvcp140.dll
+
       - name: Test PyODBC
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
@@ -243,8 +252,8 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          choco install zip -y --force
-          zip -j duckdb_odbc-windows-amd64.zip                \
+          /c/msys64/usr/bin/bash.exe -lc "pacman -Sy --noconfirm zip"
+          /c/msys64/usr/bin/zip.exe -j duckdb_odbc-windows-amd64.zip \
             ./build/release/bin/Release/duckdb_odbc.dll       \
             ./build/release/bin/Release/duckdb_odbc_setup.dll \
             ./build/release/bin/Release/odbc_install.exe
