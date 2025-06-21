@@ -79,7 +79,25 @@ public:
 
 	static bool IsNumericInfoType(SQLUSMALLINT info_type);
 
-	//! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/display-size?view=sql-server-ver15
+	//! Get temporal precision for TIME/TIMESTAMP types
+	static uint8_t GetTemporalPrecision(duckdb::LogicalTypeId type_id) {
+		switch (type_id) {
+		case LogicalTypeId::TIME:
+		case LogicalTypeId::TIMESTAMP:
+		case LogicalTypeId::TIMESTAMP_TZ:
+			return 6; // microseconds
+		case LogicalTypeId::TIMESTAMP_MS:
+			return 3; // milliseconds
+		case LogicalTypeId::TIMESTAMP_SEC:
+			return 0; // seconds
+		case LogicalTypeId::TIMESTAMP_NS:
+			return 9; // nanoseconds
+		default:
+			return 0;
+		}
+	}
+
+	//! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-ver15
 	static SQLINTEGER GetColumnSize(const duckdb::LogicalType &logical_type) {
 		auto sql_type = FindRelatedSQLType(logical_type.id());
 		switch (sql_type) {
@@ -88,9 +106,9 @@ public:
 			switch (logical_type.id()) {
 				case LogicalType::HUGEINT:
 				case LogicalType::UHUGEINT:
-					return 39;
+					return 38;
 				default:
-					return duckdb::DecimalType::GetWidth(logical_type) + duckdb::DecimalType::GetScale(logical_type);
+					return duckdb::DecimalType::GetWidth(logical_type);
 			}
 		case SQL_BIT:
 			return 1;
@@ -99,7 +117,54 @@ public:
 		case SQL_SMALLINT:
 			return 5;
 		case SQL_INTEGER:
-			return 11;
+			return 10;
+		case SQL_BIGINT:
+			return logical_type.IsUnsigned() ? 20 : 19;
+		case SQL_REAL:
+			return 7;
+		case SQL_FLOAT:
+		case SQL_DOUBLE:
+			return 15;
+		case SQL_TYPE_DATE:
+			return 10;
+		case SQL_TYPE_TIME: {
+			uint8_t precision = GetTemporalPrecision(logical_type.id());
+			return precision > 0 ? 9 + precision : 8;
+		}
+		case SQL_TYPE_TIMESTAMP: {
+			uint8_t precision = GetTemporalPrecision(logical_type.id());
+			return precision > 0 ? 20 + precision : 19;
+		}
+		case SQL_VARCHAR:
+			return 256;
+		case SQL_VARBINARY:
+			return 512;
+		default:
+			return 0;
+		}
+	}
+
+	//! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/display-size?view=sql-server-ver15
+	static SQLINTEGER GetDisplaySize(const duckdb::LogicalType &logical_type) {
+		auto sql_type = FindRelatedSQLType(logical_type.id());
+		switch (sql_type) {
+		case SQL_DECIMAL:
+		case SQL_NUMERIC:
+			switch (logical_type.id()) {
+				case LogicalType::HUGEINT:
+				case LogicalType::UHUGEINT:
+					return 40;
+				default:
+					return duckdb::DecimalType::GetWidth(logical_type) + 2;
+			}
+		case SQL_BIT:
+			return 1;
+		case SQL_TINYINT:
+			return logical_type.IsUnsigned() ? 3 : 4;
+		case SQL_SMALLINT:
+			return logical_type.IsUnsigned() ? 5 : 6;
+		case SQL_INTEGER:
+			return logical_type.IsUnsigned() ? 10 : 11;
 		case SQL_BIGINT:
 			return 20;
 		case SQL_REAL:
@@ -109,10 +174,14 @@ public:
 			return 24;
 		case SQL_TYPE_DATE:
 			return 10;
-		case SQL_TYPE_TIME:
-			return 9;
-		case SQL_TYPE_TIMESTAMP:
-			return 20;
+		case SQL_TYPE_TIME: {
+			uint8_t precision = GetTemporalPrecision(logical_type.id());
+			return precision > 0 ? 9 + precision : 8; // HH:MM:SS[.fff...]
+		}
+		case SQL_TYPE_TIMESTAMP: {
+			uint8_t precision = GetTemporalPrecision(logical_type.id());
+			return precision > 0 ? 20 + precision : 19; // YYYY-MM-DD HH:MM:SS[.fff...]
+		}
 		case SQL_VARCHAR:
 			return MAX_VARCHAR_COLUMN_SIZE;
 		case SQL_VARBINARY:
