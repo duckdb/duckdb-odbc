@@ -314,8 +314,8 @@ std::map<SQLSMALLINT, SQLULEN> InitializeTypesMap() {
 
 	types_map[SQL_VARCHAR] = 8000;
 	types_map[SQL_CHAR] = 0;
-	types_map[SQL_BIGINT] = 20;
-	types_map[SQL_INTEGER] = 11;
+	types_map[SQL_BIGINT] = 19;
+	types_map[SQL_INTEGER] = 10;
 	types_map[SQL_SMALLINT] = 5;
 	return types_map;
 }
