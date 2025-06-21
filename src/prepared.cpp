@@ -216,6 +216,11 @@ static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT col
 		*decimal_digits_ptr = 0;
 		if (col_type.id() == duckdb::LogicalTypeId::DECIMAL) {
 			*decimal_digits_ptr = duckdb::DecimalType::GetScale(col_type);
+		} else {
+			auto sql_type = duckdb::ApiInfo::FindRelatedSQLType(col_type.id());
+			if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
+				*decimal_digits_ptr = duckdb::ApiInfo::GetTemporalPrecision(col_type.id());
+			}
 		}
 	}
 	if (nullable_ptr) {

@@ -267,6 +267,12 @@ SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb::LogicalTypeId type_id) {
 		return SQL_TYPE_DATE;
 	case LogicalTypeId::TIMESTAMP:
 		return SQL_TYPE_TIMESTAMP;
+	case LogicalTypeId::TIMESTAMP_MS:
+		return SQL_TYPE_TIMESTAMP;
+	case LogicalTypeId::TIMESTAMP_SEC:
+		return SQL_TYPE_TIMESTAMP;
+	case LogicalTypeId::TIMESTAMP_NS:
+		return SQL_TYPE_TIMESTAMP;
 	case LogicalTypeId::TIMESTAMP_TZ:
 		return SQL_TYPE_TIMESTAMP;
 	case LogicalTypeId::TIME:
