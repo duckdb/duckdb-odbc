@@ -309,13 +309,13 @@ void InitializeDatabase(HSTMT &hstmt) {
 	EXEC_SQL(hstmt, "INSERT INTO ducks.test_table_2 VALUES (3, 'quack quack quack');");
 }
 
-std::map<SQLSMALLINT, SQLULEN> InitializeTypesMap() {
+std::map<SQLSMALLINT, SQLULEN> InitializeTypeColumnSizeMap() {
 	std::map<SQLSMALLINT, SQLULEN> types_map;
 
 	types_map[SQL_VARCHAR] = 8000;
 	types_map[SQL_CHAR] = 0;
-	types_map[SQL_BIGINT] = 20;
-	types_map[SQL_INTEGER] = 11;
+	types_map[SQL_BIGINT] = 19;
+	types_map[SQL_INTEGER] = 10;
 	types_map[SQL_SMALLINT] = 5;
 	return types_map;
 }

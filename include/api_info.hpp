@@ -79,48 +79,11 @@ public:
 
 	static bool IsNumericInfoType(SQLUSMALLINT info_type);
 
-	//! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/display-size?view=sql-server-ver15
-	static SQLINTEGER GetColumnSize(const duckdb::LogicalType &logical_type) {
-		auto sql_type = FindRelatedSQLType(logical_type.id());
-		switch (sql_type) {
-		case SQL_DECIMAL:
-		case SQL_NUMERIC:
-			switch (logical_type.id()) {
-				case LogicalType::HUGEINT:
-				case LogicalType::UHUGEINT:
-					return 39;
-				default:
-					return duckdb::DecimalType::GetWidth(logical_type) + duckdb::DecimalType::GetScale(logical_type);
-			}
-		case SQL_BIT:
-			return 1;
-		case SQL_TINYINT:
-			return 3;
-		case SQL_SMALLINT:
-			return 5;
-		case SQL_INTEGER:
-			return 11;
-		case SQL_BIGINT:
-			return 20;
-		case SQL_REAL:
-			return 14;
-		case SQL_FLOAT:
-		case SQL_DOUBLE:
-			return 24;
-		case SQL_TYPE_DATE:
-			return 10;
-		case SQL_TYPE_TIME:
-			return 9;
-		case SQL_TYPE_TIMESTAMP:
-			return 20;
-		case SQL_VARCHAR:
-			return MAX_VARCHAR_COLUMN_SIZE;
-		case SQL_VARBINARY:
-			return MAX_VARBINARY_COLUMN_SIZE;
-		default:
-			return 0;
-		}
-	}
+	static uint8_t GetTemporalPrecision(duckdb::LogicalTypeId type_id);
+
+	static SQLINTEGER GetColumnSize(const duckdb::LogicalType &logical_type);
+
+	static SQLINTEGER GetDisplaySize(const duckdb::LogicalType &logical_type);
 
 }; // end ApiInfo struct
 

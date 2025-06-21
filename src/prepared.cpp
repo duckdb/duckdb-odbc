@@ -216,12 +216,17 @@ static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT col
 		*data_type_ptr = duckdb::ApiInfo::FindRelatedSQLType(col_type.id());
 	}
 	if (column_size_ptr) {
-		*column_size_ptr = duckdb::ApiInfo::GetColumnSize(hstmt->stmt->GetTypes()[col_idx]);
+		*column_size_ptr = duckdb::ApiInfo::GetColumnSize(col_type);
 	}
 	if (decimal_digits_ptr) {
 		*decimal_digits_ptr = 0;
 		if (col_type.id() == duckdb::LogicalTypeId::DECIMAL) {
 			*decimal_digits_ptr = duckdb::DecimalType::GetScale(col_type);
+		} else {
+			auto sql_type = duckdb::ApiInfo::FindRelatedSQLType(col_type.id());
+			if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
+				*decimal_digits_ptr = duckdb::ApiInfo::GetTemporalPrecision(col_type.id());
+			}
 		}
 	}
 	if (nullable_ptr) {
