@@ -344,12 +344,20 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			return SQL_ERROR;
 		}
 		if (precision <= Decimal::MAX_WIDTH_INT64) {
-			value =
-			    Value::DECIMAL(Load<int64_t>(dataptr), static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
+			int64_t dec_val = Load<int64_t>(dataptr);
+			// Handle sign: 0 = negative, 1 = positive
+			if (numeric->sign == 0) {
+				dec_val = -dec_val;
+			}
+			value = Value::DECIMAL(dec_val, static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
 		} else {
 			hugeint_t dec_value;
 			memcpy(&dec_value.lower, dataptr, sizeof(dec_value.lower));
 			memcpy(&dec_value.upper, dataptr + sizeof(dec_value.lower), sizeof(dec_value.upper));
+			// Handle sign: 0 = negative, 1 = positive
+			if (numeric->sign == 0) {
+				dec_value = -dec_value;
+			}
 			value = Value::DECIMAL(dec_value, static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
 		}
 		break;

@@ -511,7 +511,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 
 			string str_fraction = str_val.substr(pos_dot);
 			// case all digits in fraction is 0, remove them
-			if (std::stoi(str_fraction) == 0) {
+			if (!str_fraction.empty() && str_fraction.find_first_not_of('0') == string::npos) {
 				str_val.erase(str_val.begin() + pos_dot, str_val.end());
 			}
 			width = str_val.size();
@@ -527,10 +527,9 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 			memcpy(dataptr, &val_i64, sizeof(val_i64));
 		} else {
 			hugeint_t huge_int;
-			string error_message;
-			CastParameters parameters(false, &error_message);
-			if (!duckdb::TryCastToDecimal::Operation<string_t, hugeint_t>(str_t, huge_int, parameters,
-			                                                              numeric->precision, numeric->scale)) {
+			// The string has already been processed to remove decimal point, so it's an integer string
+			// We need to convert it directly to hugeint_t
+			if (!duckdb::TryCast::Operation(str_t, huge_int)) {
 				return SQL_ERROR;
 			}
 			memcpy(dataptr, &huge_int.lower, sizeof(huge_int.lower));
