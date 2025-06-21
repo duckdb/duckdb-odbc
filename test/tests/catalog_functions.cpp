@@ -399,7 +399,7 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo; SQLTables; SQLColumns; SQLGet
 
 	HSTMT hstmt = SQL_NULL_HSTMT;
 
-	auto types_map = InitializeTypesMap();
+	auto types_map = InitializeTypeColumnSizeMap();
 
 	// Connect to the database using SQLConnect
 	CONNECT_TO_DATABASE(env, dbc);
