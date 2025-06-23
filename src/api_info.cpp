@@ -525,3 +525,117 @@ bool ApiInfo::IsNumericInfoType(SQLUSMALLINT info_type) {
 		return false;
 	}
 }
+
+uint8_t ApiInfo::GetTemporalPrecision(duckdb::LogicalTypeId type_id) {
+	switch (type_id) {
+	case LogicalTypeId::TIME:
+	case LogicalTypeId::TIMESTAMP:
+	case LogicalTypeId::TIMESTAMP_TZ:
+		return 6; // microseconds
+	case LogicalTypeId::TIMESTAMP_MS:
+		return 3; // milliseconds
+	case LogicalTypeId::TIMESTAMP_SEC:
+		return 0; // seconds
+	case LogicalTypeId::TIMESTAMP_NS:
+		return 9; // nanoseconds
+	default:
+		return 0;
+	}
+}
+
+//! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-ver15
+SQLINTEGER ApiInfo::GetColumnSize(const duckdb::LogicalType &logical_type) {
+	auto sql_type = FindRelatedSQLType(logical_type.id());
+	switch (sql_type) {
+	case SQL_DECIMAL:
+	case SQL_NUMERIC:
+		switch (logical_type.id()) {
+		case LogicalType::HUGEINT:
+		case LogicalType::UHUGEINT:
+			return 38;
+		default:
+			return duckdb::DecimalType::GetWidth(logical_type);
+		}
+	case SQL_BIT:
+		return 1;
+	case SQL_TINYINT:
+		return 3;
+	case SQL_SMALLINT:
+		return 5;
+	case SQL_INTEGER:
+		return 10;
+	case SQL_BIGINT:
+		return logical_type.IsUnsigned() ? 20 : 19;
+	case SQL_REAL:
+		return 7;
+	case SQL_FLOAT:
+	case SQL_DOUBLE:
+		return 15;
+	case SQL_TYPE_DATE:
+		return 10;
+	case SQL_TYPE_TIME: {
+		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		return precision > 0 ? 9 + precision : 8;
+	}
+	case SQL_TYPE_TIMESTAMP: {
+		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		return precision > 0 ? 20 + precision : 19;
+	}
+	case SQL_VARCHAR:
+		return 256;
+	case SQL_VARBINARY:
+		return 512;
+	default:
+		return 0;
+	}
+}
+
+//! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/display-size?view=sql-server-ver15
+SQLINTEGER ApiInfo::GetDisplaySize(const duckdb::LogicalType &logical_type) {
+	auto sql_type = FindRelatedSQLType(logical_type.id());
+	switch (sql_type) {
+	case SQL_DECIMAL:
+	case SQL_NUMERIC:
+		switch (logical_type.id()) {
+		case LogicalType::HUGEINT:
+		case LogicalType::UHUGEINT:
+			return 40;
+		default:
+			return duckdb::DecimalType::GetWidth(logical_type) + 2;
+		}
+	case SQL_BIT:
+		return 1;
+	case SQL_TINYINT:
+		return logical_type.IsUnsigned() ? 3 : 4;
+	case SQL_SMALLINT:
+		return logical_type.IsUnsigned() ? 5 : 6;
+	case SQL_INTEGER:
+		return logical_type.IsUnsigned() ? 10 : 11;
+	case SQL_BIGINT:
+		return 20;
+	case SQL_REAL:
+		return 14;
+	case SQL_FLOAT:
+	case SQL_DOUBLE:
+		return 24;
+	case SQL_TYPE_DATE:
+		return 10;
+	case SQL_TYPE_TIME: {
+		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		return precision > 0 ? 9 + precision : 8;
+	}
+	case SQL_TYPE_TIMESTAMP: {
+		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		return precision > 0 ? 20 + precision : 19;
+	}
+	case SQL_VARCHAR:
+		// TODO: this is not correct, but we don't know the number of characters, but set because of ADO
+		// return SQL_NO_TOTAL; // causes bad alloc
+		return 256;
+	case SQL_VARBINARY:
+		// TODO: this is not correct, but we don't know the number of characters, but set because of ADO
+		return 512;
+	default:
+		return 0;
+	}
+}

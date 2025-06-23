@@ -136,7 +136,7 @@ TEST_CASE("Test SQLDescribeCol with decimal types - precision and scale", "[odbc
 		                  &name_length, &data_type, &column_size, &decimal_digits, &nullable);
 
 		// Verify column name
-		REQUIRE(STR_EQUAL((char *)col_name, test.name));
+		REQUIRE(STR_EQUAL(reinterpret_cast<char *>(col_name), test.name));
 		REQUIRE(name_length == strlen(test.name));
 
 		// Verify data type
