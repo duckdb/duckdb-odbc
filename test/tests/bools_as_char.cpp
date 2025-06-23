@@ -8,7 +8,7 @@ using namespace odbc_test;
 TEST_CASE("Test bools to char conversion", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
-	auto types_map = InitializeTypesMap();
+	auto types_map = InitializeTypeColumnSizeMap();
 
 	HSTMT hstmt = SQL_NULL_HSTMT;
 
