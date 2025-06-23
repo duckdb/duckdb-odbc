@@ -22,7 +22,7 @@ TEST_CASE("Test SQLColAttribute for a query that returns a char", "[odbc]") {
 	expected_chars[SQL_DESC_CATALOG_NAME] = ExpectedResult("system");
 	expected_chars[SQL_DESC_CONCISE_TYPE] = ExpectedResult(SQL_VARCHAR);
 	expected_chars[SQL_DESC_COUNT] = ExpectedResult(2);
-	expected_chars[SQL_DESC_DISPLAY_SIZE] = ExpectedResult(256);
+	expected_chars[SQL_DESC_DISPLAY_SIZE] = ExpectedResult(8000);
 	expected_chars[SQL_DESC_FIXED_PREC_SCALE] = ExpectedResult(SQL_FALSE);
 	expected_chars[SQL_DESC_LENGTH] = ExpectedResult(std::numeric_limits<SQLINTEGER>::max());
 	expected_chars[SQL_DESC_LITERAL_PREFIX] = ExpectedResult("''''");

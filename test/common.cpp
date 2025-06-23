@@ -312,7 +312,7 @@ void InitializeDatabase(HSTMT &hstmt) {
 std::map<SQLSMALLINT, SQLULEN> InitializeTypesMap() {
 	std::map<SQLSMALLINT, SQLULEN> types_map;
 
-	types_map[SQL_VARCHAR] = 256;
+	types_map[SQL_VARCHAR] = 8000;
 	types_map[SQL_CHAR] = 0;
 	types_map[SQL_BIGINT] = 20;
 	types_map[SQL_INTEGER] = 11;
