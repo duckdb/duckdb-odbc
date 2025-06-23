@@ -6,7 +6,7 @@ TEST_CASE("Test ALTER TABLE statement", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
 	HSTMT hstmt = SQL_NULL_HSTMT;
-	auto types_map = InitializeTypesMap();
+	auto types_map = InitializeTypeColumnSizeMap();
 
 	// Connect to the database
 	CONNECT_TO_DATABASE(env, dbc);

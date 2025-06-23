@@ -173,9 +173,20 @@ void OdbcHandleStmt::FillIRD() {
 			new_record.sql_desc_type_name = duckdb::TypeIdToString(col_type.InternalType());
 		}
 
-		if (sql_type == SQL_DECIMAL) {
-			new_record.sql_desc_precision = duckdb::DecimalType::GetWidth(col_type);
-			new_record.sql_desc_scale = duckdb::DecimalType::GetScale(col_type);
+		if (sql_type == SQL_DECIMAL || sql_type == SQL_NUMERIC) {
+			// Both SQL_DECIMAL and SQL_NUMERIC represent exact numeric types with precision and scale.
+			// Types are mapped as follows:
+			// - HUGEINT/UHUGEINT (128-bit integers) -> SQL_NUMERIC because ODBC's largest integer
+			//   type (SQL_BIGINT) only supports 64-bit values. SQL_NUMERIC with precision 38, scale 0
+			//   can accurately represent the full range of 128-bit integers.
+			// - DECIMAL types -> SQL_DECIMAL for actual decimal numbers with user-defined precision/scale
+			if (col_type.id() == LogicalTypeId::HUGEINT || col_type.id() == LogicalTypeId::UHUGEINT) {
+				new_record.sql_desc_precision = 38;
+				new_record.sql_desc_scale = 0;
+			} else {
+				new_record.sql_desc_precision = duckdb::DecimalType::GetWidth(col_type);
+				new_record.sql_desc_scale = duckdb::DecimalType::GetScale(col_type);
+			}
 		} else if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
 			uint8_t precision = duckdb::ApiInfo::GetTemporalPrecision(col_type.id());
 			new_record.sql_desc_precision = precision;

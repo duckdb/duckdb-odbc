@@ -131,7 +131,7 @@ void EXEC_SQL(HSTMT hstmt, const std::string &query);
 
 void InitializeDatabase(HSTMT &hstmt);
 
-std::map<SQLSMALLINT, SQLULEN> InitializeTypesMap();
+std::map<SQLSMALLINT, SQLULEN> InitializeTypeColumnSizeMap();
 
 // Converters
 SQLCHAR *ConvertToSQLCHAR(const char *str);

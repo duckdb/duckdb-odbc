@@ -81,7 +81,7 @@ TEST_CASE("Test binding multiple columsn at once", "[odbc]") {
 	                  SQL_NTS);
 
 	std::string col_name[2] = {"Column1", "Column2"};
-	std::map<SQLSMALLINT, SQLULEN> types_map = InitializeTypesMap();
+	std::map<SQLSMALLINT, SQLULEN> types_map = InitializeTypeColumnSizeMap();
 
 	for (int i = 0; i >= 0; i++) {
 		SQLRETURN ret = SQLFetch(hstmt);
