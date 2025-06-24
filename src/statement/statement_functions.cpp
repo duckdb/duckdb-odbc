@@ -511,12 +511,8 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 
 			string str_fraction = str_val.substr(pos_dot);
 			// case all digits in fraction is 0, remove them
-			try {
-				if (std::stoi(str_fraction) == 0) {
-					str_val.erase(str_val.begin() + pos_dot, str_val.end());
-				}
-			} catch (const std::exception &e) {
-				// Fraction is not all zeros, keep it
+			if (!str_fraction.empty() && str_fraction.find_first_not_of('0') == string::npos) {
+				str_val.erase(str_val.begin() + pos_dot, str_val.end());
 			}
 			width = str_val.size();
 		}
