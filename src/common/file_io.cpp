@@ -35,7 +35,7 @@ bool FileExists(const std::string &path) {
 #endif // _WIN32
 }
 
-std::size_t FileSizeBytes(const std::string &path) {
+size_t FileSizeBytes(const std::string &path) {
 #ifdef _WIN32
 	std::wstring wpath = WidenStr(path);
 	HANDLE file =
@@ -62,7 +62,7 @@ std::size_t FileSizeBytes(const std::string &path) {
 #endif // _WIN32
 }
 
-std::string FileReadToString(const std::string &path, std::size_t max_size_bytes) {
+std::string FileReadToString(const std::string &path, size_t max_size_bytes) {
 	try {
 		std::ifstream file;
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -77,10 +77,10 @@ std::string FileReadToString(const std::string &path, std::size_t max_size_bytes
 		std::string result;
 		result.resize(max_size_bytes);
 
-		std::size_t total_read = 0;
+		size_t total_read = 0;
 		while (total_read < max_size_bytes && file) {
 			file.read(&result[total_read], max_size_bytes - total_read);
-			std::size_t bytes_read = file.gcount();
+			size_t bytes_read = file.gcount();
 			if (bytes_read == 0) {
 				break; // EOF
 			}

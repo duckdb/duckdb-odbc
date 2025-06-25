@@ -11,7 +11,7 @@
 
 namespace duckdb {
 
-const std::size_t SessionInitSQLFile::SQL_FILE_MAX_SIZE_BYTES = 1 << 20; // 1MB
+const size_t SessionInitSQLFile::SQL_FILE_MAX_SIZE_BYTES = 1 << 20; // 1MB
 const std::string SessionInitSQLFile::CONN_INIT_MARKER = "/\\*\\s*DUCKDB_CONNECTION_INIT_BELOW_MARKER\\s*\\*/";
 
 static std::vector<std::string> SplitByMarker(const std::string &str) {
@@ -47,7 +47,7 @@ SessionInitSQLFile SessionInit::ReadSQLFile(const std::string &session_init_sql_
 		throw FileIOException("Specified session init SQL file not found, path: " + session_init_sql_file);
 	}
 
-	std::size_t file_size = FileSizeBytes(session_init_sql_file);
+	size_t file_size = FileSizeBytes(session_init_sql_file);
 	if (file_size > SessionInitSQLFile::SQL_FILE_MAX_SIZE_BYTES) {
 		throw FileIOException(
 		    "Specified session init SQL file size: " + std::to_string(file_size) +
@@ -107,7 +107,7 @@ static SQLRETURN RunQueryWithStmt(OdbcHandleDbc *dbc, const std::string &query) 
 		if (SQL_SUCCEEDED(diag_ret)) {
 			message = std::string(reinterpret_cast<char *>(sqlstate.data()), sqlstate.size() - 1);
 			message += ": ";
-			message += std::string(reinterpret_cast<char *>(msg_buf.data()), static_cast<std::size_t>(msg_len));
+			message += std::string(reinterpret_cast<char *>(msg_buf.data()), static_cast<size_t>(msg_len));
 		}
 		SetDiagnosticRecord(dbc, exec_ret, "SQLDriverConnect", "Connection init error:\n" + message + "\n" + query,
 		                    SQLStateType::ST_42000, "");
