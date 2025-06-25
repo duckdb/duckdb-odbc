@@ -8,6 +8,7 @@
 namespace duckdb {
 
 void PrepareQuery(OdbcHandleStmt *hstmt);
+
 SQLRETURN FinalizeStmt(OdbcHandleStmt *hstmt);
 
 SQLRETURN BatchExecuteStmt(OdbcHandleStmt *hstmt);
@@ -27,6 +28,5 @@ SQLRETURN BindParameterStmt(OdbcHandleStmt *hstmt, SQLUSMALLINT parameter_number
                             SQLLEN *str_len_or_ind_ptr);
 
 SQLRETURN CloseStmt(OdbcHandleStmt *hstmt);
-
 } // namespace duckdb
 #endif
