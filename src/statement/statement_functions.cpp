@@ -41,7 +41,7 @@ using duckdb::Timestamp;
 using duckdb::timestamp_t;
 using duckdb::vector;
 
-string duckdb::GetQueryAsString(duckdb::OdbcHandleStmt *hstmt, SQLCHAR *statement_text, SQLINTEGER text_length) {
+void duckdb::PrepareQuery(OdbcHandleStmt *hstmt) {
 	if (hstmt->stmt) {
 		hstmt->stmt.reset();
 	}
@@ -51,10 +51,9 @@ string duckdb::GetQueryAsString(duckdb::OdbcHandleStmt *hstmt, SQLCHAR *statemen
 	}
 
 	hstmt->odbc_fetcher->ClearChunks();
-	return OdbcUtils::ReadString(statement_text, text_length);
 }
 
-SQLRETURN duckdb::FinalizeStmt(duckdb::OdbcHandleStmt *hstmt) {
+SQLRETURN duckdb::FinalizeStmt(OdbcHandleStmt *hstmt) {
 	if (hstmt->stmt->HasError()) {
 		return SetDiagnosticRecord(hstmt, SQL_ERROR, "PrepareStmt", hstmt->stmt->error.Message(),
 		                           SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName());
@@ -91,7 +90,7 @@ SQLRETURN duckdb::FinalizeStmt(duckdb::OdbcHandleStmt *hstmt) {
 
 //! Execute stmt in a batch manner while there is a parameter set to process,
 //! the stmt is executed multiple times when there is a bound array of parameters in INSERT and UPDATE statements
-SQLRETURN duckdb::BatchExecuteStmt(duckdb::OdbcHandleStmt *hstmt) {
+SQLRETURN duckdb::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 	SQLRETURN ret = SQL_SUCCESS;
 	do {
 		ret = SingleExecuteStmt(hstmt);
@@ -127,7 +126,7 @@ SQLRETURN duckdb::BatchExecuteStmt(duckdb::OdbcHandleStmt *hstmt) {
 }
 
 //! Execute statement only once
-SQLRETURN duckdb::SingleExecuteStmt(duckdb::OdbcHandleStmt *hstmt) {
+SQLRETURN duckdb::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 	if (hstmt->res) {
 		hstmt->res.reset();
 	}
@@ -157,7 +156,7 @@ SQLRETURN duckdb::SingleExecuteStmt(duckdb::OdbcHandleStmt *hstmt) {
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::FetchStmtResult(duckdb::OdbcHandleStmt *hstmt, SQLSMALLINT fetch_orientation, SQLLEN fetch_offset) {
+SQLRETURN duckdb::FetchStmtResult(OdbcHandleStmt *hstmt, SQLSMALLINT fetch_orientation, SQLLEN fetch_offset) {
 	if (!hstmt->open) {
 		return SQL_NO_DATA;
 	}
@@ -959,16 +958,9 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 	} // end switch "(target_type_resolved)": SQL_C_TYPE_TIMESTAMP
 }
 
-SQLRETURN duckdb::ExecDirectStmt(SQLHSTMT statement_handle, SQLCHAR *statement_text, SQLINTEGER text_length) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
-	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
-	if (ret != SQL_SUCCESS) {
-		return ret;
-	}
-
+SQLRETURN duckdb::ExecDirectStmt(OdbcHandleStmt *hstmt, const string &query) {
 	bool success_with_info = false;
-	// Set up the statement and extract the query
-	auto query = GetQueryAsString(hstmt, statement_text, text_length);
+	PrepareQuery(hstmt);
 
 	// Extract the statements from the query
 	vector<unique_ptr<SQLStatement>> statements;
@@ -979,6 +971,7 @@ SQLRETURN duckdb::ExecDirectStmt(SQLHSTMT statement_handle, SQLCHAR *statement_t
 		                                   hstmt->dbc->GetDataSourceName());
 	}
 
+	SQLRETURN ret = SQL_SUCCESS;
 	for (auto &statement : statements) {
 		hstmt->stmt = hstmt->dbc->conn->Prepare(std::move(statement));
 		ret = FinalizeStmt(hstmt);
@@ -998,16 +991,10 @@ SQLRETURN duckdb::ExecDirectStmt(SQLHSTMT statement_handle, SQLCHAR *statement_t
 	return success_with_info ? SQL_SUCCESS_WITH_INFO : ret;
 }
 
-SQLRETURN duckdb::BindParameterStmt(SQLHSTMT statement_handle, SQLUSMALLINT parameter_number,
-                                    SQLSMALLINT input_output_type, SQLSMALLINT value_type, SQLSMALLINT parameter_type,
-                                    SQLULEN column_size, SQLSMALLINT decimal_digits, SQLPOINTER parameter_value_ptr,
-                                    SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
-	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
-	if (ret != SQL_SUCCESS) {
-		return ret;
-	}
-
+SQLRETURN duckdb::BindParameterStmt(OdbcHandleStmt *hstmt, SQLUSMALLINT parameter_number, SQLSMALLINT input_output_type,
+                                    SQLSMALLINT value_type, SQLSMALLINT parameter_type, SQLULEN column_size,
+                                    SQLSMALLINT decimal_digits, SQLPOINTER parameter_value_ptr, SQLLEN buffer_length,
+                                    SQLLEN *str_len_or_ind_ptr) {
 	if (input_output_type != SQL_PARAM_INPUT) {
 		return SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLBindParameter", "Only SQL_PARAM_INPUT is supported.",
 		                           SQLStateType::ST_HYC00, hstmt->dbc->GetDataSourceName());

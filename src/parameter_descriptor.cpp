@@ -272,7 +272,7 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			*sql_ind_ptr_val_set = strlen(str_data);
 		}
 		auto str_len = *sql_ind_ptr_val_set;
-		value = Value(duckdb::OdbcUtils::ReadString(str_data, str_len));
+		value = Value(duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), str_len));
 		break;
 	}
 	case SQL_WCHAR:

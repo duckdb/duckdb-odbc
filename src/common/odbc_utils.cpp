@@ -21,13 +21,6 @@ using duckdb::OdbcUtils;
 using duckdb::vector;
 using std::string;
 
-string OdbcUtils::ReadString(const SQLPOINTER ptr, const SQLLEN len) {
-	if (ptr == nullptr) {
-		return std::string();
-	}
-	return len == SQL_NTS ? string((const char *)ptr) : string((const char *)ptr, (size_t)len);
-}
-
 SQLRETURN OdbcUtils::SetStringValueLength(const string &val_str, SQLLEN *str_len_or_ind_ptr) {
 	if (str_len_or_ind_ptr) {
 		// it fills the required lenght from string value
@@ -263,13 +256,17 @@ SQLUINTEGER OdbcUtils::SQLPointerToSQLUInteger(SQLPOINTER value) {
 	return static_cast<SQLUINTEGER>(reinterpret_cast<SQLULEN>(value));
 }
 
-std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str, SQLSMALLINT str_len) {
+std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str, const SQLSMALLINT str_len) {
+	if (!str) {
+		return std::string();
+	}
+
 	if (str_len == SQL_NTS) {
 		return std::string(reinterpret_cast<char *>(str));
-	} else {
-		std::size_t len = str_len > 0 ? static_cast<std::size_t>(str_len) : 0;
-		return std::string(reinterpret_cast<char *>(str), len);
 	}
+
+	const std::size_t len = str_len > 0 ? static_cast<std::size_t>(str_len) : 0;
+	return std::string(reinterpret_cast<char *>(str), len);
 }
 
 LPCSTR OdbcUtils::ConvertStringToLPCSTR(const std::string &str) {

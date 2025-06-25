@@ -62,7 +62,7 @@ static SQLRETURN GetTypeInfoInternal(SQLHSTMT statement_handle, SQLSMALLINT data
 	))";
 	// clang-format on
 
-	return duckdb::ExecDirectStmt(hstmt, (SQLCHAR *)query.c_str(), static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(hstmt, query);
 }
 
 SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_type) {

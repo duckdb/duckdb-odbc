@@ -33,8 +33,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLPrimaryKeys(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -88,8 +87,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLForeignKeys(SQLHSTMT statement_handle, SQLCHAR *pk_catalog_name, SQLSMALLINT name_length1,
@@ -157,8 +155,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLProcedureColumns(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -206,8 +203,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLProcedures(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -253,8 +249,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLColumnPrivileges(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -301,8 +296,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLTablePrivileges(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
@@ -349,8 +343,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLSpecialColumns(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
@@ -404,8 +397,7 @@ WHERE 1 < 0
 		return ret;
 	}
 
-	return duckdb::ExecDirectStmt(stmt, duckdb::OdbcUtils::ConvertStringToSQLCHAR(query),
-	                              static_cast<SQLINTEGER>(query.size()));
+	return duckdb::ExecDirectStmt(stmt, query);
 }
 
 SQLRETURN SQL_API SQLStatistics(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,

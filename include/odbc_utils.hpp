@@ -25,8 +25,6 @@
 namespace duckdb {
 struct OdbcUtils {
 public:
-	static std::string ReadString(const SQLPOINTER ptr, const SQLLEN len);
-
 	template <typename INT_TYPE, typename CHAR_TYPE=SQLCHAR>
 	static void WriteString(const std::string &s, CHAR_TYPE *out_buf, SQLLEN buf_len, INT_TYPE *out_len = nullptr) {
 		INT_TYPE written_chars = 0;
