@@ -5,7 +5,6 @@ using duckdb::DiagRecord;
 using duckdb::OdbcDiagnostic;
 using duckdb::SQLState;
 using duckdb::SQLStateType;
-using std::string;
 
 // OdbcDiagnostic static initializations and functions ******************************
 const std::unordered_map<SQLINTEGER, std::string> OdbcDiagnostic::MAP_DYNAMIC_FUNCTION = {
@@ -236,7 +235,7 @@ void OdbcDiagnostic::Clean() {
 	vec_record_idx.clear();
 }
 
-string OdbcDiagnostic::GetDiagDynamicFunction() {
+std::string OdbcDiagnostic::GetDiagDynamicFunction() {
 	auto entry = MAP_DYNAMIC_FUNCTION.find(header.sql_diag_dynamic_function_code);
 	if (entry == MAP_DYNAMIC_FUNCTION.end()) {
 		return "";

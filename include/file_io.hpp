@@ -9,9 +9,9 @@ namespace duckdb {
 
 bool FileExists(const std::string &path);
 
-std::size_t FileSizeBytes(const std::string &path);
+size_t FileSizeBytes(const std::string &path);
 
-std::string FileReadToString(const std::string &path, std::size_t max_size_bytes);
+std::string FileReadToString(const std::string &path, size_t max_size_bytes);
 
 class FileIOException : public std::exception {
 public:

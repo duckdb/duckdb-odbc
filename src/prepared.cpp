@@ -32,7 +32,13 @@ SQLRETURN SQL_API SQLBindParameter(SQLHSTMT statement_handle, SQLUSMALLINT param
                                    SQLSMALLINT input_output_type, SQLSMALLINT value_type, SQLSMALLINT parameter_type,
                                    SQLULEN column_size, SQLSMALLINT decimal_digits, SQLPOINTER parameter_value_ptr,
                                    SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr) {
-	return duckdb::BindParameterStmt(statement_handle, parameter_number, input_output_type, value_type, parameter_type,
+	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return duckdb::BindParameterStmt(hstmt, parameter_number, input_output_type, value_type, parameter_type,
 	                                 column_size, decimal_digits, parameter_value_ptr, buffer_length,
 	                                 str_len_or_ind_ptr);
 }
