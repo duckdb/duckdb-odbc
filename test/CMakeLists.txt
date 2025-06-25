@@ -38,8 +38,11 @@ add_executable(
   tests/test_widechar_data.cpp
   tests/col_attribute/col_attribute.cpp
   tests/col_attribute/char_query.cpp
+  tests/col_attribute/decimal_query.cpp
   tests/col_attribute/int_query.cpp
   tests/col_attribute/interval_query.cpp
+  tests/col_attribute/temporal_query.cpp
+  tests/col_attribute/unsigned_int_query.cpp
   tests/col_attribute/uuid_query.cpp
   tests/col_attribute/utils.cpp)
 

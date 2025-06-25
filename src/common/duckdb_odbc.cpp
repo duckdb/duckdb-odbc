@@ -172,7 +172,21 @@ void OdbcHandleStmt::FillIRD() {
 		} else {
 			new_record.sql_desc_type_name = duckdb::TypeIdToString(col_type.InternalType());
 		}
-		new_record.sql_desc_display_size = duckdb::ApiInfo::GetColumnSize(col_type);
+
+		if (sql_type == SQL_DECIMAL || sql_type == SQL_NUMERIC) {
+			// SetSqlDescType initializes precision=38, scale=0 for both types.
+			// Only DECIMAL types need custom precision/scale from DecimalType.
+			if (col_type.id() == LogicalTypeId::DECIMAL) {
+				new_record.sql_desc_precision = duckdb::DecimalType::GetWidth(col_type);
+				new_record.sql_desc_scale = duckdb::DecimalType::GetScale(col_type);
+			}
+		} else if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
+			uint8_t precision = duckdb::ApiInfo::GetTemporalPrecision(col_type.id());
+			new_record.sql_desc_precision = precision;
+			new_record.sql_desc_scale = precision; // ODBC uses scale for fractional seconds
+		}
+
+		new_record.sql_desc_display_size = duckdb::ApiInfo::GetDisplaySize(col_type);
 		new_record.SetDescUnsignedField(col_type);
 
 		auto &db_manager = dbc->env->db->instance->GetDatabaseManager();

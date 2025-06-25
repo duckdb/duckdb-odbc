@@ -867,7 +867,7 @@ SQLRETURN DescRecord::SetSqlDescType(SQLSMALLINT type) {
 	sql_desc_local_type_name = !strcmp(type_info.local_type_name, "NULL") ? "" : type_info.local_type_name;
 	sql_desc_nullable = type_info.nullable;
 	sql_desc_case_sensitive = type_info.case_sensitive;
-	sql_desc_scale = type_info.maximum_scale;
+	sql_desc_scale = type_info.minimum_scale;
 	sql_desc_searchable = type_info.searchable;
 	sql_desc_fixed_prec_scale = type_info.fixed_prec_scale;
 	sql_desc_num_prec_radix = type_info.num_prec_radix == -1 ? 0 : type_info.num_prec_radix;
