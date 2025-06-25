@@ -174,16 +174,9 @@ void OdbcHandleStmt::FillIRD() {
 		}
 
 		if (sql_type == SQL_DECIMAL || sql_type == SQL_NUMERIC) {
-			// Both SQL_DECIMAL and SQL_NUMERIC represent exact numeric types with precision and scale.
-			// Types are mapped as follows:
-			// - HUGEINT/UHUGEINT (128-bit integers) -> SQL_NUMERIC because ODBC's largest integer
-			//   type (SQL_BIGINT) only supports 64-bit values. SQL_NUMERIC with precision 38, scale 0
-			//   can accurately represent the full range of 128-bit integers.
-			// - DECIMAL types -> SQL_DECIMAL for actual decimal numbers with user-defined precision/scale
-			if (col_type.id() == LogicalTypeId::HUGEINT || col_type.id() == LogicalTypeId::UHUGEINT) {
-				new_record.sql_desc_precision = 38;
-				new_record.sql_desc_scale = 0;
-			} else {
+			// SetSqlDescType initializes precision=38, scale=0 for both types.
+			// Only DECIMAL types need custom precision/scale from DecimalType.
+			if (col_type.id() == LogicalTypeId::DECIMAL) {
 				new_record.sql_desc_precision = duckdb::DecimalType::GetWidth(col_type);
 				new_record.sql_desc_scale = duckdb::DecimalType::GetScale(col_type);
 			}
