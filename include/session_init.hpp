@@ -9,7 +9,7 @@ namespace duckdb {
 
 class SessionInitSQLFile {
 public:
-  static const std::size_t SQL_FILE_MAX_SIZE_BYTES;
+  static const size_t SQL_FILE_MAX_SIZE_BYTES;
   static const std::string CONN_INIT_MARKER;
 
   std::string db_init_sql;

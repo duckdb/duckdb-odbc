@@ -353,7 +353,7 @@ std::string ConvertToString(SQLCHAR *str) {
 }
 
 std::string ConvertToString(SQLWCHAR *str) {
-	std::size_t len = duckdb::widechar::utf16_length(str);
+	size_t len = duckdb::widechar::utf16_length(str);
 	auto vec = duckdb::widechar::utf16_to_utf8_lenient(str, len);
 	return std::string(reinterpret_cast<char *>(vec.data()), vec.size());
 }

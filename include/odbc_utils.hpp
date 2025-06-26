@@ -47,10 +47,10 @@ public:
 	static void WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
 
 	// overload for widechar and smallint with NULL-terminated vector input
-	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes);
+	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes);
 
 	// overload for widechar and int with NULL-terminated vector input
-	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
+	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
 
 	template <typename VAL_INT_TYPE, typename LEN_INT_TYPE=SQLSMALLINT>
 	static void StoreWithLength(VAL_INT_TYPE val, SQLPOINTER ptr, LEN_INT_TYPE *length_ptr) {
@@ -89,7 +89,7 @@ public:
 	                                         const std::string &table_filter, const std::string &column_filter);
 
 	static SQLUINTEGER SQLPointerToSQLUInteger(SQLPOINTER value);
-	static std::string ConvertSQLCHARToString(SQLCHAR *str, SQLSMALLINT str_len);
+	static std::string ConvertSQLCHARToString(SQLCHAR *str, const SQLINTEGER str_len);
 	static LPCSTR ConvertStringToLPCSTR(const std::string &str);
 	static SQLCHAR *ConvertStringToSQLCHAR(const std::string &str);
 

@@ -19,7 +19,6 @@
 
 using duckdb::OdbcUtils;
 using duckdb::vector;
-using std::string;
 
 SQLRETURN OdbcUtils::SetStringValueLength(const string &val_str, SQLLEN *str_len_or_ind_ptr) {
 	if (str_len_or_ind_ptr) {
@@ -46,7 +45,7 @@ bool OdbcUtils::IsCharType(SQLSMALLINT type) {
 	}
 }
 
-string OdbcUtils::GetStringAsIdentifier(const string &str) {
+std::string OdbcUtils::GetStringAsIdentifier(const string &str) {
 	string str_ret;
 
 	std::regex regex_str_quoted("^(\".*\"|\'.*\')$");
@@ -65,8 +64,8 @@ string OdbcUtils::GetStringAsIdentifier(const string &str) {
 	return str_ret;
 }
 
-string OdbcUtils::ParseStringFilter(const string &filter_name, const string &filter_value,
-                                    SQLUINTEGER sql_attr_metadata_id, const string &coalesce_str) {
+std::string OdbcUtils::ParseStringFilter(const string &filter_name, const string &filter_value,
+                                         SQLUINTEGER sql_attr_metadata_id, const string &coalesce_str) {
 	string filter;
 	if (filter_value.empty()) {
 		if (coalesce_str.empty()) {
@@ -84,8 +83,8 @@ string OdbcUtils::ParseStringFilter(const string &filter_name, const string &fil
 	return filter;
 }
 
-string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const string &schema_filter,
-                                        const string &table_filter, const string &column_filter) {
+std::string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const string &schema_filter,
+                                             const string &table_filter, const string &column_filter) {
 	string sql_duckdb_columns = R"(
         SELECT * EXCLUDE (mapping, data_type_no_typmod)
         FROM (
@@ -221,8 +220,8 @@ string OdbcUtils::GetQueryDuckdbColumns(const string &catalog_filter, const stri
 	return sql_duckdb_columns;
 }
 
-string OdbcUtils::GetQueryDuckdbTables(const string &catalog_filter, const string &schema_filter,
-                                       const string &table_filter, const string &table_type_filter) {
+std::string OdbcUtils::GetQueryDuckdbTables(const string &catalog_filter, const string &schema_filter,
+                                            const string &table_filter, const string &table_type_filter) {
 	string sql_duckdb_tables = R"(
 		SELECT
 			table_catalog::VARCHAR "TABLE_CAT",
@@ -256,7 +255,7 @@ SQLUINTEGER OdbcUtils::SQLPointerToSQLUInteger(SQLPOINTER value) {
 	return static_cast<SQLUINTEGER>(reinterpret_cast<SQLULEN>(value));
 }
 
-std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str, const SQLSMALLINT str_len) {
+std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str, SQLINTEGER str_len) {
 	if (!str) {
 		return std::string();
 	}
@@ -265,7 +264,7 @@ std::string OdbcUtils::ConvertSQLCHARToString(SQLCHAR *str, const SQLSMALLINT st
 		return std::string(reinterpret_cast<char *>(str));
 	}
 
-	const std::size_t len = str_len > 0 ? static_cast<std::size_t>(str_len) : 0;
+	const size_t len = str_len > 0 ? static_cast<size_t>(str_len) : 0;
 	return std::string(reinterpret_cast<char *>(str), len);
 }
 
@@ -278,10 +277,10 @@ SQLCHAR *OdbcUtils::ConvertStringToSQLCHAR(const std::string &str) {
 }
 
 template <typename INT_TYPE>
-static void WriteStringInternal(const SQLCHAR *utf8_data, std::size_t utf8_data_len, SQLWCHAR *out_buf, SQLLEN buf_len,
+static void WriteStringInternal(const SQLCHAR *utf8_data, size_t utf8_data_len, SQLWCHAR *out_buf, SQLLEN buf_len,
                                 INT_TYPE *out_len) {
 	auto utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(utf8_data, utf8_data_len);
-	std::size_t buf_len_even = static_cast<std::size_t>(buf_len);
+	size_t buf_len_even = static_cast<size_t>(buf_len);
 	if ((buf_len % 2) != 0) {
 		buf_len_even -= 1;
 	}
@@ -294,8 +293,8 @@ static void WriteStringInternal(const SQLCHAR *utf8_data, std::size_t utf8_data_
 			return;
 		}
 	}
-	std::size_t len_bytes = std::min(utf16_vec.size() * sizeof(SQLWCHAR), buf_len_even - sizeof(SQLWCHAR));
-	std::size_t len_chars = len_bytes / sizeof(SQLWCHAR);
+	size_t len_bytes = std::min(utf16_vec.size() * sizeof(SQLWCHAR), buf_len_even - sizeof(SQLWCHAR));
+	size_t len_chars = len_bytes / sizeof(SQLWCHAR);
 	if (out_buf != nullptr) {
 		std::memcpy(out_buf, utf16_vec.data(), len_bytes);
 		out_buf[len_chars] = 0;
@@ -317,12 +316,12 @@ void duckdb::OdbcUtils::WriteString(const std::string &utf8_str, SQLWCHAR *out_b
 	                           buf_len_bytes, out_len_bytes);
 }
 
-void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf,
+void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf,
                                     SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes) {
 	return WriteStringInternal(utf8_vec.data(), utf8_vec_len, out_buf, buf_len_bytes, out_len_bytes);
 }
 
-void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, std::size_t utf8_vec_len, SQLWCHAR *out_buf,
+void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf,
                                     SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes) {
 	return WriteStringInternal(utf8_vec.data(), utf8_vec_len, out_buf, buf_len_bytes, out_len_bytes);
 }

@@ -284,7 +284,7 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
 			*sql_ind_ptr_val_set = static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
 		}
-		auto utf16_len = static_cast<std::size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
+		auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
 		auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
 		auto utf8_str = std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size());
 		value = Value(utf8_str);

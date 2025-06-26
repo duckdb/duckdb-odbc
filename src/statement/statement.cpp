@@ -17,7 +17,6 @@
 using duckdb::LogicalTypeId;
 using duckdb::OdbcUtils;
 using duckdb::SQLStateType;
-using std::string;
 
 /**
  * @brief SQLSetStmtAttr sets attributes that govern aspects of a statement.
@@ -435,15 +434,18 @@ static SQLRETURN TablesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name
 
 	// String search pattern for catalog name
 	auto catalog_n = OdbcUtils::ConvertSQLCHARToString(catalog_name, name_length1);
-	string catalog_filter = OdbcUtils::ParseStringFilter("\"TABLE_CAT\"", catalog_n, hstmt->dbc->sql_attr_metadata_id);
+	std::string catalog_filter =
+	    OdbcUtils::ParseStringFilter("\"TABLE_CAT\"", catalog_n, hstmt->dbc->sql_attr_metadata_id);
 
 	// String search pattern for schema name
 	auto schema_n = OdbcUtils::ConvertSQLCHARToString(schema_name, name_length2);
-	string schema_filter = OdbcUtils::ParseStringFilter("\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id);
+	std::string schema_filter =
+	    OdbcUtils::ParseStringFilter("\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id);
 
 	// String search pattern for table name
 	auto table_n = OdbcUtils::ConvertSQLCHARToString(table_name, name_length3);
-	string table_filter = OdbcUtils::ParseStringFilter("\"TABLE_NAME\"", table_n, hstmt->dbc->sql_attr_metadata_id);
+	std::string table_filter =
+	    OdbcUtils::ParseStringFilter("\"TABLE_NAME\"", table_n, hstmt->dbc->sql_attr_metadata_id);
 
 	// Table types
 	auto table_tp = OdbcUtils::ConvertSQLCHARToString(table_type, name_length4);
@@ -548,7 +550,7 @@ static SQLRETURN ColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_nam
 	}
 
 	auto catalog_n = OdbcUtils::ConvertSQLCHARToString(catalog_name, name_length1);
-	string catalog_filter;
+	std::string catalog_filter;
 	if (catalog_n.empty()) {
 		catalog_filter = "\"TABLE_CAT\" IS NULL";
 	} else if (hstmt->dbc->sql_attr_metadata_id == SQL_TRUE) {
@@ -557,18 +559,21 @@ static SQLRETURN ColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_nam
 
 	// String search pattern for schema name
 	auto schema_n = OdbcUtils::ConvertSQLCHARToString(schema_name, name_length2);
-	string schema_filter = OdbcUtils::ParseStringFilter("\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id,
-	                                                    string(DEFAULT_SCHEMA));
+	std::string schema_filter = OdbcUtils::ParseStringFilter(
+	    "\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id, std::string(DEFAULT_SCHEMA));
 
 	// String search pattern for table name
 	auto table_n = OdbcUtils::ConvertSQLCHARToString(table_name, name_length3);
-	string table_filter = OdbcUtils::ParseStringFilter("\"TABLE_NAME\"", table_n, hstmt->dbc->sql_attr_metadata_id);
+	std::string table_filter =
+	    OdbcUtils::ParseStringFilter("\"TABLE_NAME\"", table_n, hstmt->dbc->sql_attr_metadata_id);
 
 	// String search pattern for column name
 	auto column_n = OdbcUtils::ConvertSQLCHARToString(column_name, name_length4);
-	string column_filter = OdbcUtils::ParseStringFilter("\"COLUMN_NAME\"", column_n, hstmt->dbc->sql_attr_metadata_id);
+	std::string column_filter =
+	    OdbcUtils::ParseStringFilter("\"COLUMN_NAME\"", column_n, hstmt->dbc->sql_attr_metadata_id);
 
-	string sql_columns = OdbcUtils::GetQueryDuckdbColumns(catalog_filter, schema_filter, table_filter, column_filter);
+	std::string sql_columns =
+	    OdbcUtils::GetQueryDuckdbColumns(catalog_filter, schema_filter, table_filter, column_filter);
 
 	ret = duckdb::ExecDirectStmt(hstmt, sql_columns);
 	if (!SQL_SUCCEEDED(ret)) {
@@ -612,7 +617,7 @@ static SQLRETURN SetNumericAttributePtr(duckdb::OdbcHandleStmt *hstmt, const T &
 }
 
 template <typename CHAR_TYPE>
-static SQLRETURN SetCharacterAttributePtr(duckdb::OdbcHandleStmt *hstmt, const string &str,
+static SQLRETURN SetCharacterAttributePtr(duckdb::OdbcHandleStmt *hstmt, const std::string &str,
                                           CHAR_TYPE *character_attribute_ptr, SQLSMALLINT buffer_length,
                                           SQLSMALLINT *string_length_ptr) {
 	// user only wants the size of the character attribute

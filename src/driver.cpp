@@ -15,7 +15,6 @@ using namespace duckdb;
 using duckdb::OdbcDiagnostic;
 using duckdb::OdbcUtils;
 using duckdb::SQLStateType;
-using std::string;
 
 SQLRETURN duckdb::FreeHandle(SQLSMALLINT handle_type, SQLHANDLE handle) {
 	if (!handle) {
@@ -217,7 +216,7 @@ static void WriteStringWithLenInChars(const std::string msg_str, SQLWCHAR *messa
 			return;
 		}
 	}
-	std::size_t len_chars = std::min(utf16_vec.size(), static_cast<std::size_t>(buffer_length_chars - 1));
+	size_t len_chars = std::min(utf16_vec.size(), static_cast<size_t>(buffer_length_chars - 1));
 	if (message_text != nullptr) {
 		std::memcpy(message_text, utf16_vec.data(), len_chars * sizeof(SQLWCHAR));
 		message_text[len_chars] = 0;
