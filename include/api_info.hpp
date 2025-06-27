@@ -49,7 +49,14 @@ private:
 
 	static const vector<OdbcTypeInfo> ODBC_SUPPORTED_SQL_TYPES;
 
-	static const SQLINTEGER MAX_COLUMN_SIZE;
+	static constexpr SQLINTEGER MAX_COLUMN_SIZE = (std::numeric_limits<SQLINTEGER>::max)();
+
+	// MSDASQL provider uses these values to determine the max string size
+	// when accessing DuckDB as linked ODBC source from MSSQL. Any values
+	// over 8000 (max VARCHAR size in MSSQL without using VARCHAR(MAX))
+	// causing MSDASQL to not be able read strings at all.
+	static constexpr SQLINTEGER MAX_VARCHAR_COLUMN_SIZE = 8000;
+	static constexpr SQLINTEGER MAX_VARBINARY_COLUMN_SIZE = MAX_VARCHAR_COLUMN_SIZE;
 
 	static void SetFunctionSupported(SQLUSMALLINT *flags, int function_id);
 
@@ -107,13 +114,9 @@ public:
 		case SQL_TYPE_TIMESTAMP:
 			return 20;
 		case SQL_VARCHAR:
-			// https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-ver15
-			// TODO: this is not correct, but we don't know the number of characters, but set because of ADO
-			// return SQL_NO_TOTAL; // causes bad alloc
-			return 256;
+			return MAX_VARCHAR_COLUMN_SIZE;
 		case SQL_VARBINARY:
-			// TODO: this is not correct, but we don't know the number of characters, but set because of ADO
-			return 512;
+			return MAX_VARBINARY_COLUMN_SIZE;
 		default:
 			return 0;
 		}
