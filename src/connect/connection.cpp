@@ -99,7 +99,7 @@ SQLRETURN SQL_API SQLGetConnectAttrW(SQLHDBC connection_handle, SQLINTEGER attri
 
 static void SetCurrentCatalog(duckdb::OdbcHandleDbc *dbc, SQLCHAR *value, SQLINTEGER length) {
 	const char *val_chars = reinterpret_cast<char *>(value);
-	std::size_t val_len = length != SQL_NTS ? static_cast<std::size_t>(length) : std::strlen(val_chars);
+	size_t val_len = length != SQL_NTS ? static_cast<size_t>(length) : std::strlen(val_chars);
 	dbc->sql_attr_current_catalog = std::string(val_chars, val_len);
 }
 

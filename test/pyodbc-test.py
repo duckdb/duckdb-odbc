@@ -57,7 +57,6 @@ def test_longdata():
     cur.execute("CREATE TABLE tab1 (id INTEGER, st STRING)")
 
     for i in range((1 << 16) - 8, (1 << 16) + 8):
-        # print(f"Checking string, length: {i}")
         st = gen_str(i)
         cur.execute(f"INSERT INTO tab1 VALUES ({i}, '{st}')")
         cur.execute(f"SELECT st FROM tab1 WHERE id = {i}")

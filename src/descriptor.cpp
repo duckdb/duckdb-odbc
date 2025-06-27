@@ -697,7 +697,8 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 		if (!IsIPD()) {
 			return ReturnInvalidFieldIdentifier(true, this);
 		}
-		desc_record->sql_desc_name = duckdb::OdbcUtils::ReadString(value_ptr, buffer_length);
+		desc_record->sql_desc_name =
+		    duckdb::OdbcUtils::ConvertSQLCHARToString(static_cast<SQLCHAR *>(value_ptr), buffer_length);
 		return SQL_SUCCESS;
 	}
 	case SQL_DESC_NUM_PREC_RADIX: {

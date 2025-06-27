@@ -44,7 +44,7 @@ static SQLRETURN DriverConnectInternal(SQLHDBC connection_handle, SQLHWND window
 
 	if (out_connection_string != nullptr) {
 		int available = std::snprintf(reinterpret_cast<char *>(out_connection_string),
-		                              static_cast<std::size_t>(buffer_length), "%s", in_conn_str.c_str());
+		                              static_cast<size_t>(buffer_length), "%s", in_conn_str.c_str());
 		if (string_length2_ptr != nullptr) {
 			*string_length2_ptr = static_cast<SQLSMALLINT>(available);
 		}

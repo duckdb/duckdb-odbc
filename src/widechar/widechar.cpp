@@ -14,9 +14,9 @@ namespace duckdb {
 namespace widechar {
 
 static const uint32_t invalid_char_replacement = 0xfffd;
-static const std::size_t utf8_byte_len_coef = 3;
+static const size_t utf8_byte_len_coef = 3;
 
-std::vector<SQLCHAR> utf16_to_utf8_lenient(const SQLWCHAR *in_buf, std::size_t in_buf_len,
+std::vector<SQLCHAR> utf16_to_utf8_lenient(const SQLWCHAR *in_buf, size_t in_buf_len,
                                            const SQLWCHAR **first_invalid_char) {
 	std::vector<SQLCHAR> res;
 	auto res_bi = std::back_inserter(res);
@@ -42,7 +42,7 @@ std::vector<SQLCHAR> utf16_to_utf8_lenient(const SQLWCHAR *in_buf, std::size_t i
 	return res;
 }
 
-std::vector<SQLWCHAR> utf8_to_utf16_lenient(const SQLCHAR *in_buf, std::size_t in_buf_len,
+std::vector<SQLWCHAR> utf8_to_utf16_lenient(const SQLCHAR *in_buf, size_t in_buf_len,
                                             const SQLCHAR **first_invalid_char) {
 	std::vector<SQLWCHAR> res;
 	auto res_bi = std::back_inserter(res);
@@ -68,7 +68,7 @@ std::vector<SQLWCHAR> utf8_to_utf16_lenient(const SQLCHAR *in_buf, std::size_t i
 	return res;
 }
 
-std::size_t utf16_length(const SQLWCHAR *buf) {
+size_t utf16_length(const SQLWCHAR *buf) {
 	if (!buf) {
 		return 0;
 	}
@@ -78,13 +78,13 @@ std::size_t utf16_length(const SQLWCHAR *buf) {
 		ptr++;
 	}
 
-	return static_cast<std::size_t>(ptr - buf);
+	return static_cast<size_t>(ptr - buf);
 }
 
 std::vector<SQLCHAR> utf8_alloc_out_vec(SQLSMALLINT utf16_len) {
 	std::vector<SQLCHAR> vec;
-	std::size_t utf8_len_sizet = static_cast<std::size_t>(utf16_len) * utf8_byte_len_coef;
-	std::size_t utf8_len_max = static_cast<std::size_t>(std::numeric_limits<SQLSMALLINT>::max());
+	size_t utf8_len_sizet = static_cast<size_t>(utf16_len) * utf8_byte_len_coef;
+	size_t utf8_len_max = static_cast<size_t>(std::numeric_limits<SQLSMALLINT>::max());
 	vec.resize(std::min(utf8_len_sizet, utf8_len_max));
 	return vec;
 }
@@ -106,7 +106,7 @@ static void utf16_write_str_internal(SQLRETURN ret, const std::vector<SQLCHAR> &
 	}
 
 	// Find out the first NULL terminator
-	std::size_t len_utf8 = std::strlen(reinterpret_cast<const char *>(utf8_vec.data()));
+	size_t len_utf8 = std::strlen(reinterpret_cast<const char *>(utf8_vec.data()));
 
 	// Write out empty string
 	if (len_utf8 == 0 || buffer_len_chars == 1) {
@@ -121,7 +121,7 @@ static void utf16_write_str_internal(SQLRETURN ret, const std::vector<SQLCHAR> &
 
 	// Convert and write UTF-16 string
 	auto utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(utf8_vec.data(), len_utf8);
-	std::size_t len_chars = std::min(utf16_vec.size(), static_cast<std::size_t>(buffer_len_chars - 1));
+	size_t len_chars = std::min(utf16_vec.size(), static_cast<size_t>(buffer_len_chars - 1));
 	if (utf16_str_out != nullptr) {
 		std::memcpy(utf16_str_out, utf16_vec.data(), len_chars * sizeof(SQLWCHAR));
 		utf16_str_out[len_chars] = 0;
@@ -146,7 +146,7 @@ utf16_conv::utf16_conv(SQLWCHAR *utf16_str, SQLLEN utf16_str_len) {
 	if (utf16_str_len == SQL_NTS) {
 		this->utf16_len = utf16_length(utf16_str);
 	} else {
-		this->utf16_len = static_cast<std::size_t>(utf16_str_len);
+		this->utf16_len = static_cast<size_t>(utf16_str_len);
 	}
 	if (utf16_str == nullptr) {
 		this->utf8_vec = std::vector<SQLCHAR>();
@@ -172,14 +172,14 @@ utf16_conv &utf16_conv::operator=(utf16_conv &&other) {
 	return *this;
 }
 
-std::size_t utf16_conv::utf8_len() {
+size_t utf16_conv::utf8_len() {
 	return this->utf8_vec.size() - 1;
 }
 
 template <typename INT_TYPE>
 static INT_TYPE utf16_conv_utf8_len_internal(utf16_conv &conv) {
-	std::size_t len = conv.utf8_len();
-	std::size_t max = static_cast<std::size_t>(std::numeric_limits<INT_TYPE>::max());
+	size_t len = conv.utf8_len();
+	size_t max = static_cast<size_t>(std::numeric_limits<INT_TYPE>::max());
 	return static_cast<INT_TYPE>(len > max ? max : len);
 }
 
