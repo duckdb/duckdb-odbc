@@ -957,7 +957,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 	} // end switch "(target_type_resolved)": SQL_C_TYPE_TIMESTAMP
 }
 
-SQLRETURN duckdb::ExecDirectStmt(OdbcHandleStmt *hstmt, const string &query) {
+SQLRETURN duckdb::ExecDirectStmt(OdbcHandleStmt *hstmt, const std::string &query) {
 	bool success_with_info = false;
 	PrepareQuery(hstmt);
 
