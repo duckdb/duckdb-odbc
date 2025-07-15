@@ -59,7 +59,8 @@ BlockHandle::~BlockHandle() { // NOLINT: allow internal exceptions
 
 unique_ptr<Block> AllocateBlock(BlockManager &block_manager, unique_ptr<FileBuffer> reusable_buffer,
                                 block_id_t block_id) {
-	if (reusable_buffer) {
+
+	if (reusable_buffer && reusable_buffer->GetHeaderSize() == block_manager.GetBlockHeaderSize()) {
 		// re-usable buffer: re-use it
 		if (reusable_buffer->GetBufferType() == FileBufferType::BLOCK) {
 			// we can reuse the buffer entirely
@@ -205,6 +206,14 @@ bool BlockHandle::CanUnload() const {
 
 void BlockHandle::ConvertToPersistent(BlockLock &l, BlockHandle &new_block, unique_ptr<FileBuffer> new_buffer) {
 	VerifyMutex(l);
+
+	D_ASSERT(tag == memory_charge.tag);
+	if (tag != new_block.tag) {
+		const auto memory_charge_size = memory_charge.size;
+		memory_charge.Resize(0);
+		memory_charge.tag = new_block.tag;
+		memory_charge.Resize(memory_charge_size);
+	}
 
 	// move the data from the old block into data for the new block
 	new_block.state = BlockState::BLOCK_LOADED;
