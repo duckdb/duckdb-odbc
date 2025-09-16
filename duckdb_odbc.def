@@ -520,7 +520,6 @@ SQLBrowseConnectW
 SQLBulkOperations
 SQLCancel
 SQLCloseCursor
-SQLCloseCursor
 SQLColAttribute
 SQLColAttributeW
 SQLColAttributes

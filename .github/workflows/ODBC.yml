@@ -48,6 +48,10 @@ jobs:
             make -C /duckdb release
           "
 
+      - name: List Symbols
+        run: |
+          nm -gU ./build/release/libduckdb_odbc.so
+
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
@@ -107,6 +111,10 @@ jobs:
             make -C /duckdb release
           "
 
+      - name: List Symbols
+        run: |
+          nm -gU ./build/release/libduckdb_odbc.so
+
       - name: ODBC Tests
         shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
@@ -165,6 +173,12 @@ jobs:
       - name: Build
         shell: bash
         run: make release
+
+      - name: List Symbols
+        shell: cmd
+        run: |
+          call "c:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          dumpbin.exe /exports build\release\bin\Release\duckdb_odbc.dll
 
       - name: Setup ODBC
         shell: bash
@@ -275,13 +289,16 @@ jobs:
       OSX_BUILD_UNIVERSAL: 1
     needs: odbc-linux-amd64
     steps:
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
         with:
@@ -291,16 +308,24 @@ jobs:
       - name: Install UnixODBC
         shell: bash
         run: CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
+
       - name: Build
         shell: bash
         run: make release
+
+      - name: List Symbols
+        run: |
+          nm -gU ./build/release/libduckdb_odbc.dylib
+
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: ./build/release/test/test_odbc
+
       - name: See if this actually universal
         shell: bash
         run: lipo -archs build/release/libduckdb_odbc.dylib | grep "x86_64 arm64"
+
       - name: Deploy
         shell: bash
         env:
