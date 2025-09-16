@@ -34,22 +34,24 @@ SQLRETURN SQL_API SQLSetCursorNameW(SQLHSTMT statement_handle, SQLWCHAR *cursor_
 	                                   duckdb::SQLStateType::ST_IM001, hstmt->dbc->GetDataSourceName());
 }
 
-SQLRETURN SQL_API SQLGetCursorName(SQLHSTMT statement_handle, SQLCHAR *cursor_name, SQLSMALLINT name_length) {
+SQLRETURN SQL_API SQLGetCursorName(SQLHSTMT statement_handle, SQLCHAR *cursor_name, SQLSMALLINT name_length,
+                                   SQLSMALLINT *length_ptr) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
-	return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLSetCursorName", "SQLGetCursorName is not supported.",
+	return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetCursorName", "SQLGetCursorName is not supported.",
 	                                   duckdb::SQLStateType::ST_IM001, hstmt->dbc->GetDataSourceName());
 }
 
-SQLRETURN SQL_API SQLGetCursorNameW(SQLHSTMT statement_handle, SQLWCHAR *cursor_name, SQLSMALLINT name_length) {
+SQLRETURN SQL_API SQLGetCursorNameW(SQLHSTMT statement_handle, SQLWCHAR *cursor_name, SQLSMALLINT name_length,
+                                    SQLSMALLINT *length_ptr) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
-	return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLSetCursorNameW", "SQLGetCursorNameW is not supported.",
+	return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetCursorNameW", "SQLGetCursorNameW is not supported.",
 	                                   duckdb::SQLStateType::ST_IM001, hstmt->dbc->GetDataSourceName());
 }
