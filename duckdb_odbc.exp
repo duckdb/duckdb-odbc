@@ -516,7 +516,6 @@ _SQLBrowseConnectW
 _SQLBulkOperations
 _SQLCancel
 _SQLCloseCursor
-_SQLCloseCursor
 _SQLColAttribute
 _SQLColAttributeW
 _SQLColAttributes

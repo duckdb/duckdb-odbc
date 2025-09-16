@@ -93,7 +93,7 @@ if(NOT WIN32)
       -Bsymbolic-functions
       -fvisibility=hidden
       -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.map)
-  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     target_link_options(duckdb_odbc PRIVATE
       -fvisibility=hidden
       -Wl,-exported_symbols_list,${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.exp)
