@@ -273,7 +273,7 @@ jobs:
           path: |
             duckdb_odbc-windows-amd64.zip
 
-  odbc-windows-arm4:
+  odbc-windows-arm64:
     name: ODBC Windows (aarch64)
     runs-on: windows-11-arm
     needs: odbc-linux-amd64
