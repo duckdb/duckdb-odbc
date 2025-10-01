@@ -4,6 +4,7 @@
 #include "odbc_diagnostic.hpp"
 #include "odbc_utils.hpp"
 #include "handle_functions.hpp"
+#include "statement_functions.hpp"
 #include "widechar.hpp"
 
 #include "duckdb/common/helper.hpp"
@@ -14,224 +15,16 @@
 #define SQL_DTC_TRANSACTION_COST 1750
 #define SQL_RETURN_ESCAPE_CLAUSE 180
 
-// Set by MS Access (Jet engine)
-#define VENDOR_MSJET 30002
-
+using duckdb::ApiInfo;
+using duckdb::OdbcTypeInfo;
 using duckdb::OdbcUtils;
 using duckdb::SQLStateType;
+using duckdb::vector;
 using std::ptrdiff_t;
 
-template <typename CHAR_TYPE>
-static SQLRETURN GetConnectAttrInternal(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                        SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
-	duckdb::OdbcHandleDbc *dbc = nullptr;
-	SQLRETURN ret = ConvertConnection(connection_handle, dbc);
-	if (ret != SQL_SUCCESS) {
-		return ret;
-	}
-
-	switch (attribute) {
-	case SQL_ATTR_AUTOCOMMIT: {
-		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(dbc->autocommit, value_ptr, string_length_ptr);
-		return SQL_SUCCESS;
-	}
-	case SQL_ATTR_ACCESS_MODE: {
-		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(dbc->sql_attr_access_mode, value_ptr,
-		                                                            string_length_ptr);
-		return SQL_SUCCESS;
-	}
-	case SQL_ATTR_CURRENT_CATALOG: {
-		duckdb::OdbcUtils::WriteString(dbc->sql_attr_current_catalog, reinterpret_cast<CHAR_TYPE *>(value_ptr),
-		                               buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
-	}
-#ifdef SQL_ATTR_ASYNC_DBC_EVENT
-	case SQL_ATTR_ASYNC_DBC_EVENT:
-#endif
-	case SQL_ATTR_ASYNC_DBC_FUNCTIONS_ENABLE:
-#ifdef SQL_ATTR_ASYNC_DBC_PCALLBACK
-	case SQL_ATTR_ASYNC_DBC_PCALLBACK:
-#endif
-#ifdef SQL_ATTR_ASYNC_DBC_PCONTEXT
-	case SQL_ATTR_ASYNC_DBC_PCONTEXT:
-#endif
-	case SQL_ATTR_ASYNC_ENABLE:
-	case SQL_ATTR_AUTO_IPD:
-	case SQL_ATTR_CONNECTION_DEAD:
-	case SQL_ATTR_CONNECTION_TIMEOUT:
-#ifdef SQL_ATTR_DBC_INFO_TOKEN
-	case SQL_ATTR_DBC_INFO_TOKEN:
-#endif
-	case SQL_ATTR_ENLIST_IN_DTC:
-	case SQL_ATTR_LOGIN_TIMEOUT:
-	case SQL_ATTR_METADATA_ID:
-	case SQL_ATTR_ODBC_CURSORS:
-	case SQL_ATTR_PACKET_SIZE:
-	case SQL_ATTR_QUIET_MODE:
-	case SQL_ATTR_TRACE:
-	case SQL_ATTR_TRACEFILE:
-	case SQL_ATTR_TRANSLATE_LIB:
-	case SQL_ATTR_TRANSLATE_OPTION:
-		return SQL_NO_DATA;
-	case SQL_ATTR_QUERY_TIMEOUT: {
-		duckdb::OdbcUtils::StoreWithLength<SQLINTEGER, SQLINTEGER>(0, value_ptr, string_length_ptr);
-		return SQL_SUCCESS;
-	}
-	case SQL_ATTR_TXN_ISOLATION: {
-		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER, SQLINTEGER>(SQL_TXN_SERIALIZABLE, value_ptr, string_length_ptr);
-		return SQL_SUCCESS;
-	}
-	default:
-		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLGetConnectAttr", "Attribute not supported.",
-		                                   SQLStateType::ST_HY092, dbc->GetDataSourceName());
-	}
-}
-
-SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                    SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
-	return GetConnectAttrInternal<SQLCHAR>(connection_handle, attribute, value_ptr, buffer_length, string_length_ptr);
-}
-
-SQLRETURN SQL_API SQLGetConnectAttrW(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                     SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
-	return GetConnectAttrInternal<SQLWCHAR>(connection_handle, attribute, value_ptr, buffer_length, string_length_ptr);
-}
-
-static void SetCurrentCatalog(duckdb::OdbcHandleDbc *dbc, SQLCHAR *value, SQLINTEGER length) {
-	const char *val_chars = reinterpret_cast<char *>(value);
-	size_t val_len = length != SQL_NTS ? static_cast<size_t>(length) : std::strlen(val_chars);
-	dbc->sql_attr_current_catalog = std::string(val_chars, val_len);
-}
-
-static void SetCurrentCatalog(duckdb::OdbcHandleDbc *dbc, SQLWCHAR *value, SQLINTEGER length) {
-	auto value_conv = duckdb::widechar::utf16_conv(value, length);
-	dbc->sql_attr_current_catalog = value_conv.to_utf8_str();
-}
-
-/**
- * @brief Sets attribute for connection
- * @param connection_handle
- * @param attribute Attribute to set, for full list see:
- * https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlsetconnectattr-function?view=sql-server-ver15#comments
- * @param value_ptr Value to set, depending on the attribute, could be either an unsigned integer or a pointer to a null
- * terminated string.
- * @param string_length Length of the string, if the attribute is a string, in bytes.  If the attribute is an integer,
- * this value is ignored.
- * @return SQL return code
- */
-template <typename CHAR_TYPE>
-static SQLRETURN SetConnectAttrInternal(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                        SQLINTEGER string_length) {
-	// attributes before connection
-	switch (attribute) {
-	case SQL_ATTR_LOGIN_TIMEOUT:
-	case SQL_ATTR_ODBC_CURSORS:
-	case SQL_ATTR_PACKET_SIZE:
-	case VENDOR_MSJET:
-		return SQL_SUCCESS;
-	default:
-		break;
-	}
-
-	duckdb::OdbcHandleDbc *dbc = nullptr;
-	SQLRETURN ret = ConvertConnection(connection_handle, dbc);
-	if (ret != SQL_SUCCESS) {
-		return ret;
-	}
-
-	switch (attribute) {
-	case SQL_ATTR_AUTOCOMMIT:
-		switch ((ptrdiff_t)value_ptr) {
-		case (ptrdiff_t)SQL_AUTOCOMMIT_ON:
-			dbc->autocommit = true;
-			dbc->conn->SetAutoCommit(true);
-			return SQL_SUCCESS;
-		case (ptrdiff_t)SQL_AUTOCOMMIT_OFF:
-			dbc->autocommit = false;
-			dbc->conn->SetAutoCommit(false);
-			return SQL_SUCCESS;
-		case SQL_ATTR_METADATA_ID: {
-			if (value_ptr) {
-				dbc->sql_attr_metadata_id = OdbcUtils::SQLPointerToSQLUInteger(value_ptr);
-				return SQL_SUCCESS;
-			}
-		}
-		default:
-			return SQL_SUCCESS;
-		}
-	case SQL_ATTR_ACCESS_MODE: {
-		auto access_mode = OdbcUtils::SQLPointerToSQLUInteger(value_ptr);
-		switch (access_mode) {
-		case SQL_MODE_READ_WRITE:
-			dbc->sql_attr_access_mode = SQL_MODE_READ_WRITE;
-			return SQL_SUCCESS;
-		case SQL_MODE_READ_ONLY:
-			dbc->sql_attr_access_mode = SQL_MODE_READ_ONLY;
-			return SQL_SUCCESS;
-		}
-		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLSetConnectAttr", "Invalid access mode.",
-		                                   SQLStateType::ST_HY024, dbc->GetDataSourceName());
-	}
-#ifdef SQL_ATTR_ASYNC_DBC_EVENT
-	case SQL_ATTR_ASYNC_DBC_EVENT:
-#endif
-	case SQL_ATTR_ASYNC_DBC_FUNCTIONS_ENABLE:
-#ifdef SQL_ATTR_ASYNC_DBC_PCALLBACK
-	case SQL_ATTR_ASYNC_DBC_PCALLBACK:
-#endif
-#ifdef SQL_ATTR_ASYNC_DBC_PCONTEXT
-	case SQL_ATTR_ASYNC_DBC_PCONTEXT:
-#endif
-	case SQL_ATTR_ASYNC_ENABLE: {
-		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLSetConnectAttr",
-		                                   "DuckDB does not support asynchronous events.", SQLStateType::ST_HY024,
-		                                   dbc->GetDataSourceName());
-	}
-	case SQL_ATTR_AUTO_IPD:
-	case SQL_ATTR_CONNECTION_DEAD: {
-		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLSetConnectAttr", "Read-only attribute.",
-		                                   SQLStateType::ST_HY092, dbc->GetDataSourceName());
-	}
-	case SQL_ATTR_CONNECTION_TIMEOUT:
-		return SQL_SUCCESS;
-	case SQL_ATTR_CURRENT_CATALOG: {
-		if (dbc->conn) {
-			return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLSetConnectAttr",
-			                                   "Connection already established, the database name could not be set.",
-			                                   SQLStateType::ST_01S00, dbc->GetDataSourceName());
-		}
-		SetCurrentCatalog(dbc, reinterpret_cast<CHAR_TYPE *>(value_ptr), string_length);
-		return SQL_SUCCESS;
-	}
-#ifdef SQL_ATTR_DBC_INFO_TOKEN
-	case SQL_ATTR_DBC_INFO_TOKEN:
-#endif
-	case SQL_ATTR_ENLIST_IN_DTC:
-	case SQL_ATTR_METADATA_ID:
-	case SQL_ATTR_QUIET_MODE:
-	case SQL_ATTR_TRACE:
-	case SQL_ATTR_TRACEFILE:
-	case SQL_ATTR_TRANSLATE_LIB:
-	case SQL_ATTR_TRANSLATE_OPTION:
-	case SQL_ATTR_TXN_ISOLATION: {
-		return SQL_SUCCESS;
-	}
-	default:
-		return duckdb::SetDiagnosticRecord(dbc, SQL_SUCCESS_WITH_INFO, "SQLSetConnectAttr",
-		                                   "Option value changed:" + std::to_string(attribute), SQLStateType::ST_01S02,
-		                                   dbc->GetDataSourceName());
-	}
-}
-
-SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                    SQLINTEGER string_length) {
-	return SetConnectAttrInternal<SQLCHAR>(connection_handle, attribute, value_ptr, string_length);
-}
-
-SQLRETURN SQL_API SQLSetConnectAttrW(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
-                                     SQLINTEGER string_length) {
-	return SetConnectAttrInternal<SQLWCHAR>(connection_handle, attribute, value_ptr, string_length);
-}
+//===--------------------------------------------------------------------===//
+// SQLGetInfo
+//===--------------------------------------------------------------------===//
 
 template <typename CHAR_TYPE>
 static SQLRETURN GetInfoInternal(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
@@ -1091,65 +884,171 @@ static SQLRETURN GetInfoInternal(SQLHDBC connection_handle, SQLUSMALLINT info_ty
 		return duckdb::SetDiagnosticRecord(dbc, SQL_SUCCESS, "SQLGetInfo", msg, SQLStateType::ST_HY092,
 		                                   dbc->GetDataSourceName());
 	}
-} // end SQLGetInfo
+}
 
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetinfo-function?view=sql-server-ver16">Docs</a>
+ */
 SQLRETURN SQL_API SQLGetInfo(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
                              SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr) {
 	return GetInfoInternal<SQLCHAR>(connection_handle, info_type, info_value_ptr, buffer_length, string_length_ptr);
 }
 
+/**
+ * Wide char version
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetinfo-function?view=sql-server-ver16">Docs</a>
+ */
 SQLRETURN SQL_API SQLGetInfoW(SQLHDBC connection_handle, SQLUSMALLINT info_type, SQLPOINTER info_value_ptr,
                               SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr) {
 	return GetInfoInternal<SQLWCHAR>(connection_handle, info_type, info_value_ptr, buffer_length, string_length_ptr);
 }
 
-/**
- * @brief Requests a commit or rollback operation for all active operations on all statements associated with a
- * connection. https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlendtran-function?view=sql-server-ver15
- * @param handle_type Can either be SQL_HANDLE_ENV or SQL_HANDLE_DBC
- * @param handle The input handle
- * @param completion_type Can either be SQL_COMMIT or SQL_ROLLBACK
- *
- * For more about committing and rolling back transactions, see:
- * https://learn.microsoft.com/en-us/sql/odbc/reference/develop-app/committing-and-rolling-back-transactions?view=sql-server-ver15
- *
- * @return
- */
-SQLRETURN SQL_API SQLEndTran(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT completion_type) {
-	if (handle_type != SQL_HANDLE_DBC) { // theoretically this can also be done on env but no no no
-		return duckdb::SetDiagnosticRecord(static_cast<duckdb::OdbcHandle *>(handle), SQL_ERROR, "SQLEndTran",
-		                                   "Invalid handle type, must be SQL_HANDLE_DBC.", SQLStateType::ST_HY092, "");
-	}
+//===--------------------------------------------------------------------===//
+// SQLGetFunctions
+//===--------------------------------------------------------------------===//
 
-	duckdb::OdbcHandleDbc *dbc = nullptr;
-	SQLRETURN ret = ConvertConnection(handle, dbc);
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetfunctions-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLGetFunctions(SQLHDBC connection_handle, SQLUSMALLINT function_id, SQLUSMALLINT *supported_ptr) {
+	if (function_id == SQL_API_ODBC3_ALL_FUNCTIONS) {
+		return ApiInfo::GetFunctions30(connection_handle, function_id, supported_ptr);
+	} else {
+		return ApiInfo::GetFunctions(connection_handle, function_id, supported_ptr);
+	}
+}
+
+//===--------------------------------------------------------------------===//
+// SQLGetTypeInfo
+//===--------------------------------------------------------------------===//
+
+static SQLRETURN GetTypeInfoInternal(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
+	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
 
-	switch (completion_type) {
-	case SQL_COMMIT:
-		// it needs to materialize the result set because ODBC can still fetch after a commit
-		if (dbc->MaterializeResult() != SQL_SUCCESS) {
-			// for some reason we couldn't materialize the result set
-			return SQL_ERROR; // TODO add a proper error message
-		}
-		if (dbc->conn->IsAutoCommit()) {
-			return SQL_SUCCESS;
-		}
-		dbc->conn->Commit();
-		return SQL_SUCCESS;
-	case SQL_ROLLBACK:
-		try {
-			dbc->conn->Rollback();
-			return SQL_SUCCESS;
-		} catch (std::exception &ex) {
-			duckdb::ErrorData parsed_error(ex);
-			return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", parsed_error.RawMessage(),
-			                                   SQLStateType::ST_HY115, dbc->GetDataSourceName());
-		}
-	default:
-		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", "Invalid completion type.",
-		                                   SQLStateType::ST_HY012, dbc->GetDataSourceName());
+	std::string query("SELECT * FROM (VALUES ");
+
+	if (data_type == SQL_ALL_TYPES) {
+		auto vec_types = ApiInfo::GetVectorTypesAddr();
+		ApiInfo::WriteInfoTypesToQueryString(vec_types, query);
+	} else {
+		vector<duckdb::OdbcTypeInfo> vec_types;
+		ApiInfo::FindDataType(data_type, vec_types);
+		ApiInfo::WriteInfoTypesToQueryString(vec_types, query);
 	}
+
+	// clang-format off
+	query += R"(
+	) AS odbc_types (
+		"TYPE_NAME",
+		"DATA_TYPE",
+		"COLUMN_SIZE",
+		"LITERAL_PREFIX",
+		"LITERAL_SUFFIX",
+		"CREATE_PARAMS",
+		"NULLABLE",
+		"CASE_SENSITIVE",
+		"SEARCHABLE",
+		"UNSIGNED_ATTRIBUTE",
+		"FIXED_PREC_SCALE",
+		"AUTO_UNIQUE_VALUE",
+		"LOCAL_TYPE_NAME",
+		"MINIMUM_SCALE",
+		"MAXIMUM_SCALE",
+		"SQL_DATA_TYPE",
+		"SQL_DATETIME_SUB",
+		"NUM_PREC_RADIX",
+		"INTERVAL_PRECISION"
+	))";
+	// clang-format on
+
+	return duckdb::ExecDirectStmt(hstmt, query);
+}
+
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
+	return GetTypeInfoInternal(statement_handle, data_type);
+}
+
+/**
+ * Wide char version
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLGetTypeInfoW(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
+	return GetTypeInfoInternal(statement_handle, data_type);
+}
+
+//===--------------------------------------------------------------------===//
+// SQLDataSources
+//===--------------------------------------------------------------------===//
+
+static SQLRETURN DataSourcesInternal(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *server_name,
+                                     SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLCHAR *description,
+                                     SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
+	duckdb::OdbcHandleEnv *env = nullptr;
+	SQLRETURN ret = ConvertEnvironment(environment_handle, env);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return duckdb::SetDiagnosticRecord(env, SQL_ERROR, "SQLDataSources", "Driver Manager only function",
+	                                   SQLStateType::ST_HY000, "");
+}
+
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqldatasources-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLDataSources(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *server_name,
+                                 SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLCHAR *description,
+                                 SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
+	return DataSourcesInternal(environment_handle, direction, server_name, buffer_length1, name_length1_ptr,
+	                           description, buffer_length2, name_length2_ptr);
+}
+
+/**
+ * Wide char version
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqldatasources-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLDataSourcesW(SQLHENV environment_handle, SQLUSMALLINT direction, SQLWCHAR *server_name,
+                                  SQLSMALLINT buffer_length1, SQLSMALLINT *name_length1_ptr, SQLWCHAR *description,
+                                  SQLSMALLINT buffer_length2, SQLSMALLINT *name_length2_ptr) {
+	auto server_name_conv = duckdb::widechar::utf16_conv(server_name, buffer_length1);
+	auto description_conv = duckdb::widechar::utf16_conv(description, buffer_length2);
+	return DataSourcesInternal(environment_handle, direction, server_name_conv.utf8_str,
+	                           server_name_conv.utf8_len_smallint(), name_length1_ptr, description_conv.utf8_str,
+	                           description_conv.utf8_len_smallint(), name_length2_ptr);
+}
+
+//===--------------------------------------------------------------------===//
+// SQLDrivers
+//===--------------------------------------------------------------------===//
+
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqldrivers-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLDrivers(SQLHENV environment_handle, SQLUSMALLINT direction, SQLCHAR *driver_description,
+                             SQLSMALLINT buffer_length1, SQLSMALLINT *description_length_ptr,
+                             SQLCHAR *driver_attributes, SQLSMALLINT buffer_length2,
+                             SQLSMALLINT *attributes_length_ptr) {
+	duckdb::OdbcHandleEnv *env = nullptr;
+	SQLRETURN ret = ConvertEnvironment(environment_handle, env);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return duckdb::SetDiagnosticRecord(env, SQL_ERROR, "SQLDrivers", "Driver Manager only function",
+	                                   SQLStateType::ST_HY000, "");
 }

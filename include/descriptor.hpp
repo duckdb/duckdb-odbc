@@ -74,6 +74,7 @@ public:
 	SQLSMALLINT sql_desc_count;
 	SQLULEN *sql_desc_rows_processed_ptr;
 };
+
 } // namespace duckdb
 
 #endif

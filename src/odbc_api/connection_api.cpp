@@ -1,7 +1,5 @@
 #include "connect.hpp"
 
-#include <cstdio>
-
 #include "duckdb_odbc.hpp"
 #include "odbc_utils.hpp"
 #include "widechar.hpp"
@@ -18,6 +16,57 @@ static SQLRETURN ConvertDBCBeforeConnection(SQLHDBC connection_handle, duckdb::O
 	}
 	return SQL_SUCCESS;
 }
+
+//===--------------------------------------------------------------------===//
+// SQLConnect
+//===--------------------------------------------------------------------===//
+
+static SQLRETURN ConnectInternal(SQLHDBC connection_handle, SQLCHAR *server_name, SQLSMALLINT name_length1,
+                                 SQLCHAR *user_name, SQLSMALLINT name_length2, SQLCHAR *authentication,
+                                 SQLSMALLINT name_length3) {
+	duckdb::OdbcHandleDbc *dbc = nullptr;
+	SQLRETURN ret = ConvertDBCBeforeConnection(connection_handle, dbc);
+	if (!SQL_SUCCEEDED(ret)) {
+		return ret;
+	}
+
+	std::string server_name_st = OdbcUtils::ConvertSQLCHARToString(server_name, name_length1);
+	dbc->dsn = server_name_st;
+	duckdb::Connect connect(dbc, server_name_st);
+
+	return connect.SetConnection();
+}
+
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlconnect-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLConnect(SQLHDBC connection_handle, SQLCHAR *server_name, SQLSMALLINT name_length1,
+                             SQLCHAR *user_name, SQLSMALLINT name_length2, SQLCHAR *authentication,
+                             SQLSMALLINT name_length3) {
+	return ConnectInternal(connection_handle, server_name, name_length1, user_name, name_length2, authentication,
+	                       name_length3);
+}
+
+/**
+ * Wide char version.
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlconnect-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLConnectW(SQLHDBC connection_handle, SQLWCHAR *server_name, SQLSMALLINT name_length1,
+                              SQLWCHAR *user_name, SQLSMALLINT name_length2, SQLWCHAR *authentication,
+                              SQLSMALLINT name_length3) {
+	auto server_name_conv = duckdb::widechar::utf16_conv(server_name, name_length1);
+	auto user_name_conv = duckdb::widechar::utf16_conv(user_name, name_length2);
+	auto authentication_conv = duckdb::widechar::utf16_conv(authentication, name_length3);
+	return ConnectInternal(connection_handle, server_name_conv.utf8_str, server_name_conv.utf8_len_smallint(),
+	                       user_name_conv.utf8_str, user_name_conv.utf8_len_smallint(), authentication_conv.utf8_str,
+	                       authentication_conv.utf8_len_smallint());
+}
+
+//===--------------------------------------------------------------------===//
+// SQLDriverConnect
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN DriverConnectInternal(SQLHDBC connection_handle, SQLHWND window_handle, SQLCHAR *in_connection_string,
                                        SQLSMALLINT string_length1, SQLCHAR *out_connection_string,
@@ -54,6 +103,10 @@ static SQLRETURN DriverConnectInternal(SQLHDBC connection_handle, SQLHWND window
 	return connect.GetSuccessWithInfo() ? SQL_SUCCESS_WITH_INFO : ret;
 }
 
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqldriverconnect-function?view=sql-server-ver16">Docs</a>
+ */
 SQLRETURN SQL_API SQLDriverConnect(SQLHDBC connection_handle, SQLHWND window_handle, SQLCHAR *in_connection_string,
                                    SQLSMALLINT string_length1, SQLCHAR *out_connection_string,
                                    SQLSMALLINT buffer_length, SQLSMALLINT *string_length2_ptr,
@@ -62,6 +115,11 @@ SQLRETURN SQL_API SQLDriverConnect(SQLHDBC connection_handle, SQLHWND window_han
 	                             out_connection_string, buffer_length, string_length2_ptr, driver_completion);
 }
 
+/**
+ * Wide char version.
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqldriverconnect-function?view=sql-server-ver16">Docs</a>
+ */
 SQLRETURN SQL_API SQLDriverConnectW(SQLHDBC connection_handle, SQLHWND window_handle, SQLWCHAR *in_connection_string,
                                     SQLSMALLINT string_length1, SQLWCHAR *out_connection_string,
                                     SQLSMALLINT buffer_length, SQLSMALLINT *string_length2_ptr,
@@ -77,40 +135,14 @@ SQLRETURN SQL_API SQLDriverConnectW(SQLHDBC connection_handle, SQLHWND window_ha
 	return ret;
 }
 
-static SQLRETURN ConnectInternal(SQLHDBC connection_handle, SQLCHAR *server_name, SQLSMALLINT name_length1,
-                                 SQLCHAR *user_name, SQLSMALLINT name_length2, SQLCHAR *authentication,
-                                 SQLSMALLINT name_length3) {
-	duckdb::OdbcHandleDbc *dbc = nullptr;
-	SQLRETURN ret = ConvertDBCBeforeConnection(connection_handle, dbc);
-	if (!SQL_SUCCEEDED(ret)) {
-		return ret;
-	}
+//===--------------------------------------------------------------------===//
+// SQLDisconnect
+//===--------------------------------------------------------------------===//
 
-	std::string server_name_st = OdbcUtils::ConvertSQLCHARToString(server_name, name_length1);
-	dbc->dsn = server_name_st;
-	duckdb::Connect connect(dbc, server_name_st);
-
-	return connect.SetConnection();
-}
-
-SQLRETURN SQL_API SQLConnect(SQLHDBC connection_handle, SQLCHAR *server_name, SQLSMALLINT name_length1,
-                             SQLCHAR *user_name, SQLSMALLINT name_length2, SQLCHAR *authentication,
-                             SQLSMALLINT name_length3) {
-	return ConnectInternal(connection_handle, server_name, name_length1, user_name, name_length2, authentication,
-	                       name_length3);
-}
-
-SQLRETURN SQL_API SQLConnectW(SQLHDBC connection_handle, SQLWCHAR *server_name, SQLSMALLINT name_length1,
-                              SQLWCHAR *user_name, SQLSMALLINT name_length2, SQLWCHAR *authentication,
-                              SQLSMALLINT name_length3) {
-	auto server_name_conv = duckdb::widechar::utf16_conv(server_name, name_length1);
-	auto user_name_conv = duckdb::widechar::utf16_conv(user_name, name_length2);
-	auto authentication_conv = duckdb::widechar::utf16_conv(authentication, name_length3);
-	return ConnectInternal(connection_handle, server_name_conv.utf8_str, server_name_conv.utf8_len_smallint(),
-	                       user_name_conv.utf8_str, user_name_conv.utf8_len_smallint(), authentication_conv.utf8_str,
-	                       authentication_conv.utf8_len_smallint());
-}
-
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqldisconnect-function?view=sql-server-ver16">Docs</a>
+ */
 SQLRETURN SQL_API SQLDisconnect(SQLHDBC connection_handle) {
 	duckdb::OdbcHandleDbc *dbc = nullptr;
 	SQLRETURN ret = ConvertConnection(connection_handle, dbc);

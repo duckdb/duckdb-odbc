@@ -3,21 +3,11 @@
 #include "handle_functions.hpp"
 #include "odbc_fetch.hpp"
 #include "parameter_descriptor.hpp"
-#include "row_descriptor.hpp"
-
 #include "duckdb/main/prepared_statement_data.hpp"
 
-SQLRETURN SQL_API SQLGetData(SQLHSTMT statement_handle, SQLUSMALLINT col_or_param_num, SQLSMALLINT target_type,
-                             SQLPOINTER target_value_ptr, SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
-	SQLRETURN ret = ConvertHSTMTResult(statement_handle, hstmt);
-	if (ret != SQL_SUCCESS) {
-		return ret;
-	}
-
-	return duckdb::GetDataStmtResult(hstmt, col_or_param_num, target_type, target_value_ptr, buffer_length,
-	                                 str_len_or_ind_ptr);
-}
+//===--------------------------------------------------------------------===//
+// SQLFetch
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN ExecuteBeforeFetch(SQLHSTMT statement_handle) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
@@ -42,10 +32,8 @@ static SQLRETURN ExecuteBeforeFetch(SQLHSTMT statement_handle) {
 }
 
 /**
- * @brief Fetches the next rowset of data from the result set and returns data for all bound columns.
- * https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlfetch-function?view=sql-server-ver16
- * @param statement_handle
- * @return
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlfetch-function?view=sql-server-ver16">Docs</a>
  */
 SQLRETURN SQL_API SQLFetch(SQLHSTMT statement_handle) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
@@ -66,13 +54,13 @@ SQLRETURN SQL_API SQLFetch(SQLHSTMT statement_handle) {
 	return duckdb::FetchStmtResult(hstmt);
 }
 
+//===--------------------------------------------------------------------===//
+// SQLFetchScroll
+//===--------------------------------------------------------------------===//
+
 /**
- * @brief Fetches the next rowset of data from the result set and returns data for all bound columns.
- * https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlfetchscroll-function?view=sql-server-ver16
- * @param statement_handle
- * @param fetch_orientation Type of fetch operation to be performed.
- * @param fetch_offset Number of the row to be fetched. Depending on the value of the fetch_orientation argument.
- * @return SQL return code
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlfetchscroll-function?view=sql-server-ver16">Docs</a>
  */
 SQLRETURN SQL_API SQLFetchScroll(SQLHSTMT statement_handle, SQLSMALLINT fetch_orientation, SQLLEN fetch_offset) {
 	switch (fetch_orientation) {
@@ -93,6 +81,47 @@ SQLRETURN SQL_API SQLFetchScroll(SQLHSTMT statement_handle, SQLSMALLINT fetch_or
 		return SQL_ERROR;
 	}
 }
+
+//===--------------------------------------------------------------------===//
+// SQLGetData
+//===--------------------------------------------------------------------===//
+
+SQLRETURN SQL_API SQLGetData(SQLHSTMT statement_handle, SQLUSMALLINT col_or_param_num, SQLSMALLINT target_type,
+                             SQLPOINTER target_value_ptr, SQLLEN buffer_length, SQLLEN *str_len_or_ind_ptr) {
+	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	SQLRETURN ret = ConvertHSTMTResult(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return duckdb::GetDataStmtResult(hstmt, col_or_param_num, target_type, target_value_ptr, buffer_length,
+	                                 str_len_or_ind_ptr);
+}
+
+//===--------------------------------------------------------------------===//
+// SQLMoreResults
+//===--------------------------------------------------------------------===//
+
+/**
+ * <a
+ * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlmoreresults-function?view=sql-server-ver16">Docs</a>
+ */
+SQLRETURN SQL_API SQLMoreResults(SQLHSTMT statement_handle) {
+	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	if (!hstmt->param_desc->HasParamSetToProcess()) {
+		return SQL_NO_DATA;
+	}
+	return duckdb::SingleExecuteStmt(hstmt);
+}
+
+//===--------------------------------------------------------------------===//
+// SQLRowCount
+//===--------------------------------------------------------------------===//
 
 SQLRETURN SQL_API SQLRowCount(SQLHSTMT statement_handle, SQLLEN *row_count_ptr) {
 	duckdb::OdbcHandleStmt *hstmt = nullptr;
