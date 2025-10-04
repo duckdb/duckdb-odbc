@@ -31,6 +31,7 @@ add_executable(
   tests/test_allowed_paths.cpp
   tests/test_connect.cpp
   tests/test_long_data.cpp
+  tests/test_num_result_cols.cpp
   tests/test_session_init.cpp
   tests/test_timestamp.cpp
   tests/test_unbound_params.cpp
