@@ -277,6 +277,10 @@ jobs:
     name: ODBC Windows (aarch64)
     runs-on: windows-11-arm
     needs: odbc-linux-amd64
+    env:
+      AZURE_CODESIGN_ENDPOINT: https://eus.codesigning.azure.net/
+      AZURE_CODESIGN_ACCOUNT: duckdb-signing-2
+      AZURE_CODESIGN_PROFILE: duckdb-certificate-profile
     steps:
       - uses: actions/checkout@v4
         with:
