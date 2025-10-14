@@ -341,7 +341,13 @@ SQLRETURN SQL_API SQLNumResultCols(SQLHSTMT statement_handle, SQLSMALLINT *colum
 	}
 	*column_count_ptr = (SQLSMALLINT)hstmt->stmt->ColumnCount();
 
-	if (hstmt->stmt->data->statement_type != duckdb::StatementType::SELECT_STATEMENT) {
+	switch (hstmt->stmt->data->statement_type) {
+	case duckdb::StatementType::CALL_STATEMENT:
+	case duckdb::StatementType::EXECUTE_STATEMENT:
+	case duckdb::StatementType::EXPLAIN_STATEMENT:
+	case duckdb::StatementType::SELECT_STATEMENT:
+		break;
+	default:
 		*column_count_ptr = 0;
 	}
 	return SQL_SUCCESS;
