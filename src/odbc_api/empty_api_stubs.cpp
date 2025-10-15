@@ -10,9 +10,10 @@
 // Functions returning valid empty result sets (i.e., SELECT ... WHERE 1 < 0)
 // ============================================================================
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLPrimaryKeys and SQLPrimaryKeysW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN PrimaryKeysInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                      SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
@@ -54,9 +55,10 @@ SQLRETURN SQL_API SQLPrimaryKeysW(SQLHSTMT statement_handle, SQLWCHAR *catalog_n
 	                           table_name_conv.utf8_str, table_name_conv.utf8_len_smallint());
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLForeignKeys and SQLForeignKeysW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN ForeignKeysInternal(SQLHSTMT statement_handle, SQLCHAR *pk_catalog_name, SQLSMALLINT name_length1,
                                      SQLCHAR *pk_schema_name, SQLSMALLINT name_length2, SQLCHAR *pk_table_name,
@@ -119,9 +121,10 @@ SQLRETURN SQL_API SQLForeignKeysW(SQLHSTMT statement_handle, SQLWCHAR *pk_catalo
 	    fk_table_name_conv.utf8_len_smallint());
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLProcedureColumns and SQLProcedureColumnsW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 SQLRETURN SQL_API ProcedureColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                            SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *proc_name,
@@ -178,9 +181,10 @@ SQLRETURN SQL_API SQLProcedureColumnsW(SQLHSTMT statement_handle, SQLWCHAR *cata
 	                                column_name_conv.utf8_str, column_name_conv.utf8_len_smallint());
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLProcedures and SQLProceduresW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 SQLRETURN SQL_API ProceduresInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                      SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *proc_name,
@@ -224,9 +228,10 @@ SQLRETURN SQL_API SQLProceduresW(SQLHSTMT statement_handle, SQLWCHAR *catalog_na
 	                          proc_name_conv.utf8_len_smallint());
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLColumnPrivileges and SQLColumnPrivilegesW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN ColumnPrivilegesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                           SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
@@ -272,9 +277,10 @@ SQLRETURN SQL_API SQLColumnPrivilegesW(SQLHSTMT statement_handle, SQLWCHAR *cata
 	                                column_name_conv.utf8_str, column_name_conv.utf8_len_smallint());
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLTablePrivileges and SQLTablePrivilegesW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN TablePrivilegesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                          SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
@@ -317,9 +323,10 @@ SQLRETURN SQL_API SQLTablePrivilegesW(SQLHSTMT statement_handle, SQLWCHAR *catal
 	                               table_name_conv.utf8_str, table_name_conv.utf8_len_smallint());
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLSpecialColumns and SQLSpecialColumnsW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN SpecialColumnsInternal(SQLHSTMT statement_handle, SQLUSMALLINT identifier_type, SQLCHAR *catalog_name,
                                         SQLSMALLINT name_length1, SQLCHAR *schema_name, SQLSMALLINT name_length2,
@@ -367,9 +374,10 @@ SQLRETURN SQL_API SQLSpecialColumnsW(SQLHSTMT statement_handle, SQLUSMALLINT ide
 	                              table_name_conv.utf8_len_smallint(), scope, nullable);
 }
 
-// -----------------------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLStatistics and SQLStatisticsW
-// -----------------------------------------------------------------------------
+// If implemented, move to src/odbc_api/metadata_api.cpp
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN StatisticsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                     SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
@@ -427,20 +435,20 @@ static SQLRETURN SetNotImplemented(duckdb::OdbcHandle *handle, const std::string
 	                           duckdb::SQLStateType::ST_HYC00, "");
 }
 
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLNativeSql and SQLNativeSqlW
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN NativeSQLInternal(SQLHDBC connection_handle, SQLCHAR *in_statement_text, SQLINTEGER text_length1,
                                    SQLCHAR *out_statement_text, SQLINTEGER buffer_length,
                                    SQLINTEGER *text_length2_ptr) {
-	duckdb::OdbcHandle *hdl;
-	const auto ret = ConvertHandle(connection_handle, hdl);
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(connection_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
 
-	return SetNotImplemented(hdl, "SQLNativeSql");
+	return SetNotImplemented(hstmt, "SQLNativeSql");
 }
 
 SQLRETURN SQL_API SQLNativeSql(SQLHDBC connection_handle, SQLCHAR *in_statement_text, SQLINTEGER text_length1,
@@ -458,20 +466,20 @@ SQLRETURN SQL_API SQLNativeSqlW(SQLHDBC connection_handle, SQLWCHAR *in_statemen
 	                         out_statement_text_conv.utf8_len_smallint(), text_length2_ptr);
 }
 
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLBrowseConnect
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 
 static SQLRETURN BrowseConnectInternal(SQLHDBC connection_handle, SQLCHAR *in_connection_string,
                                        SQLSMALLINT string_length1, SQLCHAR *out_connection_string,
                                        SQLSMALLINT buffer_length, SQLSMALLINT *string_length2_ptr) {
-	duckdb::OdbcHandle *hdl;
-	const auto ret = ConvertHandle(connection_handle, hdl);
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(connection_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
 
-	return SetNotImplemented(hdl, "SQLBrowseConnect");
+	return SetNotImplemented(hstmt, "SQLBrowseConnect");
 }
 
 SQLRETURN SQL_API SQLBrowseConnect(SQLHDBC connection_handle, SQLCHAR *in_connection_string, SQLSMALLINT string_length1,
@@ -491,31 +499,83 @@ SQLRETURN SQL_API SQLBrowseConnectW(SQLHDBC connection_handle, SQLWCHAR *in_conn
 	                             out_connection_string_conv.utf8_len_smallint(), string_length2_ptr);
 }
 
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLBulkOperations
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 
 SQLRETURN SQL_API SQLBulkOperations(SQLHSTMT statement_handle, SQLSMALLINT operation) {
-	duckdb::OdbcHandle *hdl;
-	const auto ret = ConvertHandle(statement_handle, hdl);
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
 
-	return SetNotImplemented(hdl, "SQLBulkOperations");
+	return SetNotImplemented(hstmt, "SQLBulkOperations");
 }
 
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 // SQLSetPos
-// --------------------------------------------------------------
+//===--------------------------------------------------------------------===//
 
 SQLRETURN SQL_API SQLSetPos(SQLHSTMT statement_handle, SQLSETPOSIROW row_number, SQLUSMALLINT operation,
                             SQLUSMALLINT lock_type) {
-	duckdb::OdbcHandle *hdl;
-	const auto ret = ConvertHandle(statement_handle, hdl);
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
 
-	return SetNotImplemented(hdl, "SQLSetPos");
+	return SetNotImplemented(hstmt, "SQLSetPos");
+}
+
+//===--------------------------------------------------------------------===//
+// SQLSetCursorName and SQLSetCursorNameW
+// If implemented, move to src/odbc_api/cursor_api.cpp
+//===--------------------------------------------------------------------===//
+
+SQLRETURN SQL_API SQLSetCursorName(SQLHSTMT statement_handle, SQLCHAR *cursor_name, SQLSMALLINT name_length) {
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return SetNotImplemented(hstmt, "SQLSetCursorName");
+}
+
+SQLRETURN SQL_API SQLSetCursorNameW(SQLHSTMT statement_handle, SQLWCHAR *cursor_name, SQLSMALLINT name_length) {
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return SetNotImplemented(hstmt, "SQLSetCursorNameW");
+}
+
+//===--------------------------------------------------------------------===//
+// SQLGetCursorName and SQLGetCursorNameW
+// If implemented, move to src/odbc_api/cursor_api.cpp
+//===--------------------------------------------------------------------===//
+
+SQLRETURN SQL_API SQLGetCursorName(SQLHSTMT statement_handle, SQLCHAR *cursor_name, SQLSMALLINT name_length,
+                                   SQLSMALLINT *length_ptr) {
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return SetNotImplemented(hstmt, "SQLGetCursorName");
+}
+
+SQLRETURN SQL_API SQLGetCursorNameW(SQLHSTMT statement_handle, SQLWCHAR *cursor_name, SQLSMALLINT name_length,
+                                    SQLSMALLINT *length_ptr) {
+	duckdb::OdbcHandle *hstmt;
+	const auto ret = ConvertHandle(statement_handle, hstmt);
+	if (ret != SQL_SUCCESS) {
+		return ret;
+	}
+
+	return SetNotImplemented(hstmt, "SQLGetCursorNameW");
 }

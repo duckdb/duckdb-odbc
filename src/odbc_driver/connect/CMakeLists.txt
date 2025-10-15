@@ -1,5 +1,4 @@
-add_library(odbc_connect OBJECT connect.cpp connection.cpp driver_connect.cpp
-                                session_init.cpp)
+add_library(odbc_connect OBJECT connect.cpp session_init.cpp)
 
 target_compile_definitions(odbc_connect PRIVATE -DDUCKDB_STATIC_BUILD)
 

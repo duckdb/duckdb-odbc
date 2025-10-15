@@ -169,6 +169,7 @@ public:
 	void CopyOnlyOdbcFields(const OdbcHandleDesc &other);
 	void CopyFieldByField(const OdbcHandleDesc &other);
 
+	SQLRETURN ReturnInvalidFieldIdentifier(bool is_readonly);
 	DescRecord *GetDescRecord(idx_t param_idx);
 	SQLRETURN SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field_identifier, SQLPOINTER value_ptr,
 	                       SQLINTEGER buffer_length);

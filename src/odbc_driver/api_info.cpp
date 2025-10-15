@@ -9,69 +9,6 @@ using duckdb::idx_t;
 using duckdb::OdbcTypeInfo;
 using duckdb::vector;
 
-/*** ODBC API Functions ********************************/
-SQLRETURN SQL_API SQLGetFunctions(SQLHDBC connection_handle, SQLUSMALLINT function_id, SQLUSMALLINT *supported_ptr) {
-	if (function_id == SQL_API_ODBC3_ALL_FUNCTIONS) {
-		return ApiInfo::GetFunctions30(connection_handle, function_id, supported_ptr);
-	} else {
-		return ApiInfo::GetFunctions(connection_handle, function_id, supported_ptr);
-	}
-}
-
-static SQLRETURN GetTypeInfoInternal(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
-	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
-	if (ret != SQL_SUCCESS) {
-		return ret;
-	}
-
-	std::string query("SELECT * FROM (VALUES ");
-
-	if (data_type == SQL_ALL_TYPES) {
-		auto vec_types = ApiInfo::GetVectorTypesAddr();
-		ApiInfo::WriteInfoTypesToQueryString(vec_types, query);
-	} else {
-		vector<OdbcTypeInfo> vec_types;
-		ApiInfo::FindDataType(data_type, vec_types);
-		ApiInfo::WriteInfoTypesToQueryString(vec_types, query);
-	}
-
-	// clang-format off
-	query += R"(
-	) AS odbc_types (
-		"TYPE_NAME",
-		"DATA_TYPE",
-		"COLUMN_SIZE",
-		"LITERAL_PREFIX",
-		"LITERAL_SUFFIX",
-		"CREATE_PARAMS",
-		"NULLABLE",
-		"CASE_SENSITIVE",
-		"SEARCHABLE",
-		"UNSIGNED_ATTRIBUTE",
-		"FIXED_PREC_SCALE",
-		"AUTO_UNIQUE_VALUE",
-		"LOCAL_TYPE_NAME",
-		"MINIMUM_SCALE",
-		"MAXIMUM_SCALE",
-		"SQL_DATA_TYPE",
-		"SQL_DATETIME_SUB",
-		"NUM_PREC_RADIX",
-		"INTERVAL_PRECISION"
-	))";
-	// clang-format on
-
-	return duckdb::ExecDirectStmt(hstmt, query);
-}
-
-SQLRETURN SQL_API SQLGetTypeInfo(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
-	return GetTypeInfoInternal(statement_handle, data_type);
-}
-
-SQLRETURN SQL_API SQLGetTypeInfoW(SQLHSTMT statement_handle, SQLSMALLINT data_type) {
-	return GetTypeInfoInternal(statement_handle, data_type);
-}
-
 /*** ApiInfo private attributes ********************************/
 
 // fill all supported functions in this array

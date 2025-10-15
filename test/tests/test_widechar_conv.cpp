@@ -4,7 +4,7 @@
 #define UTF_CPP_CPLUSPLUS 199711L
 #include "utf8.h"
 #include "widechar.hpp"
-#include "../../src/widechar/widechar_utf16.hpp"
+#include "../src/odbc_driver/widechar/widechar_utf16.hpp"
 
 using namespace duckdb::widechar;
 using namespace odbc_test;
