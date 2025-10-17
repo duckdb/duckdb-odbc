@@ -247,6 +247,7 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          dumpbin.exe /imports build\release\bin\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
       - name: Setup ODBC
@@ -403,6 +404,7 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsarm64.bat"
+          dumpbin.exe /imports build\release\bin\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
       - name: Setup ODBC
@@ -427,7 +429,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          ./build/release/bin/test_odbc.exe || true
+          ./build/release/bin/test_odbc.exe
 
       - name: Test PyODBC
         if: ${{ inputs.skip_tests != 'true' }}
@@ -478,7 +480,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          choco install zip -y --force
           zip -j duckdb_odbc-windows-arm64.zip        \
             ./build/release/bin/duckdb_odbc.dll       \
             ./build/release/bin/duckdb_odbc_setup.dll \

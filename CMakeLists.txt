@@ -1,12 +1,14 @@
-cmake_minimum_required(VERSION 3.12.0)
+cmake_minimum_required(VERSION 3.5...3.29)
 
-project(duckdb-odbc)
+project(duckdb-odbc C CXX)
+
 find_package(ODBC)
 find_package(Threads REQUIRED)
 
 set(CMAKE_CXX_STANDARD "11" CACHE STRING "C++ standard to enforce")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 if(NOT ODBC_FOUND)
   message(FATAL_ERROR "No ODBC found; you need to install unixodbc-dev.")
@@ -66,7 +68,6 @@ target_compile_definitions(duckdb_core_obj PRIVATE
   -DDUCKDB_EXTENSION_AUTOINSTALL_DEFAULT )
 if(WIN32)
   target_compile_options(duckdb_core_obj PRIVATE /bigobj)
-  target_compile_definitions(duckdb_core_obj PRIVATE -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_core_obj>)
@@ -80,7 +81,6 @@ add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
 target_compile_definitions(duckdb_odbc PRIVATE -DDUCKDB_STATIC_BUILD)
 if(WIN32)
   target_compile_options(duckdb_odbc PRIVATE /bigobj)
-  target_compile_definitions(duckdb_odbc PRIVATE -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")

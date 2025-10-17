@@ -24,3 +24,5 @@ list(APPEND VS_DOTNET_REFERENCES "System.Xml.Linq")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VS_DOTNET_REFERENCES
                                                  "${VS_DOTNET_REFERENCES}")
+
+target_compile_options(${PROJECT_NAME} PRIVATE /MD)
