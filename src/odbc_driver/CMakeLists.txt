@@ -8,11 +8,6 @@ add_library(odbc_driver OBJECT driver.cpp api_info.cpp descriptor.cpp
 
 target_compile_definitions(odbc_driver PRIVATE -DDUCKDB_STATIC_BUILD)
 
-if(WIN32)
-  target_compile_definitions(odbc_driver
-                             PRIVATE -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
-endif()
-
 set(ALL_OBJECT_FILES
     ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:odbc_driver>
     PARENT_SCOPE)
