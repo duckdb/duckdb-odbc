@@ -172,6 +172,7 @@ jobs:
         shell: cmd
         run: |
           call "c:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          dumpbin.exe /imports build\release\bin\Release\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\Release\duckdb_odbc.dll
 
       - name: Setup ODBC
@@ -299,6 +300,7 @@ jobs:
         shell: cmd
         run: |
           call "c:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          dumpbin.exe /imports build\release\bin\Release\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\Release\duckdb_odbc.dll
 
       - name: Setup ODBC
