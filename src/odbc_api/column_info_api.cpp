@@ -345,6 +345,7 @@ SQLRETURN SQL_API SQLNumResultCols(SQLHSTMT statement_handle, SQLSMALLINT *colum
 	case duckdb::StatementType::CALL_STATEMENT:
 	case duckdb::StatementType::EXECUTE_STATEMENT:
 	case duckdb::StatementType::EXPLAIN_STATEMENT:
+	case duckdb::StatementType::EXTENSION_STATEMENT:
 	case duckdb::StatementType::SELECT_STATEMENT:
 		break;
 	default:
