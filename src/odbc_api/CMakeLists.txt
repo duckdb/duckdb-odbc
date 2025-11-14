@@ -18,11 +18,6 @@ add_library(
 
 target_compile_definitions(odbc_api PRIVATE -DDUCKDB_STATIC_BUILD)
 
-if(WIN32)
-  target_compile_definitions(odbc_api
-                             PRIVATE -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
-endif()
-
 set(ALL_OBJECT_FILES
     ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:odbc_api>
     PARENT_SCOPE)
