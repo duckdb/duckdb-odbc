@@ -20,30 +20,48 @@ concurrency:
 
 jobs:
   odbc-linux-amd64:
-    name: ODBC Linux (amd64)
+    name: Linux (amd64)
     runs-on: ubuntu-latest
     env:
       MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_x86_64
     steps:
-      - uses: actions/checkout@v4
+
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
-      - name: Build
-        shell: bash
+      - name: Cache Key
+        id: cache_key
         run: |
-          docker run                 \
-          -v.:/duckdb                \
-          -e GEN=ninja               \
-          ${{ env.MANYLINUX_IMAGE }} \
+          DUCKDB_VERSION=$(python ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
+      - name: Build
+        run: |
+          docker run                   \
+          -v.:/duckdb                  \
+          -e GEN=ninja                 \
+          -e CC='ccache gcc'           \
+          -e CXX='ccache g++'          \
+          -e CCACHE_DIR=/duckdb/ccache \
+          ${{ env.MANYLINUX_IMAGE }}   \
           bash -c "
             set -e
             cat /etc/os-release
-            dnf install -y   \
-              unixODBC-devel \
-              ninja-build    \
-              gcc-toolset-12-gcc-c++
+            dnf install -y           \
+              ccache                 \
+              gcc-toolset-12-gcc-c++ \
+              ninja-build            \
+              unixODBC-devel
             source /opt/rh/gcc-toolset-12/enable
             make -C /duckdb release
           "
@@ -53,7 +71,6 @@ jobs:
           nm -gU ./build/release/libduckdb_odbc.so
 
       - name: ODBC Tests
-        shell: bash
         if: ${{ inputs.skip_tests != 'true' }}
         run: |
           docker run                 \
@@ -68,7 +85,6 @@ jobs:
           "
 
       - name: Deploy
-        shell: bash
         env:
           AWS_ENDPOINT_URL: ${{ secrets.S3_DUCKDB_STAGING_ENDPOINT }}
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
@@ -76,38 +92,65 @@ jobs:
         run: |
           zip -j duckdb_odbc-linux-amd64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-amd64.zip
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload    
+        uses: actions/upload-artifact@v4
         with:
           name: odbc-linux-amd64
           path: |
             duckdb_odbc-linux-amd64.zip
+    
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }} 
 
   odbc-linux-aarch64:
-    name: ODBC Linux (aarch64)
+    name: Linux (aarch64)
     runs-on: ubuntu-24.04-arm
     needs: odbc-linux-amd64
     env:
       MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_aarch64
     steps:
-      - uses: actions/checkout@v4
+
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
+      - name: Cache Key
+        id: cache_key
+        run: |
+          DUCKDB_VERSION=$(python ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
       - name: Build
         shell: bash
         run: |
-          docker run                 \
-          -v.:/duckdb                \
-          -e GEN=ninja               \
-          ${{ env.MANYLINUX_IMAGE }} \
+          docker run                   \
+          -v.:/duckdb                  \
+          -e GEN=ninja                 \
+          -e CC='ccache gcc'           \
+          -e CXX='ccache g++'          \
+          -e CCACHE_DIR=/duckdb/ccache \
+          ${{ env.MANYLINUX_IMAGE }}   \
           bash -c "
             set -e
             cat /etc/os-release
-            dnf install -y   \
-              unixODBC-devel \
-              ninja-build    \
-              gcc-toolset-12-gcc-c++
+            dnf install -y           \
+              ccache                 \
+              gcc-toolset-12-gcc-c++ \
+              ninja-build            \
+              unixODBC-devel
             source /opt/rh/gcc-toolset-12/enable
             make -C /duckdb release
           "
@@ -141,15 +184,21 @@ jobs:
           zip -j duckdb_odbc-linux-arm64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-arm64.zip
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload    
+        uses: actions/upload-artifact@v4
         with:
           name: odbc-linux-arm64
           path: |
             duckdb_odbc-linux-arm64.zip
 
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
 
   odbc-windows-amd64:
-    name: ODBC Windows (amd64)
+    name: Windows (amd64)
     runs-on: windows-latest
     needs: odbc-linux-amd64
     env:
@@ -277,7 +326,7 @@ jobs:
             duckdb_odbc-windows-amd64.zip
 
   odbc-windows-arm64:
-    name: ODBC Windows (aarch64)
+    name: Windows (aarch64)
     runs-on: windows-11-arm
     needs: odbc-linux-amd64
     env:
@@ -396,10 +445,13 @@ jobs:
             duckdb_odbc-windows-arm64.zip
 
   odbc-osx-universal:
-    name: ODBC OSX (Universal)
+    name: macOS (Universal)
     runs-on: macos-14
     env:
       GEN: ninja
+      CC: 'ccache clang'
+      CXX: 'ccache clang++'
+      CCACHE_DIR: ${{ github.workspace }}/ccache
       ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
       OSX_BUILD_UNIVERSAL: 1
     needs: odbc-linux-amd64
@@ -414,11 +466,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
+      - name: Cache Key
+        id: cache_key
+        run: |
+          DUCKDB_VERSION=$(python3 ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
         with:
-          key: ${{ github.job }}
-          save: ${{ github.ref == 'refs/heads/main' }}
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
+      - name: Install Dependencies
+        run: |
+          brew install -q \
+            ccache \
+            ninja
 
       - name: Install UnixODBC
         shell: bash
@@ -457,29 +522,53 @@ jobs:
           path: |
             duckdb_odbc-osx-universal.zip
 
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
   debug:
-    name: ODBC Tests
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    name: Debug Tests
     runs-on: ubuntu-22.04
     needs: odbc-linux-amd64
     env:
-      BUILD_ODBC: 1
       GEN: ninja
+      CC: 'ccache gcc'
+      CXX: 'ccache g++'
+      CCACHE_DIR: ${{ github.workspace }}/ccache
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Cache Key
+        id: cache_key
+        run: |
+          DUCKDB_VERSION=$(python ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
         with:
-          python-version: '3.12'
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}-debug
 
       - name: Dependencies
         shell: bash
         run: |
-          sudo apt-get update -y -qq
-          sudo apt-get install -y -qq ninja-build unixodbc-dev odbcinst dotnet-sdk-8.0
+          echo "set man-db/auto-update false" | sudo debconf-communicate
+          sudo dpkg-reconfigure man-db
+          sudo apt-get update -y -q -o=Dpkg::Use-Pty=0
+          sudo apt-get install -y -q -o=Dpkg::Use-Pty=0 \
+            ccache \
+            dotnet-sdk-8.0 \
+            ninja-build \
+            odbcinst \
+            unixodbc-dev
           pip3 install pyodbc
 
       - name: Install nanodbc
@@ -496,12 +585,6 @@ jobs:
           cd build
           cmake -DNANODBC_DISABLE_TESTS=OFF ..
           cmake --build .
-
-      - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
-        with:
-          key: ${{ github.job }}
-          save: ${{ github.ref == 'refs/heads/main' || github.repository != 'duckdb/duckdb' }}
 
       - name: Build
         shell: bash
@@ -538,6 +621,12 @@ jobs:
         shell: bash
         working-directory: ./test/tests/dotnet-linux
         run: dotnet run
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}-debug
 
   odbc-merge-vendoring-pr:
     name: Merge vendoring PR 
