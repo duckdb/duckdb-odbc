@@ -202,6 +202,9 @@ jobs:
     runs-on: windows-latest
     needs: odbc-linux-amd64
     env:
+      CC: 'ccache cl'
+      CXX: 'ccache cl'
+      CCACHE_DIR: ${{ github.workspace }}/ccache
       AZURE_CODESIGN_ENDPOINT: https://eus.codesigning.azure.net/
       AZURE_CODESIGN_ACCOUNT: duckdb-signing-2
       AZURE_CODESIGN_PROFILE: duckdb-certificate-profile
@@ -211,24 +214,49 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
-      - uses: actions/setup-python@v5
+      - name: Dependencies
+        shell: bash
+        run: |
+          choco install \
+            wget \
+            zip \
+            -y --force --no-progress
+
+      - name: Cache Key
+        id: cache_key
+        shell: bash
+        run: |
+          DUCKDB_VERSION=$(python ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
         with:
-          python-version: "3.12"
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
 
       - name: Build
-        shell: bash
-        run: make release
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          mkdir build
+          cd build
+          mkdir release
+          cd release
+          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
 
       - name: List Symbols
         shell: cmd
         run: |
-          call "c:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          dumpbin.exe /exports build\release\bin\Release\duckdb_odbc.dll
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
       - name: Setup ODBC
         shell: bash
         run: |
-          ./build/release/bin/Release/odbc_install.exe //CI //Install
+          ./build/release/bin/odbc_install.exe //CI //Install
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
@@ -247,16 +275,15 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          ./build/release/bin/Release/test_odbc.exe
+          ./build/release/bin/test_odbc.exe
 
       - name: Test Standard ODBC tests with VS2019 C++ stdlib
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          choco install wget -y --no-progress
-          wget -P build/release/bin/Release https://blobs.duckdb.org/ci/msvcp140.dll
-          ./build/release/bin/Release/test_odbc.exe
-          rm build/release/bin/Release/msvcp140.dll
+          wget -P build/release/bin https://blobs.duckdb.org/ci/msvcp140.dll
+          ./build/release/bin/test_odbc.exe
+          rm build/release/bin/msvcp140.dll
 
       - name: Test PyODBC
         if: ${{ inputs.skip_tests != 'true' }}
@@ -276,17 +303,12 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          ./build/release/bin/Release/test_connection_odbc.exe
+          ./build/release/bin/test_connection_odbc.exe
 
       - name: Print ODBC trace on failure
         if: ${{ failure() }}
         shell: bash
         run: cat ODBC_TRACE.log
-
-      - name: System.Data.ODBC tests
-        shell: bash
-        run: |
-          ./build/release/bin/Release/SystemDataODBC_tests.exe
 
       - name: Sign files with Azure Trusted Signing (TM)
         if: github.repository == 'duckdb/duckdb-odbc' && github.event_name != 'pull_request'
@@ -312,11 +334,10 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          choco install zip -y --force
-          zip -j duckdb_odbc-windows-amd64.zip                \
-            ./build/release/bin/Release/duckdb_odbc.dll       \
-            ./build/release/bin/Release/duckdb_odbc_setup.dll \
-            ./build/release/bin/Release/odbc_install.exe
+          zip -j duckdb_odbc-windows-amd64.zip        \
+            ./build/release/bin/duckdb_odbc.dll       \
+            ./build/release/bin/duckdb_odbc_setup.dll \
+            ./build/release/bin/odbc_install.exe
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
 
       - uses: actions/upload-artifact@v4
@@ -325,11 +346,20 @@ jobs:
           path: |
             duckdb_odbc-windows-amd64.zip
 
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }} 
+
   odbc-windows-arm64:
     name: Windows (aarch64)
     runs-on: windows-11-arm
     needs: odbc-linux-amd64
     env:
+      CC: 'ccache cl'
+      CXX: 'ccache cl'
+      CCACHE_DIR: ${{ github.workspace }}/ccache
       AZURE_CODESIGN_ENDPOINT: https://eus.codesigning.azure.net/
       AZURE_CODESIGN_ACCOUNT: duckdb-signing-2
       AZURE_CODESIGN_PROFILE: duckdb-certificate-profile
@@ -339,24 +369,50 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
-      - uses: actions/setup-python@v5
+      - name: Dependencies
+        shell: bash
+        run: |
+          choco install \
+            ccache \
+            wget \
+            zip \
+            -y --force --no-progress
+
+      - name: Cache Key
+        id: cache_key
+        shell: bash
+        run: |
+          DUCKDB_VERSION=$(python ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
         with:
-          python-version: "3.12"
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
 
       - name: Build
-        shell: bash
-        run: make release
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsarm64.bat"
+          mkdir build
+          cd build
+          mkdir release
+          cd release
+          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
 
       - name: List Symbols
         shell: cmd
         run: |
-          call "c:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          dumpbin.exe /exports build\release\bin\Release\duckdb_odbc.dll
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsarm64.bat"
+          dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
       - name: Setup ODBC
         shell: bash
         run: |
-          ./build/release/bin/Release/odbc_install.exe //CI //Install
+          ./build/release/bin/odbc_install.exe //CI //Install
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
           Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
@@ -375,7 +431,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          ./build/release/bin/Release/test_odbc.exe || true
+          ./build/release/bin/test_odbc.exe || true
 
       - name: Test PyODBC
         if: ${{ inputs.skip_tests != 'true' }}
@@ -395,17 +451,12 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          ./build/release/bin/Release/test_connection_odbc.exe
+          ./build/release/bin/test_connection_odbc.exe
 
       - name: Print ODBC trace on failure
         if: ${{ failure() }}
         shell: bash
         run: cat ODBC_TRACE.log
-
-      - name: System.Data.ODBC tests
-        shell: bash
-        run: |
-          ./build/release/bin/Release/SystemDataODBC_tests.exe
 
       - name: Sign files with Azure Trusted Signing (TM)
         if: github.repository == 'duckdb/duckdb-odbc' && github.event_name != 'pull_request'
@@ -432,10 +483,10 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
           choco install zip -y --force
-          zip -j duckdb_odbc-windows-arm64.zip                \
-            ./build/release/bin/Release/duckdb_odbc.dll       \
-            ./build/release/bin/Release/duckdb_odbc_setup.dll \
-            ./build/release/bin/Release/odbc_install.exe
+          zip -j duckdb_odbc-windows-arm64.zip        \
+            ./build/release/bin/duckdb_odbc.dll       \
+            ./build/release/bin/duckdb_odbc_setup.dll \
+            ./build/release/bin/odbc_install.exe
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-arm64.zip
 
       - uses: actions/upload-artifact@v4
@@ -443,6 +494,12 @@ jobs:
           name: odbc-windows-arm64
           path: |
             duckdb_odbc-windows-arm64.zip
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }} 
 
   odbc-osx-universal:
     name: macOS (Universal)
@@ -462,9 +519,15 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.git_ref }}
 
+      - name: Dependencies
+        run: |
+          brew install -q \
+            ccache \
+            ninja
+
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Cache Key
         id: cache_key
@@ -478,12 +541,6 @@ jobs:
         with:
           path: ${{ github.workspace }}/ccache
           key: ${{ steps.cache_key.outputs.value }}
-
-      - name: Install Dependencies
-        run: |
-          brew install -q \
-            ccache \
-            ninja
 
       - name: Install UnixODBC
         shell: bash
@@ -500,14 +557,15 @@ jobs:
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
-        run: ./build/release/test/test_odbc
+        run: |
+          ./build/release/test/test_odbc
 
       - name: See if this actually universal
         shell: bash
-        run: lipo -archs build/release/libduckdb_odbc.dylib | grep "x86_64 arm64"
+        run: |
+          lipo -archs build/release/libduckdb_odbc.dylib | grep "x86_64 arm64"
 
       - name: Deploy
-        shell: bash
         env:
           AWS_ENDPOINT_URL: ${{ secrets.S3_DUCKDB_STAGING_ENDPOINT }}
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
@@ -544,6 +602,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Dependencies
+        run: |
+          echo "set man-db/auto-update false" | sudo debconf-communicate
+          sudo dpkg-reconfigure man-db
+          sudo apt-get update -y -q -o=Dpkg::Use-Pty=0
+          sudo apt-get install -y -q -o=Dpkg::Use-Pty=0 \
+            ccache \
+            dotnet-sdk-8.0 \
+            ninja-build \
+            odbcinst \
+            unixodbc-dev
+
       - name: Cache Key
         id: cache_key
         run: |
@@ -557,22 +627,11 @@ jobs:
           path: ${{ github.workspace }}/ccache
           key: ${{ steps.cache_key.outputs.value }}-debug
 
-      - name: Dependencies
-        shell: bash
+      - name: Install PyODBC
         run: |
-          echo "set man-db/auto-update false" | sudo debconf-communicate
-          sudo dpkg-reconfigure man-db
-          sudo apt-get update -y -q -o=Dpkg::Use-Pty=0
-          sudo apt-get install -y -q -o=Dpkg::Use-Pty=0 \
-            ccache \
-            dotnet-sdk-8.0 \
-            ninja-build \
-            odbcinst \
-            unixodbc-dev
           pip3 install pyodbc
 
       - name: Install nanodbc
-        shell: bash
         run: |
           wget https://github.com/nanodbc/nanodbc/archive/refs/tags/v2.14.0.tar.gz -O nanodbc.tgz
           mkdir nanodbc
