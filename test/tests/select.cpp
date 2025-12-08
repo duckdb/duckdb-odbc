@@ -111,3 +111,38 @@ TEST_CASE("Test Select Statement Wide", "[odbc]") {
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test Empty String", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	std::string query;
+	SECTION("Empty String Query") {
+		query = "";
+	}
+	SECTION("Comment") {
+		query = "--";
+	}
+
+	// Execute a simple query
+	EXECUTE_AND_CHECK("SQLExecDirect (empty string)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query), SQL_NTS);
+
+	// Fetch the first row
+	EXECUTE_AND_CHECK("SQLFetch (empty string)", hstmt, SQLFetch, hstmt);
+	// Check the data
+	DATA_CHECK(hstmt, 1, "");
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
