@@ -59,10 +59,8 @@ jobs:
             cat /etc/os-release
             dnf install -y           \
               ccache                 \
-              gcc-toolset-12-gcc-c++ \
               ninja-build            \
               unixODBC-devel
-            source /opt/rh/gcc-toolset-12/enable
             make -C /duckdb release
           "
 
@@ -148,10 +146,8 @@ jobs:
             cat /etc/os-release
             dnf install -y           \
               ccache                 \
-              gcc-toolset-12-gcc-c++ \
               ninja-build            \
               unixODBC-devel
-            source /opt/rh/gcc-toolset-12/enable
             make -C /duckdb release
           "
 
