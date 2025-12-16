@@ -503,7 +503,7 @@ jobs:
 
   odbc-osx-universal:
     name: macOS (Universal)
-    runs-on: macos-14
+    runs-on: macos-latest
     env:
       GEN: ninja
       CC: 'ccache clang'
