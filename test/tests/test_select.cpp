@@ -111,3 +111,48 @@ TEST_CASE("Test Select Statement Wide", "[odbc]") {
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test Empty String", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	std::vector<std::string> empty_queries = {"",
+	                                          " "
+	                                          "--",
+	                                          "/* I am a comment */"};
+	for (std::string &query : empty_queries) {
+		{
+			EXECUTE_AND_CHECK("SQLExecDirect (empty string)", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(query),
+			                  SQL_NTS);
+			SQLRETURN ret = SQLFetch(hstmt);
+			REQUIRE(ret == SQL_ERROR);
+			std::string state, message;
+			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+			REQUIRE(state == "HY000");
+			REQUIRE(message.find("No statement found") != std::string::npos);
+		}
+
+		{
+			SQLRETURN ret = SQLPrepare(hstmt, ConvertToSQLCHAR(query), SQL_NTS);
+			REQUIRE(ret == SQL_ERROR);
+			std::string state, message;
+			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
+			REQUIRE(state == "42000");
+			REQUIRE(message.find("No statement to prepare") != std::string::npos);
+		}
+	}
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
