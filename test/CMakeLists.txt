@@ -16,7 +16,6 @@ add_executable(
   tests/catalog_functions.cpp
   tests/diagnostics.cpp
   tests/extension.cpp
-  tests/select.cpp
   tests/row_wise_fetching.cpp
   tests/set_attr.cpp
   tests/cte.cpp
@@ -32,6 +31,7 @@ add_executable(
   tests/test_connect.cpp
   tests/test_long_data.cpp
   tests/test_num_result_cols.cpp
+  tests/test_select.cpp
   tests/test_session_init.cpp
   tests/test_timestamp.cpp
   tests/test_unbound_params.cpp
