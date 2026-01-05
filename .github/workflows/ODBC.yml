@@ -506,7 +506,6 @@ jobs:
       CC: 'ccache clang'
       CXX: 'ccache clang++'
       CCACHE_DIR: ${{ github.workspace }}/ccache
-      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
       OSX_BUILD_UNIVERSAL: 1
     needs: odbc-linux-amd64
     steps:
@@ -520,7 +519,8 @@ jobs:
         run: |
           brew install -q \
             ccache \
-            ninja
+            ninja \
+            unixodbc
 
       - uses: actions/setup-python@v5
         with:
@@ -538,10 +538,6 @@ jobs:
         with:
           path: ${{ github.workspace }}/ccache
           key: ${{ steps.cache_key.outputs.value }}
-
-      - name: Install UnixODBC
-        shell: bash
-        run: CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
 
       - name: Build
         shell: bash
