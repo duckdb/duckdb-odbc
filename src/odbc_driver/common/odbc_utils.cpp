@@ -280,6 +280,9 @@ template <typename INT_TYPE>
 static void WriteStringInternal(const SQLCHAR *utf8_data, size_t utf8_data_len, SQLWCHAR *out_buf, SQLLEN buf_len,
                                 INT_TYPE *out_len) {
 	auto utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(utf8_data, utf8_data_len);
+	// Calculate the full required length in bytes (excluding null terminator)
+	size_t full_len_bytes = utf16_vec.size() * sizeof(SQLWCHAR);
+
 	size_t buf_len_even = static_cast<size_t>(buf_len);
 	if ((buf_len % 2) != 0) {
 		buf_len_even -= 1;
@@ -289,9 +292,10 @@ static void WriteStringInternal(const SQLCHAR *utf8_data, size_t utf8_data_len, 
 			out_buf[0] = 0;
 		}
 		if (out_len != nullptr) {
-			*out_len = 0;
-			return;
+			// Return full required length, not 0
+			*out_len = static_cast<INT_TYPE>(full_len_bytes);
 		}
+		return;
 	}
 	size_t len_bytes = std::min(utf16_vec.size() * sizeof(SQLWCHAR), buf_len_even - sizeof(SQLWCHAR));
 	size_t len_chars = len_bytes / sizeof(SQLWCHAR);
@@ -300,7 +304,8 @@ static void WriteStringInternal(const SQLCHAR *utf8_data, size_t utf8_data_len, 
 		out_buf[len_chars] = 0;
 	}
 	if (out_len != nullptr) {
-		*out_len = static_cast<INT_TYPE>(len_bytes);
+		// Always return full required length, not the truncated length
+		*out_len = static_cast<INT_TYPE>(full_len_bytes);
 	}
 }
 

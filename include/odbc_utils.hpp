@@ -27,12 +27,12 @@ struct OdbcUtils {
 public:
 	template <typename INT_TYPE, typename CHAR_TYPE=SQLCHAR>
 	static void WriteString(const std::string &s, CHAR_TYPE *out_buf, SQLLEN buf_len, INT_TYPE *out_len = nullptr) {
-		INT_TYPE written_chars = 0;
+		INT_TYPE required_length = (INT_TYPE)s.length();
 		if (out_buf != nullptr) {
-			written_chars = (INT_TYPE)snprintf((char *)out_buf, buf_len, "%s", s.c_str());
+			snprintf((char *)out_buf, buf_len, "%s", s.c_str());
 		}
 		if (out_len != nullptr) {
-			*out_len = written_chars;
+			*out_len = required_length;
 		}
 	}
 	// overload for int to pass a null pointer
