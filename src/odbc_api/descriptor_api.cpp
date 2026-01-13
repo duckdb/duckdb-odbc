@@ -13,7 +13,54 @@ using duckdb::DescHeader;
 using duckdb::DescRecord;
 using duckdb::OdbcHandleDesc;
 using duckdb::OdbcInterval;
+using duckdb::SQLStateType;
 using duckdb::vector;
+
+template <typename INT_TYPE>
+static SQLRETURN WriteStringDesc(const std::string &caller_name, duckdb::OdbcHandleDesc *desc, const std::string &str,
+                                 SQLCHAR *character_attribute_ptr, INT_TYPE buffer_length, INT_TYPE *string_length) {
+	if (buffer_length < 0) {
+		return duckdb::SetDiagnosticRecord(desc, SQL_ERROR, caller_name, "Invalid string or buffer length",
+		                                   SQLStateType::ST_HY090, "");
+	}
+
+	size_t written =
+	    duckdb::OdbcUtils::WriteStringUtf8(str, character_attribute_ptr, static_cast<size_t>(buffer_length));
+
+	if (string_length != nullptr) {
+		*string_length = static_cast<INT_TYPE>(str.length());
+	}
+
+	if (character_attribute_ptr != nullptr && written < str.length()) {
+		return duckdb::SetDiagnosticRecord(desc, SQL_SUCCESS_WITH_INFO, caller_name, "String data, right truncated",
+		                                   SQLStateType::ST_01004, "");
+	}
+
+	return SQL_SUCCESS;
+}
+
+template <typename INT_TYPE>
+static SQLRETURN WriteStringDesc(const std::string &caller_name, duckdb::OdbcHandleDesc *desc, const std::string &str,
+                                 SQLWCHAR *character_attribute_ptr, INT_TYPE buffer_length, INT_TYPE *string_length) {
+	if (buffer_length < 0) {
+		return duckdb::SetDiagnosticRecord(desc, SQL_ERROR, caller_name, "Invalid string or buffer length",
+		                                   SQLStateType::ST_HY090, "");
+	}
+
+	auto tup = duckdb::OdbcUtils::WriteStringUtf16(str, character_attribute_ptr, static_cast<size_t>(buffer_length));
+	size_t written = tup.first;
+	auto &utf16_vec = tup.second;
+
+	if (string_length != nullptr) {
+		*string_length = static_cast<INT_TYPE>(utf16_vec.size());
+	}
+
+	if (character_attribute_ptr != nullptr && written < utf16_vec.size()) {
+		return duckdb::SetDiagnosticRecord(desc, SQL_SUCCESS_WITH_INFO, caller_name, "String data, right truncated",
+		                                   SQLStateType::ST_01004, "");
+	}
+	return SQL_SUCCESS;
+}
 
 //===--------------------------------------------------------------------===//
 // SQLGetDescField
@@ -102,18 +149,16 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_base_column_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_base_column_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_BASE_TABLE_NAME: {
 		// not IRD
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_base_table_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_base_table_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_CASE_SENSITIVE: {
 		// not IRD
@@ -128,9 +173,8 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_catalog_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_catalog_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_CONCISE_TYPE: {
 		*(SQLSMALLINT *)value_ptr = desc->records[rec_idx].sql_desc_concise_type;
@@ -179,9 +223,8 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_label, reinterpret_cast<CHAR_TYPE *>(value_ptr),
-		                               buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_label,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_LENGTH: {
 		*(SQLULEN *)value_ptr = desc->records[rec_idx].sql_desc_length;
@@ -192,36 +235,32 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_literal_prefix,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_literal_prefix,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_LITERAL_SUFFIX: {
 		// not IRD
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_literal_suffix,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_literal_suffix,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_LOCAL_TYPE_NAME: {
 		// is AD
 		if (desc->IsAD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_local_type_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_local_type_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_NAME: {
 		// is AD
 		if (desc->IsAD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_name, reinterpret_cast<CHAR_TYPE *>(value_ptr),
-		                               buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_NULLABLE: {
 		// is AD
@@ -276,9 +315,8 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_schema_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_schema_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_SEARCHABLE: {
 		// not IRD
@@ -293,9 +331,8 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (!desc->IsIRD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_table_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_table_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_TYPE: {
 		*(SQLSMALLINT *)value_ptr = desc->records[rec_idx].sql_desc_type;
@@ -306,9 +343,8 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		if (desc->IsAD()) {
 			return desc->ReturnInvalidFieldIdentifier(false);
 		}
-		duckdb::OdbcUtils::WriteString(desc->records[rec_idx].sql_desc_type_name,
-		                               reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringDesc("SQLGetDescField", desc, desc->records[rec_idx].sql_desc_type_name,
+		                       reinterpret_cast<CHAR_TYPE *>(value_ptr), buffer_length, string_length_ptr);
 	}
 	case SQL_DESC_UNNAMED: {
 		// is AD
@@ -356,8 +392,12 @@ SQLRETURN SQL_API SQLGetDescField(SQLHDESC descriptor_handle, SQLSMALLINT rec_nu
  */
 SQLRETURN SQL_API SQLGetDescFieldW(SQLHDESC descriptor_handle, SQLSMALLINT rec_number, SQLSMALLINT field_identifier,
                                    SQLPOINTER value_ptr, SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
-	return GetDescFieldInternal<SQLWCHAR>(descriptor_handle, rec_number, field_identifier, value_ptr, buffer_length,
-	                                      string_length_ptr);
+	SQLRETURN ret = GetDescFieldInternal<SQLWCHAR>(descriptor_handle, rec_number, field_identifier, value_ptr,
+	                                               buffer_length, string_length_ptr);
+	if (SQL_SUCCEEDED(ret) && string_length_ptr != nullptr) {
+		*string_length_ptr = static_cast<SQLINTEGER>(*string_length_ptr * sizeof(SQLWCHAR));
+	}
+	return ret;
 }
 
 //===--------------------------------------------------------------------===//
@@ -404,7 +444,7 @@ static SQLRETURN GetDescRecInternal(SQLHDESC descriptor_handle, SQLSMALLINT rec_
 	auto desc_record = desc->GetDescRecord(rec_idx);
 	auto sql_type = desc_record->sql_desc_type;
 
-	duckdb::OdbcUtils::WriteString(desc_record->sql_desc_name, name, buffer_length, string_length_ptr);
+	ret = WriteStringDesc("SQLGetDescField", desc, desc_record->sql_desc_name, name, buffer_length, string_length_ptr);
 	if (type_ptr) {
 		duckdb::Store<SQLSMALLINT>(sql_type, (duckdb::data_ptr_t)type_ptr);
 	}
@@ -425,7 +465,7 @@ static SQLRETURN GetDescRecInternal(SQLHDESC descriptor_handle, SQLSMALLINT rec_
 	if (nullable_ptr) {
 		duckdb::Store<SQLSMALLINT>(desc_record->sql_desc_nullable, (duckdb::data_ptr_t)nullable_ptr);
 	}
-	return SQL_SUCCESS;
+	return ret;
 }
 
 /**
@@ -436,8 +476,8 @@ SQLRETURN SQL_API SQLGetDescRec(SQLHDESC descriptor_handle, SQLSMALLINT rec_numb
                                 SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr, SQLSMALLINT *type_ptr,
                                 SQLSMALLINT *sub_type_ptr, SQLLEN *length_ptr, SQLSMALLINT *precision_ptr,
                                 SQLSMALLINT *scale_ptr, SQLSMALLINT *nullable_ptr) {
-	return GetDescRecInternal(descriptor_handle, rec_number, name, buffer_length, string_length_ptr, type_ptr,
-	                          sub_type_ptr, length_ptr, precision_ptr, scale_ptr, nullable_ptr);
+	return GetDescRecInternal<SQLCHAR>(descriptor_handle, rec_number, name, buffer_length, string_length_ptr, type_ptr,
+	                                   sub_type_ptr, length_ptr, precision_ptr, scale_ptr, nullable_ptr);
 }
 
 /**
@@ -449,8 +489,8 @@ SQLRETURN SQL_API SQLGetDescRecW(SQLHDESC descriptor_handle, SQLSMALLINT rec_num
                                  SQLSMALLINT buffer_length, SQLSMALLINT *string_length_ptr, SQLSMALLINT *type_ptr,
                                  SQLSMALLINT *sub_type_ptr, SQLLEN *length_ptr, SQLSMALLINT *precision_ptr,
                                  SQLSMALLINT *scale_ptr, SQLSMALLINT *nullable_ptr) {
-	return GetDescRecInternal(descriptor_handle, rec_number, name, buffer_length, string_length_ptr, type_ptr,
-	                          sub_type_ptr, length_ptr, precision_ptr, scale_ptr, nullable_ptr);
+	return GetDescRecInternal<SQLWCHAR>(descriptor_handle, rec_number, name, buffer_length, string_length_ptr, type_ptr,
+	                                    sub_type_ptr, length_ptr, precision_ptr, scale_ptr, nullable_ptr);
 }
 
 //===--------------------------------------------------------------------===//

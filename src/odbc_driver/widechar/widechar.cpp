@@ -81,6 +81,14 @@ size_t utf16_length(const SQLWCHAR *buf) {
 	return static_cast<size_t>(ptr - buf);
 }
 
+size_t utf16_length(const std::string &utf8_str) {
+	if (utf8_str.length() == 0) {
+		return 0;
+	}
+	auto wstr = utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(utf8_str.c_str()), utf8_str.length());
+	return wstr.size();
+}
+
 std::vector<SQLCHAR> utf8_alloc_out_vec(SQLSMALLINT utf16_len) {
 	std::vector<SQLCHAR> vec;
 	size_t utf8_len_sizet = static_cast<size_t>(utf16_len) * utf8_byte_len_coef;
@@ -89,20 +97,16 @@ std::vector<SQLCHAR> utf8_alloc_out_vec(SQLSMALLINT utf16_len) {
 	return vec;
 }
 
-template <typename INT_TYPE>
-static void utf16_write_str_internal(SQLRETURN ret, const std::vector<SQLCHAR> &utf8_vec, SQLWCHAR *utf16_str_out,
-                                     SQLLEN buffer_len_chars, INT_TYPE *len_out_chars) {
+size_t utf16_write_str(SQLRETURN ret, const std::vector<SQLCHAR> &utf8_vec, SQLWCHAR *utf16_str_out,
+                       SQLLEN buffer_len_chars) {
 	// DB operation failed
 	if (!SQL_SUCCEEDED(ret)) {
-		return;
+		return 0;
 	}
 
 	// No data to write
 	if (utf8_vec.size() == 0 || buffer_len_chars <= 0) {
-		if (len_out_chars != nullptr) {
-			*len_out_chars = 0;
-		}
-		return;
+		return 0;
 	}
 
 	// Find out the first NULL terminator
@@ -113,10 +117,7 @@ static void utf16_write_str_internal(SQLRETURN ret, const std::vector<SQLCHAR> &
 		if (utf16_str_out != nullptr) {
 			utf16_str_out[0] = 0;
 		}
-		if (len_out_chars != nullptr) {
-			*len_out_chars = 0;
-		}
-		return;
+		return 0;
 	}
 
 	// Convert and write UTF-16 string
@@ -126,19 +127,8 @@ static void utf16_write_str_internal(SQLRETURN ret, const std::vector<SQLCHAR> &
 		std::memcpy(utf16_str_out, utf16_vec.data(), len_chars * sizeof(SQLWCHAR));
 		utf16_str_out[len_chars] = 0;
 	}
-	if (len_out_chars != nullptr) {
-		*len_out_chars = static_cast<INT_TYPE>(len_chars);
-	}
-}
 
-void utf16_write_str(SQLRETURN ret, const std::vector<SQLCHAR> &utf8_vec, SQLWCHAR *utf16_str_out,
-                     SQLLEN buffer_len_chars, SQLSMALLINT *len_out_chars) {
-	return utf16_write_str_internal(ret, utf8_vec, utf16_str_out, buffer_len_chars, len_out_chars);
-}
-
-void utf16_write_str(SQLRETURN ret, const std::vector<SQLCHAR> &utf8_vec, SQLWCHAR *utf16_str_out,
-                     SQLLEN buffer_len_chars, SQLINTEGER *len_out_chars) {
-	return utf16_write_str_internal(ret, utf8_vec, utf16_str_out, buffer_len_chars, len_out_chars);
+	return len_chars;
 }
 
 utf16_conv::utf16_conv(SQLWCHAR *utf16_str, SQLLEN utf16_str_len) {

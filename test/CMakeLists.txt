@@ -33,6 +33,7 @@ add_executable(
   tests/test_num_result_cols.cpp
   tests/test_select.cpp
   tests/test_session_init.cpp
+  tests/test_truncation.cpp
   tests/test_timestamp.cpp
   tests/test_unbound_params.cpp
   tests/test_widechar_conv.cpp
