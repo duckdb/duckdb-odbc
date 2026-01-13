@@ -330,9 +330,7 @@ TEST_CASE("Test utf16_write_str function", "[odbc_widechar]") {
 		// original client-provided widechar buffer, we need to write there converted API call result
 		std::vector<SQLWCHAR> out;
 		out.resize(100);
-		// len is the total number of characters (excluding the null-termination character) available to return
-		SQLSMALLINT len = -1;
-		utf16_write_str(SQL_SUCCESS, vec, out.data(), out.size(), &len);
+		size_t len = utf16_write_str(SQL_SUCCESS, vec, out.data(), out.size());
 		REQUIRE(len == hello_bg_utf16.size());
 		REQUIRE(out[len] == 0);
 		REQUIRE(std::equal(hello_bg_utf16.begin(), hello_bg_utf16.end(), out.data()));
@@ -344,8 +342,7 @@ TEST_CASE("Test utf16_write_str function", "[odbc_widechar]") {
 		out.resize(100);
 		// len is the total number of characters (excluding the null-termination character) available to return
 		SQLLEN buf_len = hello_bg_utf16.size() - 1;
-		SQLSMALLINT len = -1;
-		utf16_write_str(SQL_SUCCESS, vec, out.data(), buf_len, &len);
+		size_t len = utf16_write_str(SQL_SUCCESS, vec, out.data(), buf_len);
 		REQUIRE(len == buf_len - 1);
 		REQUIRE(out[len] == 0);
 		REQUIRE(std::equal(hello_bg_utf16.begin(), hello_bg_utf16.end() - 2, out.data()));
@@ -356,8 +353,7 @@ TEST_CASE("Test utf16_write_str function", "[odbc_widechar]") {
 		empty.push_back(0);
 		std::vector<SQLWCHAR> out_empty;
 		out_empty.push_back(42);
-		SQLSMALLINT len = 42;
-		utf16_write_str(SQL_SUCCESS, empty, out_empty.data(), 1, &len);
+		size_t len = utf16_write_str(SQL_SUCCESS, empty, out_empty.data(), 1);
 		REQUIRE(out_empty[0] == 0);
 		REQUIRE(len == 0);
 	}
@@ -366,8 +362,7 @@ TEST_CASE("Test utf16_write_str function", "[odbc_widechar]") {
 		std::vector<SQLCHAR> nodata;
 		std::vector<SQLWCHAR> out_untouched;
 		out_untouched.push_back(42);
-		SQLSMALLINT len = -1;
-		utf16_write_str(SQL_SUCCESS, nodata, out_untouched.data(), 0, &len);
+		size_t len = utf16_write_str(SQL_SUCCESS, nodata, out_untouched.data(), 0);
 		REQUIRE(out_untouched[0] == 42);
 		REQUIRE(len == 0);
 	}

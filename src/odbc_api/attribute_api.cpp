@@ -135,6 +135,54 @@ SQLRETURN SQL_API SQLSetEnvAttr(SQLHENV environment_handle, SQLINTEGER attribute
 	}
 }
 
+static SQLRETURN WriteStringConnAttr(duckdb::OdbcHandleDbc *dbc, const std::string &str,
+                                     SQLCHAR *character_attribute_ptr, SQLINTEGER buffer_length,
+                                     SQLINTEGER *string_length) {
+	if (buffer_length < 0) {
+		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLGetConnectAttr", "Invalid string or buffer length",
+		                                   SQLStateType::ST_HY090, dbc->GetDataSourceName());
+	}
+
+	size_t written =
+	    duckdb::OdbcUtils::WriteStringUtf8(str, character_attribute_ptr, static_cast<size_t>(buffer_length));
+
+	if (string_length != nullptr) {
+		*string_length = static_cast<SQLINTEGER>(str.length());
+	}
+
+	if (character_attribute_ptr != nullptr && written < str.length()) {
+		return duckdb::SetDiagnosticRecord(dbc, SQL_SUCCESS_WITH_INFO, "SQLGetConnectAttr",
+		                                   "String data, right truncated", SQLStateType::ST_01004,
+		                                   dbc->GetDataSourceName());
+	}
+
+	return SQL_SUCCESS;
+}
+
+static SQLRETURN WriteStringConnAttr(duckdb::OdbcHandleDbc *dbc, const std::string &str,
+                                     SQLWCHAR *character_attribute_ptr, SQLINTEGER buffer_length,
+                                     SQLINTEGER *string_length) {
+	if (buffer_length < 0) {
+		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLGetConnectAttr", "Invalid string or buffer length",
+		                                   SQLStateType::ST_HY090, dbc->GetDataSourceName());
+	}
+
+	auto tup = duckdb::OdbcUtils::WriteStringUtf16(str, character_attribute_ptr, static_cast<size_t>(buffer_length));
+	size_t written = tup.first;
+	auto &utf16_vec = tup.second;
+
+	if (string_length != nullptr) {
+		*string_length = static_cast<SQLINTEGER>(utf16_vec.size());
+	}
+
+	if (character_attribute_ptr != nullptr && written < utf16_vec.size()) {
+		return duckdb::SetDiagnosticRecord(dbc, SQL_SUCCESS_WITH_INFO, "SQLGetConnectAttr",
+		                                   "String data, right truncated", SQLStateType::ST_01004,
+		                                   dbc->GetDataSourceName());
+	}
+	return SQL_SUCCESS;
+}
+
 //===--------------------------------------------------------------------===//
 // SQLGetConnectAttr
 //===--------------------------------------------------------------------===//
@@ -159,9 +207,8 @@ static SQLRETURN GetConnectAttrInternal(SQLHDBC connection_handle, SQLINTEGER at
 		return SQL_SUCCESS;
 	}
 	case SQL_ATTR_CURRENT_CATALOG: {
-		duckdb::OdbcUtils::WriteString(dbc->sql_attr_current_catalog, reinterpret_cast<CHAR_TYPE *>(value_ptr),
-		                               buffer_length, string_length_ptr);
-		return SQL_SUCCESS;
+		return WriteStringConnAttr(dbc, dbc->sql_attr_current_catalog, reinterpret_cast<CHAR_TYPE *>(value_ptr),
+		                           buffer_length, string_length_ptr);
 	}
 #ifdef SQL_ATTR_ASYNC_DBC_EVENT
 	case SQL_ATTR_ASYNC_DBC_EVENT:
@@ -221,7 +268,12 @@ SQLRETURN SQL_API SQLGetConnectAttr(SQLHDBC connection_handle, SQLINTEGER attrib
  */
 SQLRETURN SQL_API SQLGetConnectAttrW(SQLHDBC connection_handle, SQLINTEGER attribute, SQLPOINTER value_ptr,
                                      SQLINTEGER buffer_length, SQLINTEGER *string_length_ptr) {
-	return GetConnectAttrInternal<SQLWCHAR>(connection_handle, attribute, value_ptr, buffer_length, string_length_ptr);
+	SQLRETURN ret =
+	    GetConnectAttrInternal<SQLWCHAR>(connection_handle, attribute, value_ptr, buffer_length, string_length_ptr);
+	if (SQL_SUCCEEDED(ret) && string_length_ptr != nullptr) {
+		*string_length_ptr = static_cast<SQLINTEGER>(*string_length_ptr * sizeof(SQLWCHAR));
+	}
+	return ret;
 }
 
 //===--------------------------------------------------------------------===//

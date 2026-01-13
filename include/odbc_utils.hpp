@@ -19,38 +19,20 @@
 #include <sql.h>
 #include <sqltypes.h>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "duckdb/common/vector.hpp"
 
 namespace duckdb {
 struct OdbcUtils {
 public:
-	template <typename INT_TYPE, typename CHAR_TYPE=SQLCHAR>
-	static void WriteString(const std::string &s, CHAR_TYPE *out_buf, SQLLEN buf_len, INT_TYPE *out_len = nullptr) {
-		INT_TYPE written_chars = 0;
-		if (out_buf != nullptr) {
-			written_chars = (INT_TYPE)snprintf((char *)out_buf, buf_len, "%s", s.c_str());
-		}
-		if (out_len != nullptr) {
-			*out_len = written_chars;
-		}
-	}
-	// overload for int to pass a null pointer
-	static void WriteString(const std::string &s, SQLCHAR *out_buf, SQLLEN buf_len) {
-		WriteString<int>(s, out_buf, buf_len, nullptr);
-	}
 
-	// overload for widechar and small int
-	static void WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes);
+	// Returns number of bytes written to the buffer
+	static size_t WriteStringUtf8(const std::string &s, SQLCHAR *out_buf, size_t buf_len);
 
-	// overload for widechar and int
-	static void WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
-
-	// overload for widechar and smallint with NULL-terminated vector input
-	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes);
-
-	// overload for widechar and int with NULL-terminated vector input
-	static void WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf, SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes);
+	// Returns number of chars written to the buffer and the utf16 conversion of the input string
+	static std::pair<size_t, std::vector<SQLWCHAR>> WriteStringUtf16(const std::string &utf8_str, SQLWCHAR *out_buf, size_t buf_len_bytes);
 
 	template <typename VAL_INT_TYPE, typename LEN_INT_TYPE=SQLSMALLINT>
 	static void StoreWithLength(VAL_INT_TYPE val, SQLPOINTER ptr, LEN_INT_TYPE *length_ptr) {
