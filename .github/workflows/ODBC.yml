@@ -509,7 +509,7 @@ jobs:
       CC: 'ccache clang'
       CXX: 'ccache clang++'
       CCACHE_DIR: ${{ github.workspace }}/ccache
-      ODBC_CONFIG: ../../build/unixodbc/build/bin/odbc_config
+      ODBC_CONFIG: ${{ github.workspace }}/build/unixodbc/build/bin/odbc_config
       OSX_BUILD_UNIVERSAL: 1
     needs: odbc-linux-amd64
     steps:
@@ -549,6 +549,10 @@ jobs:
       - name: Build
         shell: bash
         run: make release
+
+      - name: List Dependencies
+        run: |
+          otool -L ./build/release/libduckdb_odbc.dylib
 
       - name: List Symbols
         run: |
