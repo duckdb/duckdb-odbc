@@ -276,54 +276,45 @@ SQLCHAR *OdbcUtils::ConvertStringToSQLCHAR(const std::string &str) {
 	return reinterpret_cast<SQLCHAR *>(const_cast<char *>(str.c_str()));
 }
 
-template <typename INT_TYPE>
-static void WriteStringInternal(const SQLCHAR *utf8_data, size_t utf8_data_len, SQLWCHAR *out_buf, SQLLEN buf_len,
-                                INT_TYPE *out_len) {
-	auto utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(utf8_data, utf8_data_len);
-	size_t buf_len_even = static_cast<size_t>(buf_len);
-	if ((buf_len % 2) != 0) {
-		buf_len_even -= 1;
-	}
-	if (buf_len_even <= sizeof(SQLWCHAR)) {
-		if (out_buf != nullptr && buf_len_even == sizeof(SQLWCHAR)) {
-			out_buf[0] = 0;
-		}
-		if (out_len != nullptr) {
-			*out_len = 0;
-			return;
-		}
-	}
-	size_t len_bytes = std::min(utf16_vec.size() * sizeof(SQLWCHAR), buf_len_even - sizeof(SQLWCHAR));
-	size_t len_chars = len_bytes / sizeof(SQLWCHAR);
+size_t OdbcUtils::WriteStringUtf8(const std::string &str, SQLCHAR *out_buf, size_t buf_len) {
 	if (out_buf != nullptr) {
-		std::memcpy(out_buf, utf16_vec.data(), len_bytes);
-		out_buf[len_chars] = 0;
+		size_t len_bytes = std::min(str.length(), static_cast<size_t>(buf_len) - 1);
+		std::memcpy(out_buf, str.c_str(), len_bytes);
+		out_buf[len_bytes] = '\0';
+		return len_bytes;
 	}
-	if (out_len != nullptr) {
-		*out_len = static_cast<INT_TYPE>(len_bytes);
+
+	return 0;
+}
+
+std::pair<size_t, std::vector<SQLWCHAR>> OdbcUtils::WriteStringUtf16(const std::string &utf8_str, SQLWCHAR *out_buf,
+                                                                     size_t buf_len_bytes) {
+	auto utf16_vec =
+	    duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(utf8_str.c_str()), utf8_str.length());
+
+	if (out_buf != nullptr) {
+		size_t buf_len_even = static_cast<size_t>(buf_len_bytes);
+		if ((buf_len_bytes % 2) != 0) {
+			buf_len_even -= 1;
+		}
+		if (buf_len_even <= sizeof(SQLWCHAR)) {
+			if (out_buf != nullptr && buf_len_even == sizeof(SQLWCHAR)) {
+				out_buf[0] = 0;
+			}
+			return std::make_pair(0, std::move(utf16_vec));
+		}
+
+		size_t len_bytes = std::min(utf16_vec.size() * sizeof(SQLWCHAR), buf_len_even - sizeof(SQLWCHAR));
+		size_t len_chars = len_bytes / sizeof(SQLWCHAR);
+		if (out_buf != nullptr) {
+			std::memcpy(out_buf, utf16_vec.data(), len_bytes);
+			out_buf[len_chars] = 0;
+		}
+
+		return std::make_pair(len_chars, std::move(utf16_vec));
 	}
-}
 
-void duckdb::OdbcUtils::WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes,
-                                    SQLSMALLINT *out_len_bytes) {
-	return WriteStringInternal(reinterpret_cast<const SQLCHAR *>(utf8_str.c_str()), utf8_str.length(), out_buf,
-	                           buf_len_bytes, out_len_bytes);
-}
-
-void duckdb::OdbcUtils::WriteString(const std::string &utf8_str, SQLWCHAR *out_buf, SQLLEN buf_len_bytes,
-                                    SQLINTEGER *out_len_bytes) {
-	return WriteStringInternal(reinterpret_cast<const SQLCHAR *>(utf8_str.c_str()), utf8_str.length(), out_buf,
-	                           buf_len_bytes, out_len_bytes);
-}
-
-void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf,
-                                    SQLLEN buf_len_bytes, SQLSMALLINT *out_len_bytes) {
-	return WriteStringInternal(utf8_vec.data(), utf8_vec_len, out_buf, buf_len_bytes, out_len_bytes);
-}
-
-void duckdb::OdbcUtils::WriteString(const std::vector<SQLCHAR> &utf8_vec, size_t utf8_vec_len, SQLWCHAR *out_buf,
-                                    SQLLEN buf_len_bytes, SQLINTEGER *out_len_bytes) {
-	return WriteStringInternal(utf8_vec.data(), utf8_vec_len, out_buf, buf_len_bytes, out_len_bytes);
+	return std::make_pair(0, std::move(utf16_vec));
 }
 
 int64_t duckdb::OdbcUtils::GetUTCOffsetMicrosFromOS(HSTMT hstmt_ptr, int64_t utc_micros) {

@@ -126,12 +126,15 @@ SQLRETURN SQL_API SQLDriverConnectW(SQLHDBC connection_handle, SQLHWND window_ha
                                     SQLUSMALLINT driver_completion) {
 	auto in_connection_string_conv = duckdb::widechar::utf16_conv(in_connection_string, string_length1);
 	auto out_connection_string_vec = duckdb::widechar::utf8_alloc_out_vec(buffer_length);
-	auto ret = DriverConnectInternal(connection_handle, window_handle, in_connection_string_conv.utf8_str,
-	                                 in_connection_string_conv.utf8_len_smallint(), out_connection_string_vec.data(),
-	                                 static_cast<SQLSMALLINT>(out_connection_string_vec.size()), string_length2_ptr,
-	                                 driver_completion);
-	duckdb::widechar::utf16_write_str(ret, out_connection_string_vec, out_connection_string, buffer_length,
-	                                  string_length2_ptr);
+	auto ret =
+	    DriverConnectInternal(connection_handle, window_handle, in_connection_string_conv.utf8_str,
+	                          in_connection_string_conv.utf8_len_smallint(), out_connection_string_vec.data(),
+	                          static_cast<SQLSMALLINT>(out_connection_string_vec.size()), nullptr, driver_completion);
+	size_t written =
+	    duckdb::widechar::utf16_write_str(ret, out_connection_string_vec, out_connection_string, buffer_length);
+	if (string_length2_ptr != nullptr) {
+		*string_length2_ptr = static_cast<SQLSMALLINT>(written);
+	}
 	return ret;
 }
 
