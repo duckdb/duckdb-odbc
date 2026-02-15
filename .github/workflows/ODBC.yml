@@ -14,10 +14,6 @@ env:
   GH_TOKEN: ${{ secrets.GH_TOKEN }}
   OVERRIDE_GIT_DESCRIBE: ${{ inputs.override_git_describe }}
 
-concurrency:
-  group: ODBC-${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}-${{ inputs.override_git_describe }}
-  cancel-in-progress: true
-
 jobs:
   odbc-linux-amd64:
     name: Linux (amd64)
@@ -65,6 +61,12 @@ jobs:
             source /opt/rh/gcc-toolset-12/enable
             make -C /duckdb release
           "
+    
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }} 
 
       - name: List Symbols
         run: |
@@ -99,12 +101,6 @@ jobs:
           name: odbc-linux-amd64
           path: |
             duckdb_odbc-linux-amd64.zip
-    
-      - name: Save Cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ github.workspace }}/ccache
-          key: ${{ steps.cache_key.outputs.value }} 
 
   odbc-linux-aarch64:
     name: Linux (aarch64)
@@ -155,6 +151,12 @@ jobs:
             make -C /duckdb release
           "
 
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
       - name: List Symbols
         run: |
           nm -gU ./build/release/libduckdb_odbc.so
@@ -191,12 +193,6 @@ jobs:
           path: |
             duckdb_odbc-linux-arm64.zip
 
-      - name: Save Cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ github.workspace }}/ccache
-          key: ${{ steps.cache_key.outputs.value }}
-
   odbc-windows-amd64:
     name: Windows (amd64)
     runs-on: windows-latest
@@ -218,6 +214,7 @@ jobs:
         shell: bash
         run: |
           choco install \
+            ccache \
             wget \
             zip \
             -y --force --no-progress
@@ -246,6 +243,12 @@ jobs:
           cd release
           cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }} 
 
       - name: List Symbols
         shell: cmd
@@ -346,12 +349,6 @@ jobs:
           path: |
             duckdb_odbc-windows-amd64.zip
 
-      - name: Save Cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ github.workspace }}/ccache
-          key: ${{ steps.cache_key.outputs.value }} 
-
   odbc-windows-arm64:
     name: Windows (aarch64)
     runs-on: windows-11-arm
@@ -402,6 +399,12 @@ jobs:
           cd release
           cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }} 
 
       - name: List Symbols
         shell: cmd
@@ -495,12 +498,6 @@ jobs:
           path: |
             duckdb_odbc-windows-arm64.zip
 
-      - name: Save Cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ github.workspace }}/ccache
-          key: ${{ steps.cache_key.outputs.value }} 
-
   odbc-osx-universal:
     name: macOS (Universal)
     runs-on: macos-14
@@ -550,6 +547,12 @@ jobs:
         shell: bash
         run: make release
 
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
       - name: List Dependencies
         run: |
           otool -L ./build/release/libduckdb_odbc.dylib
@@ -583,12 +586,6 @@ jobs:
           name: odbc-osx-universal
           path: |
             duckdb_odbc-osx-universal.zip
-
-      - name: Save Cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ github.workspace }}/ccache
-          key: ${{ steps.cache_key.outputs.value }}
 
   debug:
     name: Debug Tests
@@ -653,6 +650,12 @@ jobs:
         shell: bash
         run: make debug
 
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}-debug
+
       - name: Test Standard ODBC tests
         shell: bash
         run:  build/debug/test/test_odbc
@@ -684,12 +687,6 @@ jobs:
         shell: bash
         working-directory: ./test/tests/dotnet-linux
         run: dotnet run
-
-      - name: Save Cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ github.workspace }}/ccache
-          key: ${{ steps.cache_key.outputs.value }}-debug
 
   odbc-merge-vendoring-pr:
     name: Merge vendoring PR 
