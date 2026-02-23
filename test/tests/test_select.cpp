@@ -156,3 +156,64 @@ TEST_CASE("Test Empty String", "[odbc]") {
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test VARIANT", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	EXECUTE_AND_CHECK(
+	    "SQLExecDirect (VARIANT)", hstmt, SQLExecDirect, hstmt,
+	    ConvertToSQLCHAR("SELECT 'foo'::VARCHAR::VARIANT AS col1, NULL::VARIANT AS col2, 42::INTEGER::VARIANT AS col3"),
+	    SQL_NTS);
+
+	SQLLEN sql_type = 0;
+	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 3, SQL_DESC_CONCISE_TYPE, nullptr, 0, nullptr,
+	                  &sql_type);
+	REQUIRE(sql_type == SQL_VARCHAR);
+
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+
+	{
+		std::vector<char> fetched;
+		fetched.resize(64);
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_CHAR, fetched.data(), fetched.size(),
+		                  nullptr);
+		REQUIRE(std::string(fetched.data()) == "foo");
+	}
+
+	{
+		std::vector<char> fetched;
+		fetched.resize(64);
+		SQLLEN ind = 0;
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 2, SQL_C_CHAR, fetched.data(), fetched.size(), &ind);
+		REQUIRE(ind == SQL_NULL_DATA);
+	}
+
+	{
+		std::vector<char> fetched;
+		fetched.resize(64);
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 3, SQL_C_CHAR, fetched.data(), fetched.size(),
+		                  nullptr);
+		REQUIRE(std::string(fetched.data()) == "42");
+	}
+
+	{
+		int32_t fetched = 0;
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 3, SQL_C_LONG, &fetched, sizeof(fetched), nullptr);
+		REQUIRE(fetched == 42);
+	}
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
