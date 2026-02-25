@@ -217,3 +217,41 @@ TEST_CASE("Test VARIANT", "[odbc]") {
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test core GEOMETRY", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("CREATE TABLE t1 (g GEOMETRY('OGC:CRS84'))"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("INSERT INTO t1 VALUES('POINT(41.1 42.2)'::GEOMETRY)"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR("SELECT g FROM t1"), SQL_NTS);
+
+	SQLLEN sql_type = 0;
+	EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, 1, SQL_DESC_CONCISE_TYPE, nullptr, 0, nullptr,
+	                  &sql_type);
+	REQUIRE(sql_type == SQL_VARBINARY);
+
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+
+	std::vector<char> fetched;
+	fetched.resize(64);
+	SQLLEN len = 0;
+	EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_CHAR, fetched.data(), fetched.size(), &len);
+	REQUIRE(len == 17);
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}

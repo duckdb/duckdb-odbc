@@ -214,6 +214,7 @@ SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb::LogicalTypeId type_id) {
 	case LogicalTypeId::VARCHAR:
 		return SQL_VARCHAR;
 	case LogicalTypeId::BLOB:
+	case LogicalTypeId::GEOMETRY:
 		return SQL_VARBINARY;
 	case LogicalTypeId::INTERVAL:
 		return SQL_INTERVAL;
