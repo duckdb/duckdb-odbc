@@ -192,7 +192,7 @@ void ColumnScanState::PushDownCast(const LogicalType &original_type, const Logic
 	D_ASSERT(!expression_state);
 	auto &client_context = *context.GetClientContext();
 
-	auto input = make_uniq<BoundReferenceExpression>(original_type, 0);
+	auto input = make_uniq<BoundReferenceExpression>(original_type, 0ULL);
 	auto cast_expression = BoundCastExpression::AddCastToType(client_context, std::move(input), cast_type);
 	expression_state = make_uniq<PushedDownExpressionState>(client_context);
 	expression_state->target.Initialize(client_context, {cast_type});
@@ -1266,6 +1266,9 @@ RowGroupPointer RowGroup::Checkpoint(RowGroupWriteData write_data, RowGroupWrite
 	vector<MetaBlockPointer> column_metadata;
 	unordered_set<idx_t> metadata_blocks;
 	writer.StartWritingColumns(column_metadata);
+
+	auto serialization_options = SerializationOptions(writer.GetAttachedDatabase());
+
 	for (auto &state : write_data.states) {
 		// get the current position of the table data writer
 		auto &data_writer = writer.GetPayloadWriter();
@@ -1283,7 +1286,8 @@ RowGroupPointer RowGroup::Checkpoint(RowGroupWriteData write_data, RowGroupWrite
 		// increment the "start" in all data pointers by the row group start
 		// FIXME: this is only necessary when targeting old serialization
 		IncrementSegmentStart(persistent_data, row_group_start);
-		BinarySerializer serializer(data_writer);
+
+		BinarySerializer serializer(data_writer, serialization_options);
 		serializer.Begin();
 		persistent_data.Serialize(serializer);
 		serializer.End();
