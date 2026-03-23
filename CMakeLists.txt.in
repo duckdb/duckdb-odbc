@@ -5,7 +5,7 @@ project(duckdb-odbc C CXX)
 find_package(ODBC)
 find_package(Threads REQUIRED)
 
-set(CMAKE_CXX_STANDARD "11" CACHE STRING "C++ standard to enforce")
+set(CMAKE_CXX_STANDARD "17" CACHE STRING "C++ standard to enforce")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
