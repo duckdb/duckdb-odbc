@@ -258,9 +258,13 @@ SQLLEN ApiInfo::PointerSizeOf(SQLSMALLINT sql_type) {
 	case SQL_C_UBIGINT:
 		return sizeof(uint64_t);
 	case SQL_C_NUMERIC:
+		return sizeof(SQL_NUMERIC_STRUCT);
 	case SQL_C_TYPE_DATE:
+		return sizeof(SQL_DATE_STRUCT);
 	case SQL_C_TYPE_TIME:
+		return sizeof(SQL_TIME_STRUCT);
 	case SQL_C_TYPE_TIMESTAMP:
+		return sizeof(SQL_TIMESTAMP_STRUCT);
 	case SQL_C_INTERVAL_YEAR:
 	case SQL_C_INTERVAL_MONTH:
 	case SQL_C_INTERVAL_DAY:
@@ -274,7 +278,7 @@ SQLLEN ApiInfo::PointerSizeOf(SQLSMALLINT sql_type) {
 	case SQL_C_INTERVAL_HOUR_TO_MINUTE:
 	case SQL_C_INTERVAL_HOUR_TO_SECOND:
 	case SQL_C_INTERVAL_MINUTE_TO_SECOND:
-		return sizeof(uint64_t);
+		return sizeof(SQL_INTERVAL_STRUCT);
 	case SQL_C_BIT:
 		return sizeof(char);
 	case SQL_C_WCHAR:
