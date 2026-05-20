@@ -56,7 +56,7 @@ jobs:
         working-directory: .git/duckdb
         run: |
           patch -p1 < ${{ github.workspace }}/local/vendoring/jemalloc_packaging.patch
-          git diff HEA
+          git diff HEAD
 
       - name: Vendor sources
         if: ${{ steps.apply_local_patches.outcome == 'success' }}
