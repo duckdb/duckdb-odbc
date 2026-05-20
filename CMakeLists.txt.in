@@ -14,6 +14,23 @@ if(NOT ODBC_FOUND)
   message(FATAL_ERROR "No ODBC found; you need to install unixodbc-dev.")
 endif()
 
+# variables set by vendor.py
+
+set(DUCKDB_INCLUDE_DIRS
+  ${INCLUDES})
+
+set(JEMALLOC_INCLUDE_DIRS
+  ${JEMALLOC_INCLUDES})
+
+set(DUCKDB_DEFINITIONS
+  ${DEFINES})
+
+set(DUCKDB_SRC_FILES 
+  ${SOURCES})
+
+set(JEMALLOC_SRC_FILES 
+  ${JEMALLOC_SOURCES})
+
 set(LINK_LIB_LIST "")
 
 if(ODBC_FOUND)
@@ -53,13 +70,16 @@ if(OSX_BUILD_UNIVERSAL)
   SET(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build architectures for Mac OS X" FORCE)
 endif()
 
-add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DEFINES})
+add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DUCKDB_DEFINITIONS})
 
-include_directories(src/duckdb/src/include/ ${INCLUDE_FILES} ${ODBC_INCLUDE_DIRS} include third_party)
+include_directories(src/duckdb/src/include/ ${DUCKDB_INCLUDE_DIRS} ${ODBC_INCLUDE_DIRS} include third_party)
 
 add_subdirectory(src)
 
-set(CORE_OBJECT_FILES ${SOURCE_FILES})
+set(CORE_OBJECT_FILES ${DUCKDB_SRC_FILES})
+if(NOT WIN32)
+  list(APPEND CORE_OBJECT_FILES ${JEMALLOC_SRC_FILES})
+endif()
 
 add_library(duckdb_core_obj OBJECT ${CORE_OBJECT_FILES})
 target_compile_definitions(duckdb_core_obj PRIVATE 
@@ -68,6 +88,9 @@ target_compile_definitions(duckdb_core_obj PRIVATE
   -DDUCKDB_EXTENSION_AUTOINSTALL_DEFAULT )
 if(WIN32)
   target_compile_options(duckdb_core_obj PRIVATE /bigobj)
+else()
+  target_compile_options(duckdb_core_obj PRIVATE -DDUCKDB_ENABLE_JEMALLOC)
+  target_include_directories(duckdb_core_obj PRIVATE ${JEMALLOC_INCLUDE_DIRS})
 endif()
 
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_core_obj>)
