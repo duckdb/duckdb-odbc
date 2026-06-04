@@ -72,6 +72,7 @@
 #include "duckdb/common/enums/stream_execution_result.hpp"
 #include "duckdb/common/enums/subquery_type.hpp"
 #include "duckdb/common/enums/tableref_type.hpp"
+#include "duckdb/common/enums/task_scheduler_type.hpp"
 #include "duckdb/common/enums/thread_pin_mode.hpp"
 #include "duckdb/common/enums/trigger_type.hpp"
 #include "duckdb/common/enums/tuple_data_layout_enums.hpp"
@@ -203,10 +204,12 @@
 #include "duckdb/storage/statistics/variant_stats.hpp"
 #include "duckdb/storage/storage_index.hpp"
 #include "duckdb/storage/storage_info.hpp"
+#include "duckdb/storage/storage_options.hpp"
 #include "duckdb/storage/table/chunk_info.hpp"
 #include "duckdb/storage/table/column_data.hpp"
 #include "duckdb/storage/table/column_segment.hpp"
 #include "duckdb/storage/table/row_group_reorderer.hpp"
+#include "duckdb/storage/table/segment_tree.hpp"
 #include "duckdb/storage/table/table_index_list.hpp"
 #include "duckdb/storage/temporary_file_manager.hpp"
 
@@ -2325,6 +2328,25 @@ FileGlobOptions EnumUtil::FromString<FileGlobOptions>(const char *value) {
 	return static_cast<FileGlobOptions>(StringUtil::StringToEnum(GetFileGlobOptionsValues(), 3, "FileGlobOptions", value));
 }
 
+const StringUtil::EnumStringLiteral *GetFileIOModeValues() {
+	static constexpr StringUtil::EnumStringLiteral values[] {
+		{ static_cast<uint32_t>(FileIOMode::BUFFERED_IO), "BUFFERED_IO" },
+		{ static_cast<uint32_t>(FileIOMode::MMAP), "MMAP" },
+		{ static_cast<uint32_t>(FileIOMode::DIRECT_IO), "DIRECT_IO" }
+	};
+	return values;
+}
+
+template<>
+const char* EnumUtil::ToChars<FileIOMode>(FileIOMode value) {
+	return StringUtil::EnumToString(GetFileIOModeValues(), 3, "FileIOMode", static_cast<uint32_t>(value));
+}
+
+template<>
+FileIOMode EnumUtil::FromString<FileIOMode>(const char *value) {
+	return static_cast<FileIOMode>(StringUtil::StringToEnum(GetFileIOModeValues(), 3, "FileIOMode", value));
+}
+
 const StringUtil::EnumStringLiteral *GetFileLockTypeValues() {
 	static constexpr StringUtil::EnumStringLiteral values[] {
 		{ static_cast<uint32_t>(FileLockType::NO_LOCK), "NO_LOCK" },
@@ -2919,6 +2941,24 @@ const char* EnumUtil::ToChars<LimitNodeType>(LimitNodeType value) {
 template<>
 LimitNodeType EnumUtil::FromString<LimitNodeType>(const char *value) {
 	return static_cast<LimitNodeType>(StringUtil::StringToEnum(GetLimitNodeTypeValues(), 5, "LimitNodeType", value));
+}
+
+const StringUtil::EnumStringLiteral *GetLimitValueTypeValues() {
+	static constexpr StringUtil::EnumStringLiteral values[] {
+		{ static_cast<uint32_t>(LimitValueType::ROW_COUNT), "ROW_COUNT" },
+		{ static_cast<uint32_t>(LimitValueType::PERCENTAGE), "PERCENTAGE" }
+	};
+	return values;
+}
+
+template<>
+const char* EnumUtil::ToChars<LimitValueType>(LimitValueType value) {
+	return StringUtil::EnumToString(GetLimitValueTypeValues(), 2, "LimitValueType", static_cast<uint32_t>(value));
+}
+
+template<>
+LimitValueType EnumUtil::FromString<LimitValueType>(const char *value) {
+	return static_cast<LimitValueType>(StringUtil::StringToEnum(GetLimitValueTypeValues(), 2, "LimitValueType", value));
 }
 
 const StringUtil::EnumStringLiteral *GetLoadTypeValues() {
@@ -4502,7 +4542,7 @@ const StringUtil::EnumStringLiteral *GetResultModifierTypeValues() {
 		{ static_cast<uint32_t>(ResultModifierType::LIMIT_MODIFIER), "LIMIT_MODIFIER" },
 		{ static_cast<uint32_t>(ResultModifierType::ORDER_MODIFIER), "ORDER_MODIFIER" },
 		{ static_cast<uint32_t>(ResultModifierType::DISTINCT_MODIFIER), "DISTINCT_MODIFIER" },
-		{ static_cast<uint32_t>(ResultModifierType::LIMIT_PERCENT_MODIFIER), "LIMIT_PERCENT_MODIFIER" }
+		{ static_cast<uint32_t>(ResultModifierType::LEGACY_LIMIT_PERCENT_MODIFIER), "LEGACY_LIMIT_PERCENT_MODIFIER" }
 	};
 	return values;
 }
@@ -4665,6 +4705,24 @@ const char* EnumUtil::ToChars<SecretSerializationType>(SecretSerializationType v
 template<>
 SecretSerializationType EnumUtil::FromString<SecretSerializationType>(const char *value) {
 	return static_cast<SecretSerializationType>(StringUtil::StringToEnum(GetSecretSerializationTypeValues(), 2, "SecretSerializationType", value));
+}
+
+const StringUtil::EnumStringLiteral *GetSegmentTreeVerifyModeValues() {
+	static constexpr StringUtil::EnumStringLiteral values[] {
+		{ static_cast<uint32_t>(SegmentTreeVerifyMode::CONTIGUOUS), "CONTIGUOUS" },
+		{ static_cast<uint32_t>(SegmentTreeVerifyMode::NON_OVERLAPPING), "NON_OVERLAPPING" }
+	};
+	return values;
+}
+
+template<>
+const char* EnumUtil::ToChars<SegmentTreeVerifyMode>(SegmentTreeVerifyMode value) {
+	return StringUtil::EnumToString(GetSegmentTreeVerifyModeValues(), 2, "SegmentTreeVerifyMode", static_cast<uint32_t>(value));
+}
+
+template<>
+SegmentTreeVerifyMode EnumUtil::FromString<SegmentTreeVerifyMode>(const char *value) {
+	return static_cast<SegmentTreeVerifyMode>(StringUtil::StringToEnum(GetSegmentTreeVerifyModeValues(), 2, "SegmentTreeVerifyMode", value));
 }
 
 const StringUtil::EnumStringLiteral *GetSelectivityOptionalFilterTypeValues() {
@@ -5527,6 +5585,25 @@ const char* EnumUtil::ToChars<TaskExecutionResult>(TaskExecutionResult value) {
 template<>
 TaskExecutionResult EnumUtil::FromString<TaskExecutionResult>(const char *value) {
 	return static_cast<TaskExecutionResult>(StringUtil::StringToEnum(GetTaskExecutionResultValues(), 4, "TaskExecutionResult", value));
+}
+
+const StringUtil::EnumStringLiteral *GetTaskSchedulerTypeValues() {
+	static constexpr StringUtil::EnumStringLiteral values[] {
+		{ static_cast<uint32_t>(TaskSchedulerType::REGULAR), "REGULAR" },
+		{ static_cast<uint32_t>(TaskSchedulerType::ASYNC), "ASYNC" },
+		{ static_cast<uint32_t>(TaskSchedulerType::ENUM_SIZE), "ENUM_SIZE" }
+	};
+	return values;
+}
+
+template<>
+const char* EnumUtil::ToChars<TaskSchedulerType>(TaskSchedulerType value) {
+	return StringUtil::EnumToString(GetTaskSchedulerTypeValues(), 3, "TaskSchedulerType", static_cast<uint32_t>(value));
+}
+
+template<>
+TaskSchedulerType EnumUtil::FromString<TaskSchedulerType>(const char *value) {
+	return static_cast<TaskSchedulerType>(StringUtil::StringToEnum(GetTaskSchedulerTypeValues(), 3, "TaskSchedulerType", value));
 }
 
 const StringUtil::EnumStringLiteral *GetTemporaryBufferSizeValues() {
