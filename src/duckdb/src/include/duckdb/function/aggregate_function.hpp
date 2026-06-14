@@ -538,13 +538,20 @@ public:
 		                         AggregateFunction::StateCombine<STATE, OP>,
 		                         AggregateFunction::StateFinalize<STATE, RESULT_TYPE, OP>, null_handling,
 		                         UnaryClusterUpdateCallback<STATE, INPUT_TYPE, OP>());
+		// automatically wire up the destructor if the operation defines a Destroy method
+		if constexpr (OperationHasDestroy<STATE, OP>::value) {
+			result.callbacks.destructor = AggregateFunction::StateDestroy<STATE, OP>;
+		}
 		WireStructStateType<STATE>(result);
 		return result;
 	}
 
+	//! Deprecated: use UnaryAggregate instead - the destructor is now automatically wired up when the operation
+	//! defines a Destroy method
 	template <class STATE, class INPUT_TYPE, class RESULT_TYPE, class OP,
 	          AggregateDestructorType destructor_type = AggregateDestructorType::STANDARD>
-	static AggregateFunction UnaryAggregateDestructor(LogicalType input_type, LogicalType return_type) {
+	[[deprecated("Use UnaryAggregate instead - the destructor is now wired up automatically")]] static AggregateFunction
+	UnaryAggregateDestructor(LogicalType input_type, LogicalType return_type) {
 		auto aggregate = UnaryAggregate<STATE, INPUT_TYPE, RESULT_TYPE, OP, destructor_type>(input_type, return_type);
 		aggregate.callbacks.destructor = AggregateFunction::StateDestroy<STATE, OP>;
 		return aggregate;
@@ -564,35 +571,15 @@ public:
 	}
 
 public:
+	//! Returns the logical type for state type ST, resolving types that are only known after binding
+	//! (sort keys, linked lists and StateString fields) from the bound aggregate function.
+	//! Defined out-of-line (after BoundAggregateFunction is complete).
+	template <class ST, class STATE>
+	static LogicalType BuildStateLogical(const BoundAggregateFunction &bound_function);
+
+	//! Defined out-of-line (after BoundAggregateFunction is complete) so the lambda body can call GetReturnType().
 	template <class STATE>
-	static void WireStructStateType(AggregateFunction &result) {
-		if constexpr (HasStructStateType<STATE>::value) {
-			if constexpr (IsOptionalStateType<typename STATE::STATE_TYPE>::value) {
-				result.SetStructStateExport([](const BoundAggregateFunction &) {
-					using T = typename STATE::STATE_TYPE::value_type;
-					if constexpr (IsStructStateType<T>::value) {
-						return AggregateStateLayout(T::GetLogicalType(STATE::STATE_NAMES),
-						                            AlignValue<idx_t>(sizeof(STATE)), true);
-					} else {
-						return AggregateStateLayout(PrimitiveToLogicalType<T>(), AlignValue<idx_t>(sizeof(STATE)),
-						                            true);
-					}
-				});
-			} else {
-				result.SetStructStateExport([](const BoundAggregateFunction &) {
-					AggregateStateLayout layout;
-					layout.type = STATE::STATE_TYPE::GetLogicalType(STATE::STATE_NAMES);
-					layout.total_state_size = AlignValue<idx_t>(sizeof(STATE));
-					STATE::STATE_TYPE::PopulateField(layout.field);
-					return layout;
-				});
-			}
-		} else if constexpr (HasPrimitiveLogicalType<STATE>::value) {
-			result.SetStructStateExport([](const BoundAggregateFunction &) {
-				return AggregateStateLayout(PrimitiveToLogicalType<STATE>(), AlignValue<idx_t>(sizeof(STATE)));
-			});
-		}
-	}
+	static void WireStructStateType(AggregateFunction &result);
 
 	template <class STATE>
 	static idx_t StateSize(const BoundAggregateFunction &) {
@@ -608,6 +595,15 @@ public:
 	template <class STATE, class OP>
 	struct OperationHasInitialize<STATE, OP, initialize_void_t<decltype(OP::Initialize(std::declval<STATE &>()))>>
 	    : std::true_type {};
+
+	//! Detects whether "OP" provides a "Destroy(STATE &, AggregateInputData &)" method
+	template <class STATE, class OP, class = void>
+	struct OperationHasDestroy : std::false_type {};
+	template <class STATE, class OP>
+	struct OperationHasDestroy<STATE, OP,
+	                           initialize_void_t<decltype(OP::template Destroy<STATE>(
+	                               std::declval<STATE &>(), std::declval<AggregateInputData &>()))>> : std::true_type {
+	};
 
 	template <class STATE, class OP, AggregateDestructorType destructor_type = AggregateDestructorType::STANDARD>
 	static void StateInitialize(const BoundAggregateFunction &, data_ptr_t state) {
@@ -719,5 +715,50 @@ public:
 		return callbacks.get_state_type(*this);
 	}
 };
+
+// Defined here (after BoundAggregateFunction is complete) so the lambda body can call GetReturnType().
+template <class STATE>
+inline void AggregateFunction::WireStructStateType(AggregateFunction &result) {
+	if constexpr (HasStructStateType<STATE>::value) {
+		using ST = typename STATE::STATE_TYPE;
+		result.SetStructStateExport([](const BoundAggregateFunction &bound) {
+			AggregateStateLayout layout;
+			if (bound.GetReturnType().IsAggregateState()) {
+				// the function has been modified for state export (see ExportAggregateFunction::SetStateExport) -
+				// its return type IS the state type already
+				layout.type = bound.GetReturnType();
+			} else {
+				layout.type = AggregateFunction::BuildStateLogical<ST, STATE>(bound);
+			}
+			layout.total_state_size = AlignValue<idx_t>(sizeof(STATE));
+			layout.field = BuildStateField<ST>();
+			AggregateStateField::PopulateListFunctions(layout.type, layout.field);
+			return layout;
+		});
+	} else if constexpr (HasPrimitiveLogicalType<STATE>::value) {
+		result.SetStructStateExport([](const BoundAggregateFunction &) {
+			return AggregateStateLayout(PrimitiveToLogicalType<STATE>(), AlignValue<idx_t>(sizeof(STATE)));
+		});
+	}
+}
+
+// Defined here (after BoundAggregateFunction is complete) so the body can access the bound function's types.
+template <class ST, class STATE>
+inline LogicalType AggregateFunction::BuildStateLogical(const BoundAggregateFunction &bound_function) {
+	// the runtime types of the bound function - used to resolve StateReturnType/StateInputType sources
+	StateLayoutTypeInfo info {bound_function.GetReturnType(), bound_function.GetArguments()};
+	if constexpr (IsStateListType<ST>::value) {
+		return ResolveStateSourceType<typename ST::SOURCE_TYPE>(info);
+	} else if constexpr (IsOptionalStateType<ST>::value) {
+		using V = typename ST::value_type;
+		if constexpr (IsStructStateType<V>::value) {
+			return V::GetLogicalType(STATE::STATE_NAMES, info);
+		} else {
+			return FieldToLogicalType<V>(info);
+		}
+	} else {
+		return ST::GetLogicalType(STATE::STATE_NAMES, info);
+	}
+}
 
 } // namespace duckdb
