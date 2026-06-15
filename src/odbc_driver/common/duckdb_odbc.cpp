@@ -150,7 +150,7 @@ void OdbcHandleStmt::FillIRD() {
 		auto col_type = stmt->GetTypes()[col_idx];
 
 		// TODO: Make more specific?
-		auto name = stmt->GetNames()[col_idx];
+		auto &name = stmt->GetNames()[col_idx].GetIdentifierName();
 		new_record.sql_desc_base_column_name = name;
 		new_record.sql_desc_name = name;
 		new_record.sql_desc_label = name;
@@ -190,7 +190,7 @@ void OdbcHandleStmt::FillIRD() {
 		new_record.SetDescUnsignedField(col_type);
 
 		auto &db_manager = dbc->env->db->instance->GetDatabaseManager();
-		auto &catalog_name = db_manager.GetSystemCatalog().GetAttached().GetName();
+		auto &catalog_name = db_manager.GetSystemCatalog().GetAttached().GetName().GetIdentifierName();
 
 		new_record.sql_desc_catalog_name = catalog_name;
 
