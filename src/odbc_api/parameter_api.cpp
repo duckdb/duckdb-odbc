@@ -34,7 +34,7 @@ SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT param
 	// TODO make global maps with type mappings for duckdb <> odbc
 	auto odbc_type = SQL_UNKNOWN_TYPE;
 	auto odbc_size = 0;
-	auto identifier = std::to_string(parameter_number);
+	auto identifier = duckdb::Identifier(std::to_string(parameter_number));
 	auto param_type_id = hstmt->stmt->data->GetType(identifier).id();
 	switch (param_type_id) {
 	case duckdb::LogicalTypeId::VARCHAR:

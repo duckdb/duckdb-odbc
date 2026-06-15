@@ -46,8 +46,10 @@ TEST_CASE("Test parameter quoting and in combination with special characters", "
 	// parameter markers and ? literals.
 	BindParamAndExecute(hstmt, ConvertToSQLCHAR("SELECT 'doubled '' quotes', ?::text"), ConvertToSQLCHAR("param"),
 	                    {"doubled ' quotes", "param"});
-	BindParamAndExecute(hstmt, ConvertToSQLCHAR("SELECT E'escaped quote\\' here', ?::text"), ConvertToSQLCHAR("param"),
-	                    {"escaped quote' here", "param"});
+	// Not supported in new parser
+	// BindParamAndExecute(hstmt, ConvertToSQLCHAR("SELECT E'escaped quote\\' here', ?::text"),
+	// ConvertToSQLCHAR("param"),
+	// {"escaped quote' here", "param"});
 	BindParamAndExecute(hstmt, ConvertToSQLCHAR("SELECT $$dollar quoted string$$, ?::text"), ConvertToSQLCHAR("param"),
 	                    {"dollar quoted string", "param"});
 	BindParamAndExecute(hstmt, ConvertToSQLCHAR("SELECT $xx$complex $dollar quotes$xx$, ?::text"),
