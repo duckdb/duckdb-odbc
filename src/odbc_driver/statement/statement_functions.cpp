@@ -114,7 +114,9 @@ SQLRETURN duckdb::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 
 		// Copy up to date result types and names from the execution result
 		hstmt->stmt->data->types = hstmt->res->types;
-		hstmt->stmt->data->names = hstmt->res->names;
+		for (const std::string &name : hstmt->res->names) {
+			hstmt->stmt->data->names.emplace_back(Identifier(name));
+		}
 
 		// Correct bounded columns and re-fill IRD records
 		hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
@@ -216,7 +218,7 @@ static bool CastTimestampValue(duckdb::OdbcHandleStmt *hstmt, const duckdb::Valu
 		auto input = val.GetValue<int64_t>();
 		auto timestamp = timestamp_t(input);
 		// FIXME: add test for casting infinity/-infinity timestamp values
-		if (Timestamp::IsFinite(timestamp)) {
+		if (timestamp.IsFinite()) {
 			timestamp = cast_timestamp_fun(input);
 		}
 		target = CAST_OP::template Operation<timestamp_t, TARGET_TYPE>(timestamp);
@@ -657,7 +659,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		case LogicalTypeId::TIMESTAMP_SEC: {
 			timestamp = timestamp_t(val.GetValue<int64_t>());
 			// FIXME: add test for casting infinity/-infinity timestamp values
-			if (!Timestamp::IsFinite(timestamp)) {
+			if (!timestamp.IsFinite()) {
 				break;
 			}
 			timestamp = duckdb::Timestamp::FromEpochSeconds(timestamp.value);
@@ -666,7 +668,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		case LogicalTypeId::TIMESTAMP_MS: {
 			timestamp = timestamp_t(val.GetValue<int64_t>());
 			// FIXME: add test for casting infinity/-infinity timestamp values
-			if (!Timestamp::IsFinite(timestamp)) {
+			if (!timestamp.IsFinite()) {
 				break;
 			}
 			timestamp = duckdb::Timestamp::FromEpochMs(timestamp.value);
@@ -680,7 +682,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		case LogicalTypeId::TIMESTAMP_NS: {
 			timestamp = timestamp_t(val.GetValue<int64_t>());
 			// FIXME: add test for casting infinity/-infinity timestamp values
-			if (!Timestamp::IsFinite(timestamp)) {
+			if (!timestamp.IsFinite()) {
 				break;
 			}
 			timestamp = duckdb::Timestamp::FromEpochNanoSeconds(timestamp.value);

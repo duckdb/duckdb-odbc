@@ -81,8 +81,8 @@ static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT col
 
 	duckdb::idx_t col_idx = column_number - 1;
 
-	ret = WriteStringCol("SQLDescribeCol", hstmt, hstmt->stmt->GetNames()[col_idx], column_name, buffer_length,
-	                     name_length_ptr);
+	const std::string &col_name = hstmt->stmt->GetNames()[col_idx].GetIdentifierName();
+	ret = WriteStringCol("SQLDescribeCol", hstmt, col_name, column_name, buffer_length, name_length_ptr);
 
 	LogicalType col_type = hstmt->stmt->GetTypes()[col_idx];
 
