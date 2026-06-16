@@ -236,7 +236,7 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           mkdir build
           cd build
           mkdir release
@@ -253,7 +253,7 @@ jobs:
       - name: List Symbols
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
       - name: Setup ODBC
