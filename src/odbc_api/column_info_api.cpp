@@ -161,7 +161,8 @@ static SQLRETURN ColAttributeInternal(SQLHSTMT statement_handle, SQLUSMALLINT co
 	}
 
 	if (field_identifier != SQL_DESC_COUNT && hstmt->res &&
-	    hstmt->res->properties.return_type != duckdb::StatementReturnType::QUERY_RESULT) {
+	    hstmt->res->properties.return_type != duckdb::StatementReturnType::QUERY_RESULT &&
+	    hstmt->res->properties.return_type != duckdb::StatementReturnType::CHANGED_ROWS) {
 		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLColAttribute(s)",
 		                                   "Prepared statement not a cursor-specification", SQLStateType::ST_07005,
 		                                   hstmt->dbc->GetDataSourceName());
