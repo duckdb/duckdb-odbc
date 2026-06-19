@@ -55,8 +55,8 @@ add_executable(
   tests/connect_with_ini.cpp connect_helpers.cpp)
 
 if(WIN32)
-  target_compile_options(test_odbc PRIVATE /bigobj)
-  target_compile_options(test_connection_odbc PRIVATE /bigobj)
+  target_compile_options(test_odbc PRIVATE /bigobj /utf-8)
+  target_compile_options(test_connection_odbc PRIVATE /bigobj /utf-8)
 endif()
 
 if(CMAKE_GENERATOR MATCHES "Visual Studio")

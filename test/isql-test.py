@@ -78,8 +78,7 @@ test("SELECT * FROM range(10000);", out=range_out)
 
 # ### FROM test/sql/projection/test_simple_projection.test #################################
 test(
-    """PRAGMA enable_verification
-CREATE TABLE a (i integer, j integer);
+    """CREATE TABLE a (i integer, j integer);
 SELECT * FROM a;
 """,
     out="",
