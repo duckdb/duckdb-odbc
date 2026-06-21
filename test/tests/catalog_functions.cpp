@@ -327,6 +327,20 @@ static void TestSQLTablesTypes(HSTMT &hstmt) {
 	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
 }
 
+static void TestSQLTablesUnicode(HSTMT &hstmt) {
+	std::string query = "CREATE TABLE tab_unicode_🦆 (col_🦆 INT)";
+	EXECUTE_AND_CHECK("SQLExecDirectW (CREATE TABLE)", hstmt, SQLExecDirectW, hstmt, ConvertToSQLWCHARNTS(query).data(),
+	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, nullptr, SQL_NTS, nullptr, SQL_NTS,
+	                  ConvertToSQLWCHARNTS("tab_unicode_🦆").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS(SQL_ALL_TABLE_TYPES).data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 3, "tab_unicode_🦆");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+	EXECUTE_AND_CHECK("SQLExecDirectW (DROP TABLE)", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("DROP TABLE tab_unicode_🦆").data(), SQL_NTS);
+}
+
 static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_map) {
 	EXECUTE_AND_CHECK("SQLColumns", hstmt, SQLColumns, hstmt, nullptr, 0, ConvertToSQLCHAR("main"), SQL_NTS,
 	                  ConvertToSQLCHAR("%"), SQL_NTS, nullptr, 0);
@@ -393,6 +407,23 @@ static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_m
 	}
 }
 
+static void TestSQLColumnsUnicode(HSTMT &hstmt) {
+	std::string query = "CREATE TABLE tab_unicode_🦆 (col_🦆 INT)";
+	EXECUTE_AND_CHECK("SQLExecDirectW (CREATE TABLE)", hstmt, SQLExecDirectW, hstmt, ConvertToSQLWCHARNTS(query).data(),
+	                  SQL_NTS);
+	EXECUTE_AND_CHECK("SQLTablesW", hstmt, SQLTablesW, hstmt, nullptr, SQL_NTS, nullptr, SQL_NTS,
+	                  ConvertToSQLWCHARNTS("tab_unicode_🦆").data(), SQL_NTS,
+	                  ConvertToSQLWCHARNTS(SQL_ALL_TABLE_TYPES).data(), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLColumnsW", hstmt, SQLColumnsW, hstmt, nullptr, 0, nullptr, SQL_NTS,
+	                  ConvertToSQLWCHARNTS("tab_unicode_🦆").data(), SQL_NTS, nullptr, 0);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK_WIDE(hstmt, 3, "tab_unicode_🦆");
+	DATA_CHECK_WIDE(hstmt, 4, "col_🦆");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+	EXECUTE_AND_CHECK("SQLExecDirectW (DROP TABLE)", hstmt, SQLExecDirectW, hstmt,
+	                  ConvertToSQLWCHARNTS("DROP TABLE tab_unicode_🦆").data(), SQL_NTS);
+}
+
 TEST_CASE("Test Catalog Functions (SQLGetTypeInfo; SQLTables; SQLColumns; SQLGetInfo)", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
@@ -422,9 +453,11 @@ TEST_CASE("Test Catalog Functions (SQLGetTypeInfo; SQLTables; SQLColumns; SQLGet
 	TestSQLTablesCatalog(hstmt);
 	TestSQLTablesSystemTable(hstmt);
 	TestSQLTablesTypes(hstmt);
+	TestSQLTablesUnicode(hstmt);
 
 	// Check for SQLColumns
 	TestSQLColumns(hstmt, types_map);
+	TestSQLColumnsUnicode(hstmt);
 
 	// Test SQLGetInfo
 	char database_name[128];
