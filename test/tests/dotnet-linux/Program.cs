@@ -59,12 +59,20 @@ class Program
         CheckFileldType(conn, "SELECT ''::VARCHAR", "System.String");
     }
 
-    static void ExecuteReaderOdbcCommand(OdbcConnection conn, string sql)
+    static void ExecuteNonQueryOdbcCommand(OdbcConnection conn, string sql)
     {
-        // Console.WriteLine(sql);
         using (var cmd = new OdbcCommand(sql, conn))
         {
-            using (OdbcDataReader reader = cmd.ExecuteReader()) {
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    static void ExecuteReaderOdbcCommand(OdbcConnection conn, string sql)
+    {
+        using (var cmd = new OdbcCommand(sql, conn))
+        {
+            using (OdbcDataReader reader = cmd.ExecuteReader())
+            {
                 while (reader.Read()) {
                     object a = reader[0];
                 }
@@ -82,6 +90,24 @@ class Program
         ExecuteReaderOdbcCommand(conn, "COMMIT;");
     }
 
+    static void TestTimestampNanos(OdbcConnection conn)
+    {
+        ExecuteNonQueryOdbcCommand(conn, "CREATE OR REPLACE TABLE dotnet_timestamp_test(col1 TIMESTAMP)");
+        ExecuteNonQueryOdbcCommand(conn, "INSERT INTO dotnet_timestamp_test VALUES('2000-01-01 12:10:30.123456'::TIMESTAMP)");
+        using (var cmd = new OdbcCommand("FROM dotnet_timestamp_test", conn))
+        {
+            using (OdbcDataReader reader = cmd.ExecuteReader())
+            {
+                while (reader.Read()) {
+                    DateTime timestamp = reader.GetDateTime(0);
+                    AssertEquals("123", timestamp.Millisecond.ToString());
+                    AssertEquals("456", timestamp.Microsecond.ToString());
+                }
+            }
+        }
+        ExecuteNonQueryOdbcCommand(conn, "DROP TABLE dotnet_timestamp_test");
+    }
+
     static void Main(string[] args)
     {
         using (OdbcConnection conn = new OdbcConnection("Driver={DuckDB Driver}"))
@@ -89,6 +115,7 @@ class Program
             conn.Open();
             TestFieldTypes(conn);
             TestPrepareExecuteColAtrributeReader(conn);
+            TestTimestampNanos(conn);
         }
 
         Console.WriteLine("dotnet-linux tests passed successfully");

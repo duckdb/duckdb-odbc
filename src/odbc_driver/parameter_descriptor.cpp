@@ -364,8 +364,9 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	}
 	case SQL_TYPE_TIMESTAMP: {
 		auto timestamp_struct = Load<SQL_TIMESTAMP_STRUCT>(dataptr);
-		value = Value::TIMESTAMP(timestamp_struct.year, timestamp_struct.month, timestamp_struct.day,
-		                         timestamp_struct.hour, timestamp_struct.minute, timestamp_struct.second, 0);
+		value =
+		    Value::TIMESTAMP(timestamp_struct.year, timestamp_struct.month, timestamp_struct.day, timestamp_struct.hour,
+		                     timestamp_struct.minute, timestamp_struct.second, timestamp_struct.fraction / 1000);
 		break;
 	}
 	case SQL_TYPE_DATE: {

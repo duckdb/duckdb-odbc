@@ -22,12 +22,34 @@ TEST_CASE("Test SQLBindParameter with TIMESTAMP type", "[odbc]") {
 
 	// Create table
 	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
-	                  ConvertToSQLCHAR("CREATE TABLE timestamp_bind_test (col1 TIMESTAMP)"), SQL_NTS);
+	                  ConvertToSQLCHAR("CREATE TABLE timestamp_bind_test (col1 INT, col2 TIMESTAMP)"), SQL_NTS);
 
-	// Insert value
+	// Insert literal value
+	EXECUTE_AND_CHECK(
+	    "SQLExecDirect", hstmt, SQLExecDirect, hstmt,
+	    ConvertToSQLCHAR("INSERT INTO timestamp_bind_test VALUES(41, '2000-01-01 12:10:30.123456'::TIMESTAMP)"),
+	    SQL_NTS);
+	// Fetch and check
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT col2 FROM timestamp_bind_test WHERE col1 = 41"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	{
+		SQL_TIMESTAMP_STRUCT fetched;
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_TYPE_TIMESTAMP, &fetched, sizeof(fetched),
+		                  nullptr);
+		REQUIRE(fetched.year == 2000);
+		REQUIRE(fetched.month == 1);
+		REQUIRE(fetched.day == 1);
+		REQUIRE(fetched.hour == 12);
+		REQUIRE(fetched.minute == 10);
+		REQUIRE(fetched.second == 30);
+		REQUIRE(fetched.fraction == 123456000);
+	}
+
+	// Insert parametrized value
 	EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
-	                  ConvertToSQLCHAR("INSERT INTO timestamp_bind_test VALUES (?)"), SQL_NTS);
-	SQL_TIMESTAMP_STRUCT param = {2000, 1, 1, 12, 10, 30, 0};
+	                  ConvertToSQLCHAR("INSERT INTO timestamp_bind_test VALUES (42, ?)"), SQL_NTS);
+	SQL_TIMESTAMP_STRUCT param = {2000, 2, 2, 12, 10, 30, 123456789};
 	SQLLEN param_len = sizeof(param);
 	EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_TYPE_TIMESTAMP,
 	                  SQL_TYPE_TIMESTAMP, 0, 0, &param, param_len, &param_len);
@@ -35,18 +57,20 @@ TEST_CASE("Test SQLBindParameter with TIMESTAMP type", "[odbc]") {
 
 	// Fetch and check
 	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
-	                  ConvertToSQLCHAR("SELECT * FROM timestamp_bind_test"), SQL_NTS);
+	                  ConvertToSQLCHAR("SELECT col2 FROM timestamp_bind_test WHERE col1 = 42"), SQL_NTS);
 	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
-	SQL_TIMESTAMP_STRUCT fetched;
-	EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_TYPE_TIMESTAMP, &fetched, sizeof(fetched),
-	                  nullptr);
-	REQUIRE(fetched.year == param.year);
-	REQUIRE(fetched.month == param.month);
-	REQUIRE(fetched.day == param.day);
-	REQUIRE(fetched.hour == param.hour);
-	REQUIRE(fetched.minute == param.minute);
-	REQUIRE(fetched.second == param.second);
-	REQUIRE(fetched.fraction == param.fraction);
+	{
+		SQL_TIMESTAMP_STRUCT fetched;
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_TYPE_TIMESTAMP, &fetched, sizeof(fetched),
+		                  nullptr);
+		REQUIRE(fetched.year == param.year);
+		REQUIRE(fetched.month == param.month);
+		REQUIRE(fetched.day == param.day);
+		REQUIRE(fetched.hour == param.hour);
+		REQUIRE(fetched.minute == param.minute);
+		REQUIRE(fetched.second == param.second);
+		REQUIRE(fetched.fraction == 123456000);
+	}
 
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
