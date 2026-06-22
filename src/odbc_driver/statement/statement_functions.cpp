@@ -732,7 +732,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		timestamp_struct->hour = hour;
 		timestamp_struct->minute = minute;
 		timestamp_struct->second = second;
-		timestamp_struct->fraction = micros;
+		timestamp_struct->fraction = micros * 1000;
 		if (str_len_or_ind_ptr) {
 			*str_len_or_ind_ptr = sizeof(SQL_TIMESTAMP_STRUCT);
 		}
