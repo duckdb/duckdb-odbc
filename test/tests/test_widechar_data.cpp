@@ -62,3 +62,55 @@ TEST_CASE("Test SQLBindParameter with WVARCHAR type", "[odbc]") {
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+static SQLBIGINT FetchCount(HSTMT hstmt) {
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	SQLBIGINT count = -1;
+	EXECUTE_AND_CHECK("SQLGetData (count)", hstmt, SQLGetData, hstmt, 1, SQL_C_SBIGINT, &count, sizeof(count), nullptr);
+	return count;
+}
+
+// Regression: the driver must read a bound parameter buffer according to the
+// application C type (APD), not the target SQL type (IPD). Power BI / .NET
+// System.Data.Odbc bind SQL_C_WCHAR (UTF-16) data against a narrow SQL_VARCHAR
+// parameter; before the fix it was read as narrow ("N\0o\0r\0t\0h"), so
+// `WHERE region = ?` matched nothing. The mirror case (SQL_C_CHAR against a wide
+// SQL_WVARCHAR parameter) read a narrow buffer as UTF-16 -> garbage + over-read.
+TEST_CASE("Test SQLBindParameter with mismatched C and SQL types", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	CONNECT_TO_DATABASE(env, dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLExecDirect (create)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("CREATE OR REPLACE TABLE param_mix (region VARCHAR)"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLExecDirect (insert)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("INSERT INTO param_mix VALUES ('North'), ('South')"), SQL_NTS);
+
+	SECTION("SQL_C_WCHAR buffer bound as SQL_VARCHAR") {
+		std::vector<SQLWCHAR> north_utf16 = {0x004E, 0x006F, 0x0072, 0x0074, 0x0068};
+		SQLLEN ind = static_cast<SQLLEN>(north_utf16.size() * sizeof(SQLWCHAR));
+		EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
+		                  ConvertToSQLCHAR("SELECT count(*) FROM param_mix WHERE region = ?"), SQL_NTS);
+		EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR,
+		                  SQL_VARCHAR, north_utf16.size(), 0, north_utf16.data(), ind, &ind);
+		EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
+		REQUIRE(FetchCount(hstmt) == 1);
+	}
+
+	SECTION("SQL_C_CHAR buffer bound as SQL_WVARCHAR") {
+		SQLCHAR north_utf8[] = "North";
+		SQLLEN ind = 5;
+		EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
+		                  ConvertToSQLCHAR("SELECT count(*) FROM param_mix WHERE region = ?"), SQL_NTS);
+		EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR,
+		                  SQL_WVARCHAR, 5, 0, north_utf8, ind, &ind);
+		EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
+		REQUIRE(FetchCount(hstmt) == 1);
+	}
+
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
