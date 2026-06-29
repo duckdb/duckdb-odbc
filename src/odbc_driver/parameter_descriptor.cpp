@@ -293,19 +293,6 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	case SQL_WLONGVARCHAR: {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
-		// Mirror of the char branch: a client may bind SQL_C_CHAR (narrow, 1 byte/char)
-		// data against a wide SQL_WVARCHAR parameter. Reading that buffer as UTF-16 yields
-		// garbage and can over-read past the end (the UTF-16 NUL scan runs off the buffer).
-		// Decode it as narrow based on the C type.
-		if (apd_record->sql_desc_type == SQL_C_CHAR) {
-			auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
-			if (*sql_ind_ptr_val_set == SQL_NTS) {
-				*sql_ind_ptr_val_set = strlen(str_data);
-			}
-			auto str_len = *sql_ind_ptr_val_set;
-			value = Value(duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), str_len));
-			break;
-		}
 		auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
 			*sql_ind_ptr_val_set = static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));

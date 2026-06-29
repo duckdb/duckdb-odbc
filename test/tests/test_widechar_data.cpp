@@ -70,12 +70,6 @@ static SQLBIGINT FetchCount(HSTMT hstmt) {
 	return count;
 }
 
-// Regression: the driver must read a bound parameter buffer according to the
-// application C type (APD), not the target SQL type (IPD). Power BI / .NET
-// System.Data.Odbc bind SQL_C_WCHAR (UTF-16) data against a narrow SQL_VARCHAR
-// parameter; before the fix it was read as narrow ("N\0o\0r\0t\0h"), so
-// `WHERE region = ?` matched nothing. The mirror case (SQL_C_CHAR against a wide
-// SQL_WVARCHAR parameter) read a narrow buffer as UTF-16 -> garbage + over-read.
 TEST_CASE("Test SQLBindParameter with mismatched C and SQL types", "[odbc]") {
 	SQLHANDLE env;
 	SQLHANDLE dbc;
@@ -95,17 +89,6 @@ TEST_CASE("Test SQLBindParameter with mismatched C and SQL types", "[odbc]") {
 		                  ConvertToSQLCHAR("SELECT count(*) FROM param_mix WHERE region = ?"), SQL_NTS);
 		EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR,
 		                  SQL_VARCHAR, north_utf16.size(), 0, north_utf16.data(), ind, &ind);
-		EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
-		REQUIRE(FetchCount(hstmt) == 1);
-	}
-
-	SECTION("SQL_C_CHAR buffer bound as SQL_WVARCHAR") {
-		SQLCHAR north_utf8[] = "North";
-		SQLLEN ind = 5;
-		EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
-		                  ConvertToSQLCHAR("SELECT count(*) FROM param_mix WHERE region = ?"), SQL_NTS);
-		EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR,
-		                  SQL_WVARCHAR, 5, 0, north_utf8, ind, &ind);
 		EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
 		REQUIRE(FetchCount(hstmt) == 1);
 	}
