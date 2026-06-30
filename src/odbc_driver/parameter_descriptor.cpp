@@ -261,16 +261,19 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	// and get the right parameter using the index (now it's working for all supported tests)
 	duckdb::const_data_ptr_t dataptr = (duckdb::const_data_ptr_t)sql_data_ptr;
 
-	switch (ipd->records[rec_idx].sql_desc_type) {
-	case SQL_CHAR:
-	case SQL_VARCHAR:
-	case SQL_LONGVARCHAR: {
+	// Power BI / .NET System.Data.Odbc bind a string buffer (SQL_C_CHAR/SQL_C_WCHAR)
+	// against non-string SQL types - a DECIMAL slicer arrives as "42.00", a DATE filter
+	// as "2024-01-01". Decode by the C (buffer) type and hand DuckDB a string to cast,
+	// rather than reading the buffer as the SQL type's binary layout (which yields
+	// garbage). Binary targets are excluded - their buffers are not text.
+	const auto sql_type = ipd->records[rec_idx].sql_desc_type;
+	const auto c_type = apd_record->sql_desc_type;
+	const bool binary_target =
+	    sql_type == SQL_BINARY || sql_type == SQL_VARBINARY || sql_type == SQL_LONGVARBINARY;
+	if (!binary_target && (c_type == SQL_C_CHAR || c_type == SQL_C_WCHAR)) {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
-		// Clients such as Power BI / .NET System.Data.Odbc bind SQL_C_WCHAR (UTF-16)
-		// data against a narrow SQL_VARCHAR parameter - Decode it as UTF-16 based on
-		// the C type instead, following the SQL_WCHAR case below.
-		if (apd_record->sql_desc_type == SQL_C_WCHAR) {
+		if (c_type == SQL_C_WCHAR) {
 			auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
 				*sql_ind_ptr_val_set =
@@ -279,8 +282,24 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
 			auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
 			value = Value(std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size()));
-			break;
+		} else {
+			auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
+			if (*sql_ind_ptr_val_set == SQL_NTS) {
+				*sql_ind_ptr_val_set = strlen(str_data);
+			}
+			value = Value(duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data),
+			                                                        *sql_ind_ptr_val_set));
 		}
+		SetValue(value, rec_idx);
+		return SQL_PARAM_SUCCESS;
+	}
+
+	switch (sql_type) {
+	case SQL_CHAR:
+	case SQL_VARCHAR:
+	case SQL_LONGVARCHAR: {
+		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
+		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
 			*sql_ind_ptr_val_set = strlen(str_data);
