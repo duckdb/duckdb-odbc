@@ -702,7 +702,7 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 			// PyODBC requests DB TIME field as SQL_TYPE_TIMESTAMP, but the
 			// cast from dtime_t to timestamp_t is not implemented in the
 			// engine, so we create timestamp_t instance manually.
-			timestamp = timestamp_t(time_input.micros);
+			timestamp = timestamp_t(time_input.value);
 			break;
 		}
 		case LogicalTypeId::VARCHAR: {
