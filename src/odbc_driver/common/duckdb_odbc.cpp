@@ -5,6 +5,7 @@
 #include "odbc_interval.hpp"
 #include "parameter_descriptor.hpp"
 #include "row_descriptor.hpp"
+#include "duckdb/catalog/catalog.hpp"
 #include "duckdb/main/database_manager.hpp"
 #include "duckdb/main/attached_database.hpp"
 
