@@ -273,7 +273,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		if (apd_record->sql_desc_type == SQL_C_WCHAR) {
 			auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
-				*sql_ind_ptr_val_set = static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
+				*sql_ind_ptr_val_set =
+				    static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
 			}
 			auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
 			auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
