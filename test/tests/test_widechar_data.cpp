@@ -169,8 +169,8 @@ TEST_CASE("Test SQLBindParameter with mismatched C and SQL types", "[odbc]") {
 		SQLLEN ind = static_cast<SQLLEN>(buf.size() * sizeof(SQLWCHAR));
 		EXECUTE_AND_CHECK("SQLPrepare", hstmt, SQLPrepare, hstmt,
 		                  ConvertToSQLCHAR("SELECT count(*) FROM param_mix WHERE flag = ?"), SQL_NTS);
-		EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR,
-		                  SQL_BIT, 5, 0, buf.data(), ind, &ind);
+		EXECUTE_AND_CHECK("SQLBindParameter", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_BIT,
+		                  5, 0, buf.data(), ind, &ind);
 		EXECUTE_AND_CHECK("SQLExecute", hstmt, SQLExecute, hstmt);
 		REQUIRE(FetchCount(hstmt) == 1);
 	}

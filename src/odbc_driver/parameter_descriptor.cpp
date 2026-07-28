@@ -268,8 +268,7 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	// garbage). Binary targets are excluded - their buffers are not text.
 	const auto sql_type = ipd->records[rec_idx].sql_desc_type;
 	const auto c_type = apd_record->sql_desc_type;
-	const bool binary_target =
-	    sql_type == SQL_BINARY || sql_type == SQL_VARBINARY || sql_type == SQL_LONGVARBINARY;
+	const bool binary_target = sql_type == SQL_BINARY || sql_type == SQL_VARBINARY || sql_type == SQL_LONGVARBINARY;
 	if (!binary_target && (c_type == SQL_C_CHAR || c_type == SQL_C_WCHAR)) {
 		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
 		                                  apd->records[rec_idx].sql_desc_octet_length);
@@ -287,8 +286,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
 				*sql_ind_ptr_val_set = strlen(str_data);
 			}
-			value = Value(duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data),
-			                                                        *sql_ind_ptr_val_set));
+			value = Value(
+			    duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), *sql_ind_ptr_val_set));
 		}
 		SetValue(value, rec_idx);
 		return SQL_PARAM_SUCCESS;
