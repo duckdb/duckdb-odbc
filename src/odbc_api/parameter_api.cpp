@@ -28,14 +28,16 @@ SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT param
 		return ret;
 	}
 
-	if (parameter_number <= 0 || parameter_number > hstmt->stmt->named_param_map.size()) {
+	if (parameter_number <= 0 || parameter_number > hstmt->stmt->GetNamedParameterMap().size()) {
 		return SQL_ERROR;
 	}
 	// TODO make global maps with type mappings for duckdb <> odbc
 	auto odbc_type = SQL_UNKNOWN_TYPE;
 	auto odbc_size = 0;
 	auto identifier = duckdb::Identifier(std::to_string(parameter_number));
-	auto param_type_id = hstmt->stmt->data->GetType(identifier).id();
+	LogicalType param_type;
+	hstmt->stmt->TryGetParameterType(identifier, param_type);
+	auto param_type_id = param_type.id();
 	switch (param_type_id) {
 	case duckdb::LogicalTypeId::VARCHAR:
 		odbc_type = SQL_VARCHAR;
@@ -92,7 +94,7 @@ SQLRETURN SQL_API SQLNumParams(SQLHSTMT statement_handle, SQLSMALLINT *parameter
 	if (!parameter_count_ptr) {
 		return SQL_ERROR;
 	}
-	*parameter_count_ptr = (SQLSMALLINT)hstmt->stmt->named_param_map.size();
+	*parameter_count_ptr = (SQLSMALLINT)hstmt->stmt->GetNamedParameterMap().size();
 	return SQL_SUCCESS;
 }
 
