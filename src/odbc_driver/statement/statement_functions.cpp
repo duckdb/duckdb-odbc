@@ -54,11 +54,9 @@ void duckdb::PrepareQuery(OdbcHandleStmt *hstmt) {
 
 SQLRETURN duckdb::FinalizeStmt(OdbcHandleStmt *hstmt) {
 	if (hstmt->stmt->HasError()) {
-		return SetDiagnosticRecord(hstmt, SQL_ERROR, "PrepareStmt", hstmt->stmt->error.Message(),
-		                           SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName());
+		return SetDiagnosticRecord(hstmt, SQL_ERROR, "PrepareStmt", hstmt->stmt->GetError(), SQLStateType::ST_42000,
+		                           hstmt->dbc->GetDataSourceName());
 	}
-
-	D_ASSERT(hstmt->stmt->data);
 
 	SQLRETURN ret = SQL_SUCCESS;
 
@@ -68,14 +66,15 @@ SQLRETURN duckdb::FinalizeStmt(OdbcHandleStmt *hstmt) {
 	// returned with a partially-filled state, so we need to clear them. They are going to be re-filled after
 	// each execution and may be different depending on input parameters supplied for execution.
 	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
-		hstmt->stmt->data->types.clear();
-		hstmt->stmt->data->names.clear();
+		// TODO: partial types handling
+		// hstmt->stmt->data->types.clear();
+		// hstmt->stmt->data->names.clear();
 		ret = SetDiagnosticRecord(hstmt, SQL_SUCCESS_WITH_INFO, "PrepareStmt", "Not all parameters are bound",
 		                          SQLStateType::ST_01000, hstmt->dbc->GetDataSourceName());
 	}
 
 	// named_param_map is created on successfull parse stage, does not need to be corrected on rebind
-	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->named_param_map.size()));
+	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->GetNamedParameterMap().size()));
 
 	// Bound columns and IRD records depend on resulting columns. When
 	// bound_all_parameters=false, we don't have resulting columns defined, so
@@ -109,14 +108,15 @@ SQLRETURN duckdb::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 	// When parameters were not bound (plan was not created) on Prepare call, then
 	// we need to correct IRD records after every execution
 	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
-		D_ASSERT(hstmt->stmt->data);
 		D_ASSERT(hstmt->res);
 
 		// Copy up to date result types and names from the execution result
+		/* TODO: fixme
 		hstmt->stmt->data->types = hstmt->res->types;
 		for (const std::string &name : hstmt->res->names) {
-			hstmt->stmt->data->names.emplace_back(Identifier(name));
+		    hstmt->stmt->data->names.emplace_back(Identifier(name));
 		}
+		*/
 
 		// Correct bounded columns and re-fill IRD records
 		hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
@@ -976,7 +976,7 @@ SQLRETURN duckdb::ExecDirectStmt(OdbcHandleStmt *hstmt, const std::string &query
 	for (auto &statement : statements) {
 		hstmt->stmt = hstmt->dbc->conn->Prepare(std::move(statement));
 		ret = FinalizeStmt(hstmt);
-		if (!hstmt->stmt->success || !SQL_SUCCEEDED(ret)) {
+		if (hstmt->stmt->HasError() || !SQL_SUCCEEDED(ret)) {
 			return ret;
 		} else if (ret == SQL_SUCCESS_WITH_INFO) {
 			success_with_info = true;
