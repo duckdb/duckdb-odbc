@@ -38,7 +38,11 @@ SQLRETURN Connect::FindMatchingKey(const std::string &input, string &key) {
 	auto config_names = DBConfig::GetOptionNames();
 
 	// If the input doesn't match a keyname, find a similar keyname
-	auto msg = StringUtil::CandidatesErrorMessage(config_names, input, "Did you mean: ");
+	vector<string> config_name_strings;
+	for (auto &id : config_names) {
+		config_name_strings.emplace_back(id.GetIdentifierName());
+	}
+	auto msg = StringUtil::CandidatesErrorMessage(config_name_strings, input, "Did you mean: ");
 	return SetDiagnosticRecord(dbc, SQL_SUCCESS_WITH_INFO, "SQLDriverConnect",
 	                           "Invalid keyword: '" + input + "'. " + msg, SQLStateType::ST_01S09, "");
 }
@@ -178,7 +182,11 @@ SQLRETURN Connect::SetConnection() {
 		session_init_content = SessionInit::ReadSQLFile(session_init_sql_file, session_init_sql_file_sha256);
 
 		// Validate and set all options
-		config.SetOptionsByName(config_map);
+		identifier_map_t<Value> config_map_ids;
+		for (auto &en : config_map) {
+			config_map_ids.emplace(en.first, en.second);
+		}
+		config.SetOptionsByName(config_map_ids);
 
 		if (!enable_external_access.empty()) {
 			config.SetOptionByName("enable_external_access", duckdb::Value(enable_external_access));
@@ -215,7 +223,7 @@ Connect::Connect(OdbcHandleDbc *dbc_p, string input_str_p) : dbc(dbc_p), input_s
 	auto config_options = DBConfig::GetOptionNames();
 	for (auto &option : config_options) {
 		// They are all set to false as they haven't been set yet
-		seen_config_options[option] = false;
+		seen_config_options[option.GetIdentifierName()] = false;
 	}
 
 	// Register ODBC-local options
