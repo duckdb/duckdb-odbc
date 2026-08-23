@@ -67,11 +67,13 @@ jobs:
       - name: Vendor sources
         if: ${{ steps.checkout_engine_rev.outcome == 'success' }}
         id: vendor
+        env:
+          OVERRIDE_GIT_DESCRIBE: ${{ inputs.duckdb-version }}
         run: |
           REV=$(cd .git/duckdb && git rev-parse --short HEAD && cd ../..)
           echo "Updating vendored DuckDB sources to ${REV}"
           git config --global user.email "github_bot@duckdblabs.com"
-          git config --global user.name "DuckDB Labs GitHub Bot"
+          git config --global user.name "DuckLabs GitHub Bot"
           # Vendoring branch must exist, it may or may not already have
           # a pending PR on it, we are rebasing it anyway
           git checkout vendoring-${{ github.ref_name }}
@@ -88,6 +90,9 @@ jobs:
         if: ${{ steps.vendor.outcome == 'success' }}
         id: check_for_changes
         run: |
+          # TODO: revemome
+          echo ${{ inputs.duckdb-sha }} >> src/duckdb/vendor_marker.txt
+          # END: removeme
           if git diff --exit-code; then
             echo "No vendoring changes detected, skipping the remaining of the job."
           else
@@ -137,8 +142,7 @@ jobs:
         if: ${{ steps.prepare_pr_message.outcome == 'success' && steps.check_pr_exists.outputs.pr_exists == 'false' }}
         env:
           # We cannot use default workflow's GITHUB_TOKEN here, because
-          # it is restricted to not trigger 'pull_request' event that
-          # we need to dispatch the testing workflow.
+          # it is restricted to not allow creating PRs.
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
             # Write multiline PR msg to a body.txt file 
@@ -159,8 +163,7 @@ jobs:
         if: ${{ steps.prepare_pr_message.outcome == 'success' && steps.check_pr_exists.outputs.pr_exists == 'true' }}
         env:
           # We cannot use default workflow's GITHUB_TOKEN here, because
-          # it is restricted to not trigger 'pull_request' event that
-          # we need to dispatch the testing workflow.
+          # it is restricted to not allow creating PRs.
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
             # Write existing PR body text to a file

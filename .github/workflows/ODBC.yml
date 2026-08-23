@@ -748,7 +748,7 @@ jobs:
       - debug
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -768,6 +768,20 @@ jobs:
              --body ""
             echo "base_branch=${BASE_BRANCH}" >> "${GITHUB_OUTPUT}"
 
+      - name: Update vendoring branch
+        id: update_vendoring_branch
+        if: ${{ steps.merge_vendoring_pr.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+            BASE_BRANCH="${{ steps.merge_vendoring_pr.outputs.base_branch }}"
+            git checkout --track origin/${BASE_BRANCH}
+            git pull --ff-only
+            # Delete vendoring-${BASE_BRANCH} branch and re-create it for future PRs
+            git push --delete origin vendoring-${BASE_BRANCH}
+            git branch -D vendoring-${BASE_BRANCH}
+            git branch vendoring-${BASE_BRANCH}
+            git push origin vendoring-${BASE_BRANCH}
+
       - name: Record client status
         if: always()
         uses: duckdb/duckdb-workflow-trigger/dispatch@main
@@ -779,19 +793,6 @@ jobs:
           duckdb_commit: ${{ inputs.duckdb_sha }}
           status: ${{ (contains(needs.*.result, 'failure') || steps.merge_vendoring_pr.outcome == 'failure') && 'failure' || contains(needs.*.result, 'cancelled') && 'cancelled' || contains(needs.*.result, 'skipped') && 'skipped' || 'success' }}
           message: DuckDB ODBC client ready
-
-      - name: Update vendoring branch
-        id: update_vendoring_branch
-        if: ${{ steps.merge_vendoring_pr.outcome == 'success' }}
-        continue-on-error: true
-        run: |
-            BASE_BRANCH="${{ steps.merge_vendoring_pr.outputs.base_branch }}"
-            # Delete vendoring-${BASE_BRANCH} branch and re-create it for future PRs
-            git push --delete origin vendoring-${BASE_BRANCH}
-            git checkout --track origin/${BASE_BRANCH}
-            git pull --ff-only
-            git branch vendoring-${BASE_BRANCH}
-            git push origin vendoring-${BASE_BRANCH}
 
       - name: Fail on unsuccessful final status
         if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') || steps.merge_vendoring_pr.outcome == 'failure' || steps.update_vendoring_branch.outcome == 'failure') }}
