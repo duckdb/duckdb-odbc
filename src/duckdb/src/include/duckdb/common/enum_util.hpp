@@ -272,8 +272,6 @@ enum class HLLStorageType : uint8_t;
 
 enum class HTTPStatusCode : uint16_t;
 
-enum class IdentifierCaseMode : uint8_t;
-
 enum class IndexAppendMode : uint8_t;
 
 enum class IndexBindState : uint8_t;
@@ -495,8 +493,6 @@ enum class SetScope : uint8_t;
 enum class SetType : uint8_t;
 
 enum class SettingScope : uint8_t;
-
-enum class ShowBehaviorType : uint8_t;
 
 enum class ShowType : uint8_t;
 
@@ -988,9 +984,6 @@ template<>
 const char* EnumUtil::ToChars<HTTPStatusCode>(HTTPStatusCode value);
 
 template<>
-const char* EnumUtil::ToChars<IdentifierCaseMode>(IdentifierCaseMode value);
-
-template<>
 const char* EnumUtil::ToChars<IndexAppendMode>(IndexAppendMode value);
 
 template<>
@@ -1322,9 +1315,6 @@ const char* EnumUtil::ToChars<SetType>(SetType value);
 
 template<>
 const char* EnumUtil::ToChars<SettingScope>(SettingScope value);
-
-template<>
-const char* EnumUtil::ToChars<ShowBehaviorType>(ShowBehaviorType value);
 
 template<>
 const char* EnumUtil::ToChars<ShowType>(ShowType value);
@@ -1880,9 +1870,6 @@ template<>
 HTTPStatusCode EnumUtil::FromString<HTTPStatusCode>(const char *value);
 
 template<>
-IdentifierCaseMode EnumUtil::FromString<IdentifierCaseMode>(const char *value);
-
-template<>
 IndexAppendMode EnumUtil::FromString<IndexAppendMode>(const char *value);
 
 template<>
@@ -2214,9 +2201,6 @@ SetType EnumUtil::FromString<SetType>(const char *value);
 
 template<>
 SettingScope EnumUtil::FromString<SettingScope>(const char *value);
-
-template<>
-ShowBehaviorType EnumUtil::FromString<ShowBehaviorType>(const char *value);
 
 template<>
 ShowType EnumUtil::FromString<ShowType>(const char *value);

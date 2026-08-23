@@ -6,8 +6,7 @@
 
 namespace duckdb {
 
-FilterPropagateResult StatisticsPropagator::PropagateComparison(const BaseStatistics &lstats,
-                                                                const BaseStatistics &rstats,
+FilterPropagateResult StatisticsPropagator::PropagateComparison(BaseStatistics &lstats, BaseStatistics &rstats,
                                                                 ExpressionType comparison) {
 	// only handle numerics for now
 	switch (lstats.GetType().InternalType()) {

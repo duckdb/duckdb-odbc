@@ -247,9 +247,10 @@ void DependencyManager::CreateDependent(CatalogTransaction transaction, const De
 }
 
 static string CatalogEntryInfoToString(const CatalogEntryInfo &entry) {
-	auto schema = StringUtil::Join(entry.schema_path, entry.schema_path.size(), ".",
-	                               [](const Identifier &id) { return SQLIdentifier::ToString(id); });
-	return schema + "." + SQLIdentifier::ToString(entry.name) +
+	auto schema = StringUtil::Join(entry.schema_path, entry.schema_path.size(), ".", [](const Identifier &id) {
+		return SQLIdentifier::ToString(id.GetIdentifierName());
+	});
+	return schema + "." + SQLIdentifier::ToString(entry.name.GetIdentifierName()) +
 	       StringUtil::Format("(%s)", CatalogTypeToString(entry.type));
 }
 

@@ -1,7 +1,6 @@
 #pragma once
 #include "duckdb/common/case_insensitive_map.hpp"
 #include "duckdb/common/string_map_set.hpp"
-#include "duckdb/common/windows_undefs.hpp"
 
 namespace duckdb {
 enum class PEGRuleType {

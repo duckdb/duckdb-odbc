@@ -58,7 +58,9 @@ ExceptionFormatValue ExceptionFormatValue::CreateFormatValue(const String &value
 }
 template <>
 ExceptionFormatValue ExceptionFormatValue::CreateFormatValue(const Identifier &value) {
-	return SQLQuotedIdentifier::ToString(value);
+	// An Identifier is a SQL identifier, so it formats with SQL identifier rules (quoted only when required) -
+	// callers should never need to wrap an Identifier in SQLIdentifier when printing.
+	return SQLQuotedIdentifier::ToString(value.GetIdentifierName());
 }
 template <>
 ExceptionFormatValue ExceptionFormatValue::CreateFormatValue(const SQLString &value) {
