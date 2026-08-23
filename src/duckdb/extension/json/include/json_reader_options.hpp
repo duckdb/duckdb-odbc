@@ -124,7 +124,7 @@ struct JSONReaderOptions {
 	//! we infer it as MAP type
 	idx_t map_inference_threshold = 200;
 	//! User-provided list of names (in order)
-	vector<Identifier> name_list;
+	vector<string> name_list;
 	//! User-provided list of types (in order)
 	vector<LogicalType> sql_type_list;
 	//! Forced date/timestamp formats

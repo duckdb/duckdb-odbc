@@ -76,7 +76,7 @@ public:
 	}
 	//! Set the catalog, keeping the schema and name
 	void SetCatalog(Identifier catalog) {
-		qualified_name = qualified_name.WithCatalog(std::move(catalog));
+		qualified_name = QualifiedName(std::move(catalog), qualified_name.Schema(), qualified_name.Name());
 	}
 	//! Renders the qualified name for ToString - the catalog is omitted for temporary entries and the default schema is
 	//! hidden

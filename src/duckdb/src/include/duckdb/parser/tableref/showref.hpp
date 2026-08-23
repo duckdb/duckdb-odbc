@@ -16,16 +16,7 @@
 
 namespace duckdb {
 
-enum class ShowType : uint8_t {
-	SUMMARY,
-	DESCRIBE,
-	//! "SHOW name" - shows the value of the setting "name", or falls back to describing a table named "name"
-	SHOW,
-	//! "SHOW TABLES FROM schema" / "SHOW TABLES FROM db.schema"
-	SHOW_FROM,
-	//! MySQL-inherited special forms: SHOW TABLES, SHOW DATABASES, SHOW SCHEMAS, SHOW VARIABLES, SHOW ALL TABLES
-	SHOW_SPECIAL
-};
+enum class ShowType : uint8_t { SUMMARY, DESCRIBE, SHOW_FROM, SHOW_UNQUALIFIED };
 
 //! Represents a SHOW/DESCRIBE/SUMMARIZE statement
 class ShowRef : public TableRef {
@@ -58,7 +49,7 @@ public:
 		return qualified_name.Catalog();
 	}
 	void SetCatalogName(Identifier catalog_name) {
-		qualified_name = qualified_name.WithCatalog(std::move(catalog_name));
+		qualified_name = QualifiedName(std::move(catalog_name), qualified_name.Schema(), qualified_name.Name());
 	}
 	//! The schema name (if any)
 	const Identifier &GetSchemaName() const {

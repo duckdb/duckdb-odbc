@@ -4,6 +4,9 @@
 #include "duckdb/main/database.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
+// uncomment to dynamically read the PEG parser from a file instead of compiling it in (useful for testing)
+// #define PEG_PARSER_SOURCE_FILE "duckdb/parser/peg/inlined_grammar.gram"
+
 #include "duckdb/common/printer.hpp"
 #include "duckdb/common/optional.hpp"
 #include "duckdb/common/string_map_set.hpp"
@@ -18,17 +21,10 @@
 namespace duckdb {
 
 optional_ptr<ParseResult> Matcher::MatchParseResult(MatchState &state) const {
-	optional_ptr<ParseResult> result;
 	if (state.packrat_cache && IsPackratMemoized()) {
-		result = state.packrat_cache->Match(*this, state);
-	} else {
-		result = MatchParseResultInternal(state);
+		return state.packrat_cache->Match(*this, state);
 	}
-	if (result && rule) {
-		result->SetRule(*rule);
-		result->name = rule->name;
-	}
-	return result;
+	return MatchParseResultInternal(state);
 }
 
 SuggestionType Matcher::AddSuggestion(MatchState &state) const {
