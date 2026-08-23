@@ -91,7 +91,8 @@ jobs:
         id: check_for_changes
         run: |
           # TODO: revemome
-          echo ${{ inputs.duckdb-sha }} >> src/duckdb/vendor_marker.txt
+          echo ${{ inputs.duckdb-sha }} >> vendor_marker.txt
+          git add vendor_marker.txt
           # END: removeme
           if git diff --exit-code; then
             echo "No vendoring changes detected, skipping the remaining of the job."
