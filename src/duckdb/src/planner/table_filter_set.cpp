@@ -342,9 +342,6 @@ bool TableFilterSet::HasFilters() const {
 idx_t TableFilterSet::FilterCount() const {
 	return filters.size();
 }
-bool TableFilterSet::HasMultiColumnFilters() const {
-	return !multi_column_filters.empty();
-}
 bool TableFilterSet::HasFilter(ProjectionIndex col_idx) const {
 	return filters.find(col_idx) != filters.end();
 }
@@ -394,11 +391,10 @@ void TableFilterSet::SetFilterByColumnIndex(ProjectionIndex col_idx, unique_ptr<
 
 void TableFilterSet::ClearFilters() {
 	filters.clear();
-	multi_column_filters.clear();
 }
 
 bool TableFilterSet::Equals(TableFilterSet &other) {
-	if (filters.size() != other.filters.size() || multi_column_filters.size() != other.multi_column_filters.size()) {
+	if (filters.size() != other.filters.size()) {
 		return false;
 	}
 	for (auto &entry : filters) {
@@ -407,15 +403,6 @@ bool TableFilterSet::Equals(TableFilterSet &other) {
 			return false;
 		}
 		if (!entry.second->Cast<ExpressionFilter>().Equals(other_entry->second->Cast<ExpressionFilter>())) {
-			return false;
-		}
-	}
-	for (idx_t filter_idx = 0; filter_idx < multi_column_filters.size(); ++filter_idx) {
-		const auto &filter =
-		    ExpressionFilter::GetExpressionFilter(*multi_column_filters[filter_idx], "TableFilterSet::Equals");
-		const auto &other_filter =
-		    ExpressionFilter::GetExpressionFilter(*other.multi_column_filters[filter_idx], "TableFilterSet::Equals");
-		if (!filter.Equals(other_filter)) {
 			return false;
 		}
 	}
@@ -437,10 +424,6 @@ unique_ptr<TableFilterSet> TableFilterSet::Copy() const {
 	for (auto &it : filters) {
 		copy->filters.emplace(it.first, it.second->Cast<ExpressionFilter>().Copy());
 	}
-	for (const auto &filter : multi_column_filters) {
-		copy->multi_column_filters.push_back(
-		    ExpressionFilter::GetExpressionFilter(*filter, "TableFilterSet::Copy").Copy());
-	}
 	return copy;
 }
 
@@ -449,9 +432,6 @@ void TableFilterSet::PushFilter(ProjectionIndex col_idx, unique_ptr<TableFilter>
 		throw InternalException("Cannot push a filter over an invalid ProjectionIndex");
 	}
 	auto &new_filter = ExpressionFilter::GetExpressionFilter(*filter, "TableFilterSet::PushFilter");
-	if (!new_filter.column_indexes.empty()) {
-		throw InternalException("Cannot push a multi-column filter as a single-column filter");
-	}
 	auto entry = filters.find(col_idx);
 	if (entry == filters.end()) {
 		// no filter yet: push the filter directly
@@ -464,30 +444,6 @@ void TableFilterSet::PushFilter(ProjectionIndex col_idx, unique_ptr<TableFilter>
 		and_expr->GetChildrenMutable().push_back(std::move(new_filter.expr));
 		filters[col_idx] = make_uniq<ExpressionFilter>(std::move(and_expr));
 	}
-}
-
-void TableFilterSet::PushMultiColumnFilter(unique_ptr<TableFilter> filter) {
-	const auto &expression_filter =
-	    ExpressionFilter::GetExpressionFilter(*filter, "TableFilterSet::PushMultiColumnFilter");
-	if (!expression_filter.expr || expression_filter.column_indexes.size() < 2) {
-		throw InternalException("Multi-column filter must reference at least two columns");
-	}
-	for (const auto &column_index : expression_filter.column_indexes) {
-		if (!column_index.IsValid()) {
-			throw InternalException("Cannot push a multi-column filter over an invalid ProjectionIndex");
-		}
-	}
-	for (const auto &existing_filter : multi_column_filters) {
-		if (ExpressionFilter::GetExpressionFilter(*existing_filter, "TableFilterSet::PushMultiColumnFilter")
-		        .Equals(expression_filter)) {
-			return;
-		}
-	}
-	multi_column_filters.push_back(std::move(filter));
-}
-
-const vector<unique_ptr<TableFilter>> &TableFilterSet::GetMultiColumnFilters() const {
-	return multi_column_filters;
 }
 
 void DynamicTableFilterSet::ClearFilters(const PhysicalOperator &op) {
@@ -525,17 +481,13 @@ DynamicTableFilterSet::GetFinalTableFilters(const PhysicalTableScan &scan,
 		for (auto &filter_entry : *existing_filters) {
 			result->PushFilter(filter_entry.GetIndex(), filter_entry.Filter().Cast<ExpressionFilter>().Copy());
 		}
-		for (const auto &filter : existing_filters->GetMultiColumnFilters()) {
-			result->PushMultiColumnFilter(
-			    ExpressionFilter::GetExpressionFilter(*filter, "DynamicTableFilterSet::GetFinalTableFilters").Copy());
-		}
 	}
 	for (auto &entry : filters) {
 		for (auto &filter_entry : *entry.second) {
 			result->PushFilter(filter_entry.GetIndex(), filter_entry.Filter().Cast<ExpressionFilter>().Copy());
 		}
 	}
-	if (!result->HasFilters() && !result->HasMultiColumnFilters()) {
+	if (!result->HasFilters()) {
 		return nullptr;
 	}
 	return result;

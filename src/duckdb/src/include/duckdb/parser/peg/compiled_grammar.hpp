@@ -2,7 +2,6 @@
 
 #include "duckdb/parser/peg/matcher.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
-#include "duckdb/parser/peg/parsed_grammar.hpp"
 
 namespace duckdb {
 
@@ -28,7 +27,6 @@ public:
 	const Tokenizer &GetTokenizer() const {
 		return tokenizer;
 	}
-	optional_ptr<const CompiledGrammarRule> GetRule(const string &rule_name) const;
 
 public:
 	static shared_ptr<CompiledGrammar> Get(ClientContext &context);
@@ -37,6 +35,10 @@ public:
 public:
 	idx_t Version() const;
 
+public:
+	//! FIXME: this should be a private detail of the parsed grammar
+	const PEGTransformerFactory &GetTransformerFactory();
+
 private:
 	MatcherAllocator allocator;
 	optional_ptr<const Matcher> program_matcher;
@@ -44,8 +46,8 @@ private:
 
 	//! TODO: this should be a unique_ptr when we allow keyword overrides
 	const PEGKeywordHelper &keyword_helper;
+	PEGTransformerFactory transformer_factory;
 	Tokenizer tokenizer;
-	case_insensitive_map_t<unique_ptr<CompiledGrammarRule>> rules;
 
 private:
 	const idx_t version;

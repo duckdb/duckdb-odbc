@@ -63,7 +63,7 @@ vector<Identifier> BindingAlias::GetSchemaPath() const {
 }
 
 string BindingAlias::ToString() const {
-	// the catalog is stored separately from the [schema path..., alias] path
+	// QualifiedName::ToString only renders [catalog, schema, name], so we render the full (possibly nested) path here
 	string result;
 	if (!catalog.empty()) {
 		result += SQLIdentifier(catalog);
@@ -106,7 +106,21 @@ bool BindingAlias::Matches(const BindingAlias &other) const {
 }
 
 bool BindingAlias::operator==(const BindingAlias &other) const {
-	return catalog == other.catalog && qualified_name == other.qualified_name;
+	// QualifiedName::operator== only compares [catalog, schema, name], so we compare the full path here
+	if (catalog != other.catalog) {
+		return false;
+	}
+	auto &path = qualified_name.Path();
+	auto &other_path = other.qualified_name.Path();
+	if (path.size() != other_path.size()) {
+		return false;
+	}
+	for (idx_t i = 0; i < path.size(); i++) {
+		if (path[i] != other_path[i]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 } // namespace duckdb

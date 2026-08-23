@@ -207,13 +207,13 @@ private:
 	void DetectHeader();
 	static bool DetectHeaderWithSetColumn(ClientContext &context, vector<HeaderValue> &best_header_row,
 	                                      const SetColumns &set_columns, CSVReaderOptions &options);
-	static vector<Identifier>
+	static vector<string>
 	DetectHeaderInternal(ClientContext &context, vector<HeaderValue> &best_header_row, CSVStateMachine &state_machine,
 	                     const SetColumns &set_columns,
 	                     unordered_map<idx_t, vector<LogicalType>> &best_sql_types_candidates_per_column_idx,
 	                     CSVReaderOptions &options, const MultiFileOptions &file_options,
 	                     CSVErrorHandler &error_handler);
-	vector<Identifier> names;
+	vector<string> names;
 	//! If the file only has a header
 	bool single_row_file = false;
 

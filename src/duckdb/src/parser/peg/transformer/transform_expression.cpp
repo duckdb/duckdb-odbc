@@ -1601,14 +1601,13 @@ void PEGTransformerFactory::InitializePrefixExpressionTrampoline(PEGTransformer 
 		frame.ReserveChildSlots(1 + prefix_count);
 		for (idx_t i = prefix_children.size(); i > 0; i--) {
 			auto child_idx = i - 1;
-			stack.PushFrame(prefix_children[child_idx].get(),
-			                PEGTransformerFactory::GetTrampolineOps(prefix_children[child_idx].get()),
+			stack.PushFrame(prefix_children[child_idx].get(), PEGTransformerFactory::GetTrampolineOps("PrefixOperator"),
 			                TransformFrameResultTarget(frame.frame_index, 1 + child_idx));
 		}
 	} else {
 		frame.ReserveChildSlots(1);
 	}
-	stack.PushFrame(list_pr.GetChild(1), PEGTransformerFactory::GetTrampolineOps(list_pr.GetChild(1)),
+	stack.PushFrame(list_pr.GetChild(1), PEGTransformerFactory::GetTrampolineOps("BaseExpression"),
 	                TransformFrameResultTarget(frame.frame_index, 0));
 }
 
@@ -2094,7 +2093,7 @@ void PEGTransformerFactory::InitializeOverClauseTrampoline(PEGTransformer &trans
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
 	transformer.in_window_definition = true;
 	frame.ReserveChildSlots(1);
-	stack.PushFrame(list_pr.GetChild(1), PEGTransformerFactory::GetTrampolineOps(list_pr.GetChild(1)),
+	stack.PushFrame(list_pr.GetChild(1), PEGTransformerFactory::GetTrampolineOps("WindowFrame"),
 	                TransformFrameResultTarget(frame.frame_index, 0));
 }
 

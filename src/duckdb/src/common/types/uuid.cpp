@@ -1,6 +1,5 @@
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb/common/chrono.hpp"
-#include "duckdb/common/helper.hpp"
 #include "duckdb/common/random_engine.hpp"
 
 namespace duckdb {
@@ -153,7 +152,7 @@ hugeint_t BaseUUID::Convert(const std::array<uint8_t, 16> &bytes) {
 hugeint_t UUIDv4::GenerateRandomUUID(RandomEngine &engine) {
 	std::array<uint8_t, 16> bytes;
 	for (int i = 0; i < 16; i += 4) {
-		Store<uint32_t>(engine.NextRandomInteger(), bytes.data() + i);
+		*reinterpret_cast<uint32_t *>(bytes.data() + i) = engine.NextRandomInteger();
 	}
 	// variant must be 10xxxxxx
 	bytes[8] &= 0xBF;
