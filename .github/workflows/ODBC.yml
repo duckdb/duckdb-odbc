@@ -318,7 +318,7 @@ jobs:
 
       - name: Sign files with Azure Trusted Signing (TM)
         if: github.repository == 'duckdb/duckdb-odbc' && github.event_name != 'pull_request'
-        uses: azure/trusted-signing-action@v0
+        uses: azure/trusted-signing-action@v2
         with:
           azure-tenant-id:              ${{ secrets.AZURE_CODESIGN_TENANT_ID }}
           azure-client-id:              ${{ secrets.AZURE_CODESIGN_CLIENT_ID }}
@@ -467,7 +467,7 @@ jobs:
 
       - name: Sign files with Azure Trusted Signing (TM)
         if: github.repository == 'duckdb/duckdb-odbc' && github.event_name != 'pull_request'
-        uses: azure/trusted-signing-action@v0
+        uses: azure/trusted-signing-action@v2
         with:
           azure-tenant-id:              ${{ secrets.AZURE_CODESIGN_TENANT_ID }}
           azure-client-id:              ${{ secrets.AZURE_CODESIGN_CLIENT_ID }}
