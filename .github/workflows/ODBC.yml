@@ -592,7 +592,7 @@ jobs:
 
   debug:
     name: Debug Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     needs: odbc-linux-amd64
     env:
       GEN: ninja
@@ -616,6 +616,8 @@ jobs:
             dotnet-sdk-8.0 \
             ninja-build \
             odbcinst \
+            r-base \
+            unixodbc \
             unixodbc-dev
 
       - name: Cache Key
