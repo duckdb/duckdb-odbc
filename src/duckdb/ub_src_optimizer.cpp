@@ -8,6 +8,8 @@
 
 #include "src/optimizer/build_probe_side_optimizer.cpp"
 
+#include "src/optimizer/builtin_function_lookup.cpp"
+
 #include "src/optimizer/column_binding_replacer.cpp"
 
 #include "src/optimizer/column_lifetime_analyzer.cpp"
@@ -37,6 +39,8 @@
 #include "src/optimizer/filter_pullup.cpp"
 
 #include "src/optimizer/filter_pushdown.cpp"
+
+#include "src/optimizer/filter_statistics.cpp"
 
 #include "src/optimizer/grouping_sets_optimizer.cpp"
 
@@ -77,6 +81,8 @@
 #include "src/optimizer/row_group_pruner.cpp"
 
 #include "src/optimizer/row_number_rewriter.cpp"
+
+#include "src/optimizer/runtime_filter_cast.cpp"
 
 #include "src/optimizer/sampling_pushdown.cpp"
 
