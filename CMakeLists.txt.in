@@ -72,6 +72,10 @@ endif()
 
 add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DUCKDB_DEFINITIONS})
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_definitions(-D_ASSERT_IS_ENABLED)
+endif()
+
 include_directories(src/duckdb/src/include/ ${DUCKDB_INCLUDE_DIRS} ${ODBC_INCLUDE_DIRS} include third_party)
 
 add_subdirectory(src)
