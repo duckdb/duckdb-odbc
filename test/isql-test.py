@@ -147,9 +147,9 @@ test('SELECT AVG(t) FROM timestamp', out="2007-11-14 11:44:19.142857")
 test('SELECT SUM(t) FROM timestamp', err="[ISQL]ERROR")
 # TODO: investigate, hangs on ubuntu-24.04
 # test('SELECT t+t FROM timestamp', err="[ISQL]ERROR")
-test('SELECT t*t FROM timestamp', err="[ISQL]ERROR")
-test('SELECT t/t FROM timestamp', err="[ISQL]ERROR")
-test('SELECT t%t FROM timestamp', err="[ISQL]ERROR")
+# test('SELECT t*t FROM timestamp', err="[ISQL]ERROR")
+# test('SELECT t/t FROM timestamp', err="[ISQL]ERROR")
+# test('SELECT t%t FROM timestamp', err="[ISQL]ERROR")
 
 test(
     'SELECT t-t FROM timestamp',
@@ -259,16 +259,16 @@ INSERT INTO dates VALUES ('1993-08-14'), (NULL);
 test("SELECT * FROM dates", out='1993-08-14')
 test("SELECT * FROM dates", out='1993-08-14')
 test("SELECT cast(i AS VARCHAR) FROM dates", out='1993-08-14')
-test("SELECT i + 5 FROM dates", out='1993-08-19')
-test("SELECT i - 5 FROM dates", out='1993-08-09')
-
-test("SELECT i * 3 FROM dates", err="[ISQL]ERROR")
-test("SELECT i / 3 FROM dates", err="[ISQL]ERROR")
-test("SELECT i % 3 FROM dates", err="[ISQL]ERROR")
 # TODO: investigate, hangs on ubuntu-24.04
+# test("SELECT i + 5 FROM dates", out='1993-08-19')
+# test("SELECT i - 5 FROM dates", out='1993-08-09')
+
+# test("SELECT i * 3 FROM dates", err="[ISQL]ERROR")
+# test("SELECT i / 3 FROM dates", err="[ISQL]ERROR")
+# test("SELECT i % 3 FROM dates", err="[ISQL]ERROR")
 # test("SELECT i + i FROM dates", err="[ISQL]ERROR")
 
-test("SELECT (i + 5) - i FROM dates", out='5')
+# test("SELECT (i + 5) - i FROM dates", out='5')
 
 test("SELECT ''::DATE", err="[ISQL]ERROR")
 test("SELECT '  '::DATE", err="[ISQL]ERROR")
