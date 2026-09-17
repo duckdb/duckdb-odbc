@@ -234,6 +234,13 @@ SQLRETURN ParameterDescriptor::FillCurParamCharSet(DescRecord &apd_record, DescR
 	return SQL_PARAM_SUCCESS;
 }
 
+// A column-wise parameter array holds fixed-length C values back to back, so the value of
+// parameter set `set_idx` is `set_idx` elements into the bound buffer.
+template <class T>
+static T LoadFromSet(duckdb::const_data_ptr_t dataptr, idx_t set_idx) {
+	return duckdb::Load<T>(dataptr + set_idx * sizeof(T));
+}
+
 SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	auto val_idx = paramset_idx;
 	auto apd_record = &cur_apd->records[rec_idx];
@@ -257,8 +264,6 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	}
 
 	duckdb::Value value;
-	// TODO need to check it param_value_ptr is an array of parameters
-	// and get the right parameter using the index (now it's working for all supported tests)
 	duckdb::const_data_ptr_t dataptr = (duckdb::const_data_ptr_t)sql_data_ptr;
 
 	// Power BI / .NET System.Data.Odbc bind a string buffer (SQL_C_CHAR/SQL_C_WCHAR)
@@ -334,40 +339,40 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	}
 	case SQL_TINYINT:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_UTINYINT) {
-			value = Value::UTINYINT(Load<uint8_t>(dataptr));
+			value = Value::UTINYINT(LoadFromSet<uint8_t>(dataptr, val_idx));
 		} else {
-			value = Value::TINYINT(Load<int8_t>(dataptr));
+			value = Value::TINYINT(LoadFromSet<int8_t>(dataptr, val_idx));
 		}
 		break;
 	case SQL_SMALLINT:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_USHORT) {
-			value = Value::USMALLINT(Load<uint16_t>(dataptr));
+			value = Value::USMALLINT(LoadFromSet<uint16_t>(dataptr, val_idx));
 		} else {
-			value = Value::SMALLINT(Load<int16_t>(dataptr));
+			value = Value::SMALLINT(LoadFromSet<int16_t>(dataptr, val_idx));
 		}
 		break;
 	case SQL_INTEGER:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_ULONG) {
-			value = Value::UINTEGER(Load<uint32_t>(dataptr));
+			value = Value::UINTEGER(LoadFromSet<uint32_t>(dataptr, val_idx));
 		} else {
-			value = Value::INTEGER(Load<int32_t>(dataptr));
+			value = Value::INTEGER(LoadFromSet<int32_t>(dataptr, val_idx));
 		}
 		break;
 	case SQL_BIGINT:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_UBIGINT) {
-			value = Value::UBIGINT(Load<uint64_t>(dataptr));
+			value = Value::UBIGINT(LoadFromSet<uint64_t>(dataptr, val_idx));
 		} else {
-			value = Value::BIGINT(Load<int64_t>(dataptr));
+			value = Value::BIGINT(LoadFromSet<int64_t>(dataptr, val_idx));
 		}
 		break;
 	case SQL_FLOAT:
-		value = Value::FLOAT(Load<float>(dataptr));
+		value = Value::FLOAT(LoadFromSet<float>(dataptr, val_idx));
 		break;
 	case SQL_DOUBLE:
-		value = Value::DOUBLE(Load<double>(dataptr));
+		value = Value::DOUBLE(LoadFromSet<double>(dataptr, val_idx));
 		break;
 	case SQL_NUMERIC: {
-		auto numeric = (SQL_NUMERIC_STRUCT *)sql_data_ptr;
+		auto numeric = (SQL_NUMERIC_STRUCT *)sql_data_ptr + val_idx;
 		dataptr = numeric->val;
 
 		auto precision = ipd->records[rec_idx].sql_desc_precision;
@@ -395,19 +400,19 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		break;
 	}
 	case SQL_TYPE_TIMESTAMP: {
-		auto timestamp_struct = Load<SQL_TIMESTAMP_STRUCT>(dataptr);
+		auto timestamp_struct = LoadFromSet<SQL_TIMESTAMP_STRUCT>(dataptr, val_idx);
 		value =
 		    Value::TIMESTAMP(timestamp_struct.year, timestamp_struct.month, timestamp_struct.day, timestamp_struct.hour,
 		                     timestamp_struct.minute, timestamp_struct.second, timestamp_struct.fraction / 1000);
 		break;
 	}
 	case SQL_TYPE_DATE: {
-		auto date_struct = Load<SQL_DATE_STRUCT>(dataptr);
+		auto date_struct = LoadFromSet<SQL_DATE_STRUCT>(dataptr, val_idx);
 		value = Value::DATE(date_struct.year, date_struct.month, date_struct.day);
 		break;
 	}
 	case SQL_TYPE_TIME: {
-		auto time_struct = Load<SQL_TIME_STRUCT>(dataptr);
+		auto time_struct = LoadFromSet<SQL_TIME_STRUCT>(dataptr, val_idx);
 		value = Value::TIME(time_struct.hour, time_struct.minute, time_struct.second, 0);
 		break;
 	}

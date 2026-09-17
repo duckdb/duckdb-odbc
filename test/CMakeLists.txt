@@ -32,6 +32,7 @@ add_executable(
   tests/test_connect.cpp
   tests/test_long_data.cpp
   tests/test_num_result_cols.cpp
+  tests/test_param_array_fixed_types.cpp
   tests/test_select.cpp
   tests/test_session_init.cpp
   tests/test_truncation.cpp
