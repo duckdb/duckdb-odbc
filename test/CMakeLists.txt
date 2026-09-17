@@ -27,6 +27,7 @@ add_executable(
   tests/numeric.cpp
   tests/quotes.cpp
   tests/test_empty_stubs.cpp
+  tests/test_get_info.cpp
   tests/result_conversion.cpp
   tests/test_allowed_paths.cpp
   tests/test_connect.cpp
