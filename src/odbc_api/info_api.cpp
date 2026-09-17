@@ -399,37 +399,12 @@ static SQLRETURN GetInfoInternal(SQLHDBC connection_handle, SQLUSMALLINT info_ty
 		                       string_length_ptr);
 	}
 	case SQL_DBMS_VER: {
-		SQLHDBC stmt;
-
-		SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_STMT, connection_handle, &stmt);
-		if (!SQL_SUCCEEDED(ret)) {
-			duckdb::FreeHandle(SQL_HANDLE_STMT, stmt);
-			return ret;
-		}
-
-		ret = SQLExecDirect(stmt, (SQLCHAR *)"SELECT library_version FROM pragma_version()", SQL_NTS);
-		if (!SQL_SUCCEEDED(ret)) {
-			duckdb::FreeHandle(SQL_HANDLE_STMT, stmt);
-			return ret;
-		}
-
-		ret = SQLFetch(stmt);
-		if (!SQL_SUCCEEDED(ret)) {
-			duckdb::FreeHandle(SQL_HANDLE_STMT, stmt);
-			return ret;
-		}
-
-		std::vector<SQLCHAR> buf;
-		buf.resize(64);
-		SQLLEN len_out;
-		ret = SQLGetData(stmt, 1, SQL_C_CHAR, info_value_ptr, buffer_length, &len_out);
-		duckdb::FreeHandle(SQL_HANDLE_STMT, stmt);
-		if (!SQL_SUCCEEDED(ret)) {
-			return ret;
-		}
-		std::string version(reinterpret_cast<char *>(buf.data()), std::min(buf.size(), static_cast<size_t>(len_out)));
-		return WriteStringInfo(connection_handle, version, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
-		                       string_length_ptr);
+		// The engine is part of this library, so its version needs no statement. Running one here went through the
+		// public SQLAllocHandle/SQLExecDirect entry points, which resolve to the driver manager when it exports the
+		// same names (unixODBC): the allocation failed and the error path freed an uninitialized handle.
+		std::string dbms_ver = duckdb::DuckDB::LibraryVersion();
+		return WriteStringInfo(connection_handle, dbms_ver, reinterpret_cast<CHAR_TYPE *>(info_value_ptr),
+		                       buffer_length, string_length_ptr);
 	}
 	case SQL_DDL_INDEX: {
 		duckdb::OdbcUtils::StoreWithLength<SQLUINTEGER>(0, info_value_ptr, string_length_ptr);
