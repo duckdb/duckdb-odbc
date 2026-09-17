@@ -32,9 +32,9 @@ TEST_CASE("Test parameter array with fixed-length types", "[odbc]") {
 	SQLULEN processed = 0;
 
 	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt,
-	                  SQL_ATTR_PARAM_BIND_TYPE, ConvertToSQLPOINTER(SQL_PARAM_BIND_BY_COLUMN), 0);
+	                  SQL_ATTR_PARAM_BIND_TYPE, reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAMSET_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAMSET_SIZE,
-	                  ConvertToSQLPOINTER(set_count), 0);
+	                  reinterpret_cast<SQLPOINTER>(set_count), 0);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAMS_PROCESSED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
 	                  SQL_ATTR_PARAMS_PROCESSED_PTR, &processed, 0);
 
@@ -57,7 +57,7 @@ TEST_CASE("Test parameter array with fixed-length types", "[odbc]") {
 
 	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_RESET_PARAMS)", hstmt, SQLFreeStmt, hstmt, SQL_RESET_PARAMS);
 	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAMSET_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAMSET_SIZE,
-	                  ConvertToSQLPOINTER(1), 0);
+	                  reinterpret_cast<SQLPOINTER>(static_cast<SQLULEN>(1)), 0);
 	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt,
 	                  ConvertToSQLCHAR("SELECT i, b, d, dt, ts, s FROM param_array_fixed ORDER BY rowid"), SQL_NTS);
 
