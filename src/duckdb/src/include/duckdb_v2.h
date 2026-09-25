@@ -342,6 +342,8 @@ typedef duckdb_v2_bytes duckdb_v2_bignum_t;
  * case-insensitively. Compare two identifiers case-insensitively rather than byte for byte, and render one into SQL
  * through the identifier-quoting entry point rather than embedding it raw. The catalog preserves casing; some
  * registries (config settings) canonicalize to lowercase.
+ *
+ * An identifier passed into the API must be valid UTF-8; otherwise the call fails with `ERROR_INPUT_INVALID`.
  */
 typedef duckdb_v2_str duckdb_v2_identifier_t;
 
@@ -2994,7 +2996,7 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_attach_options_create(duckdb_v2_instance_
  * The key is matched case-insensitively, as an unquoted SQL identifier is. The setting is passed on as the text a
  * quoted SQL literal would produce: the engine casts the options it knows (READ_ONLY, RECOVERY_MODE, TYPE,
  * DEFAULT_TABLE, VACUUM_REBUILD_INDEXES, BLOCK_SIZE, ENCRYPTION_KEY, ...) and hands the rest to the storage extension
- * that ends up owning the database, which decides what they mean. Nothing is validated here; an unknown or ill-typed
+ * that ends up owning the database, which decides what they mean. Keys must be valid UTF-8; an unknown or ill-typed
  * option fails the attach. Both views are borrowed and copied. Setting the same key again replaces it.
  *
  * history:
@@ -3222,9 +3224,9 @@ typedef struct _duckdb_v2_qname {
  * Parses SQL text into a qualified name.
  *
  * Applies the engine's qualified-name rules: dots separate parts, and a double-quoted part may contain dots and doubled
- * interior quotes. More than three parts and an unterminated quote are rejected with the parser's own error; text
- * without at least one non-empty part is rejected with `ERROR_INPUT_INVALID`. When the parts are already separate,
- * build the name with `duckdb_v2_qname_create()` rather than joining them and parsing the result.
+ * interior quotes. More than three parts and an unterminated quote are rejected with the parser's own error. Invalid
+ * UTF-8 and text without at least one non-empty part are rejected with `ERROR_INPUT_INVALID`. When the parts are
+ * already separate, build the name with `duckdb_v2_qname_create()` rather than joining them and parsing the result.
  *
  * history:
  * - stable: v2.0.0
@@ -4301,7 +4303,7 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_aggregate_function_create_with_extension(
  * @return DUCKDB_V2_ERROR
  */
 DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_aggregate_function_set_name(duckdb_v2_aggregate_function_handle function,
-                                                                   duckdb_v2_str *name,
+                                                                   duckdb_v2_identifier_t *name,
                                                                    duckdb_v2_error_info_handle *err);
 
 /*!
@@ -5334,7 +5336,8 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_arrow_importer_destroy(duckdb_v2_arrow_im
  *
  * @param context The context whose Arrow settings are captured and whose transaction resolves the types.
  * @param types An array of `count` column types. May be NULL only when `count` is 0.
- * @param names An array of `count` column names, parallel to `types`. May be NULL only when `count` is 0.
+ * @param names An array of `count` column names, parallel to `types`. Each name must be valid UTF-8. May be NULL only
+ * when `count` is 0.
  * @param count The number of columns, being the length of both `types` and `names`.
  * @param batch_size Maximum rows per produced array, or 0 for no maximum.
  * @param out_exporter On success, receives the new exporter. Owned by the caller; destroy via
@@ -5696,15 +5699,6 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_column_description_destroy(duckdb_v2_colu
 
 /* --- Types for connection --- */
 
-/*!
- * An opaque, owned handle to a snapshot of a query's execution progress, taken by
- * `duckdb_v2_connection_query_progress()` at call time. Read it with the query_progress_get_* accessors; destroy it via
- * `duckdb_v2_query_progress_destroy()`.
- */
-typedef struct _duckdb_v2_query_progress {
-	void *internal_ptr;
-} * duckdb_v2_query_progress_handle;
-
 /* --- Constants for connection --- */
 
 /* --- Function pointer typedefs for connection --- */
@@ -5856,88 +5850,29 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_connection_interrupt(duckdb_v2_connection
 /*!
  * Captures a snapshot of the active query's execution progress.
  *
- * Writes the progress of the query currently executing on the connection into an owned snapshot handle; read it with
- * the query_progress_get_* accessors and destroy it via `duckdb_v2_query_progress_destroy()`. Safe to call from any
- * thread, including while another thread steps the query's result.
+ * Reads the percentage and row counts from one consistent snapshot of the query currently executing on the connection.
+ * Safe to call from any thread, including while another thread steps the query's result.
  *
- * Progress is published only while the enable_progress_bar option is set; this call does not enable tracking itself. A
- * percentage of -1, with both row counts 0, means no information is available: tracking is disabled, no query is
- * active, or nothing has been published yet.
+ * Progress is published only when the enable_progress_bar option is set; the bridge does not enable tracking itself.
+ * Both row counts are 0 when no information is available. The percentage is -1 when tracking is disabled, no query is
+ * active, or no progress has been published yet.
  *
  * history:
  * - stable: v2.0.0
  *
  * @param conn The connection.
- * @param out_progress Receives the new progress snapshot handle.
- * @param err Optional. On failure, receives an opaque info handle the caller must destroy via
- * `duckdb_v2_error_info_destroy()`.
- * @return DUCKDB_V2_ERROR
- */
-DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_connection_query_progress(duckdb_v2_connection_handle conn,
-                                                                 duckdb_v2_query_progress_handle *out_progress,
-                                                                 duckdb_v2_error_info_handle *err);
-
-/*!
- * Returns the snapshot's percentage complete.
- *
- * A percentage in [0, 100], or -1 when no progress information was available at capture time.
- *
- * history:
- * - stable: v2.0.0
- *
- * @param progress The progress snapshot.
- * @param out_percentage Receives the percentage.
- * @param err Optional. On failure, receives an opaque info handle the caller must destroy via
- * `duckdb_v2_error_info_destroy()`.
- * @return DUCKDB_V2_ERROR
- */
-DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_query_progress_get_percentage(duckdb_v2_query_progress_handle progress,
-                                                                     double *out_percentage,
-                                                                     duckdb_v2_error_info_handle *err);
-
-/*!
- * Returns the snapshot's processed row count.
- *
- * history:
- * - stable: v2.0.0
- *
- * @param progress The progress snapshot.
+ * @param out_percentage Receives the percentage complete in [0, 100], -1 if tracking is disabled, no query is active,
+ * or no progress has been published yet.
  * @param out_rows_processed Receives the number of rows processed so far.
- * @param err Optional. On failure, receives an opaque info handle the caller must destroy via
- * `duckdb_v2_error_info_destroy()`.
- * @return DUCKDB_V2_ERROR
- */
-DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_query_progress_get_rows_processed(duckdb_v2_query_progress_handle progress,
-                                                                         uint64_t *out_rows_processed,
-                                                                         duckdb_v2_error_info_handle *err);
-
-/*!
- * Returns the snapshot's total row count.
- *
- * history:
- * - stable: v2.0.0
- *
- * @param progress The progress snapshot.
  * @param out_total_rows_to_process Receives the total number of rows the query will process.
  * @param err Optional. On failure, receives an opaque info handle the caller must destroy via
  * `duckdb_v2_error_info_destroy()`.
  * @return DUCKDB_V2_ERROR
  */
-DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_query_progress_get_total_rows_to_process(
-    duckdb_v2_query_progress_handle progress, uint64_t *out_total_rows_to_process, duckdb_v2_error_info_handle *err);
-
-/*!
- * Destroys a progress snapshot handle.
- *
- * Null-safe: passing nullptr or a slot already set to nullptr is a no-op. On success the slot is set to nullptr.
- *
- * history:
- * - stable: v2.0.0
- *
- * @param progress The progress snapshot to destroy.
- * @return DUCKDB_V2_ERROR
- */
-DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_query_progress_destroy(duckdb_v2_query_progress_handle *progress);
+DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_connection_progress_get(duckdb_v2_connection_handle conn, double *out_percentage,
+                                                               uint64_t *out_rows_processed,
+                                                               uint64_t *out_total_rows_to_process,
+                                                               duckdb_v2_error_info_handle *err);
 
 /* --- Struct definitions for connection --- */
 
@@ -6171,7 +6106,8 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_copy_function_create_with_extension(duckd
  * @return DUCKDB_V2_ERROR
  */
 DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_copy_function_set_name(duckdb_v2_copy_function_handle function,
-                                                              duckdb_v2_str *name, duckdb_v2_error_info_handle *err);
+                                                              duckdb_v2_identifier_t *name,
+                                                              duckdb_v2_error_info_handle *err);
 
 /*!
  * Sets arbitrary user data on the copy function.
@@ -6217,7 +6153,7 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_copy_to_set_bind_callback(duckdb_v2_copy_
  * Sets the optional batch size callback of the `COPY ... TO` side.
  *
  * The batch size callback is invoked during query planning, after the bind callback, for each `COPY ... TO` statement
- * that does not set `BATCH_SIZE` itself. It must report how many rows a batch should carry via
+ * that does not set `BATCH_SIZE` itself. It should report how many rows a batch should carry via
  * `duckdb_v2_copy_to_batch_size_set_target()`; the engine then cuts the rows being written into batches of that size
  * and hands each to the batch callback. Without a batch size from either the statement or the callback, a batch is cut
  * for every chunk of rows sunk, i.e. a vector at a time. A batch may still be smaller than the reported size (the last
@@ -6523,7 +6459,8 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_copy_to_batch_size_get_bind_data(duckdb_v
 
 /*!
  * Sets the number of rows a batch should carry, as the target the engine cuts batches at. The batch size callback must
- * set this to a value greater than 0; the statement fails otherwise.
+ * set this to a value greater than 0; the statement fails otherwise. DuckDB defines the `BATCH_SIZE` on omission of
+ * calling the function.
  *
  * history:
  * - stable: v2.0.0
@@ -8752,7 +8689,8 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_scalar_function_create_with_extension(duc
  * @return DUCKDB_V2_ERROR
  */
 DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_scalar_function_set_name(duckdb_v2_scalar_function_handle function,
-                                                                duckdb_v2_str *name, duckdb_v2_error_info_handle *err);
+                                                                duckdb_v2_identifier_t *name,
+                                                                duckdb_v2_error_info_handle *err);
 
 /*!
  * Returns the function's signature so it can be configured.
@@ -12397,7 +12335,8 @@ DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_table_function_create_with_extension(duck
  * @return DUCKDB_V2_ERROR
  */
 DUCKDB_C_API DUCKDB_V2_ERROR duckdb_v2_table_function_set_name(duckdb_v2_table_function_handle function,
-                                                               duckdb_v2_str *name, duckdb_v2_error_info_handle *err);
+                                                               duckdb_v2_identifier_t *name,
+                                                               duckdb_v2_error_info_handle *err);
 
 /*!
  * Returns the function's signature so it can be configured.
