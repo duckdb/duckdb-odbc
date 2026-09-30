@@ -175,8 +175,9 @@ static const ConfigurationOption internal_options[] = {
     DUCKDB_GLOBAL(ExtensionDirectoriesSetting),
     DUCKDB_SETTING_CALLBACK(ExtensionDirectorySetting),
     DUCKDB_SETTING_CALLBACK(ExtensionRepositoryDirectorySetting),
-    DUCKDB_SETTING_CALLBACK(ExternalFileCacheLocalBlockSizeSetting),
-    DUCKDB_SETTING_CALLBACK(ExternalFileCacheRemoteBlockSizeSetting),
+    DUCKDB_SETTING_CALLBACK(ExternalFileCacheLocalMaxBlockSizeSetting),
+    DUCKDB_SETTING_CALLBACK(ExternalFileCacheRemoteMaxBlockSizeSetting),
+    DUCKDB_SETTING_CALLBACK(ExternalFileCacheRemoteMinBlockSizeSetting),
     DUCKDB_SETTING(ExternalFileCacheSpillSetting),
     DUCKDB_SETTING_CALLBACK(ExternalThreadsSetting),
     DUCKDB_SETTING(FileSearchPathSetting),
@@ -591,6 +592,11 @@ bool DBConfig::IsInMemoryDatabase(const char *database_path) {
 
 CastFunctionSet &DBConfig::GetCastFunctions() {
 	return type_manager->GetCastFunctions();
+}
+
+const CastFunctionSet &DBConfig::GetCastFunctions() const {
+	const auto &manager = *type_manager;
+	return manager.GetCastFunctions();
 }
 
 TypeManager &DBConfig::GetTypeManager() {
