@@ -54,6 +54,9 @@ on:
         default: 'false'
         type: 'string'
   repository_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/v')) || github.run_id }}
+  cancel-in-progress: true
 
 env:
   GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -63,7 +66,7 @@ jobs:
   odbc-linux-amd64:
     name: Linux (amd64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-x64' || 'ubuntu-latest' }}
     env:
       MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_x86_64
     steps:
@@ -153,7 +156,7 @@ jobs:
   odbc-linux-aarch64:
     name: Linux (aarch64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-arm64' || 'ubuntu-24.04-arm' }}
     needs: odbc-linux-amd64
     env:
       MANYLINUX_IMAGE: quay.io/pypa/manylinux_2_28_aarch64
@@ -247,7 +250,7 @@ jobs:
   odbc-windows-amd64:
     name: Windows (amd64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: windows-latest
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-latest' }}
     needs: odbc-linux-amd64
     env:
       CC: 'ccache cl'
@@ -288,7 +291,7 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           mkdir build
           cd build
           mkdir release
@@ -305,7 +308,7 @@ jobs:
       - name: List Symbols
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           dumpbin.exe /imports build\release\bin\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
@@ -323,7 +326,7 @@ jobs:
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //f
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v Trace //t REG_SZ //d 1
           REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceDll //t REG_SZ //d "C:\Windows\system32\odbctrac.dll"
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceFile //t REG_SZ //d "D:\a\duckdb-odbc\duckdb-odbc\ODBC_TRACE.log"
+          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceFile //t REG_SZ //d "${{ github.workspace }}\ODBC_TRACE.log"
           echo "----------------------------------------------------------------"
           Reg Query "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC"
 
@@ -345,7 +348,7 @@ jobs:
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
-          pip install pyodbc
+          pip install --break-system-packages pyodbc
           python ./test/pyodbc-test.py
 
       - name: Setup Register For Connection Tests
@@ -405,7 +408,7 @@ jobs:
   odbc-windows-arm64:
     name: Windows (aarch64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: windows-11-arm
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-latest' }}
     needs: odbc-linux-amd64
     env:
       CC: 'ccache cl'
@@ -434,7 +437,7 @@ jobs:
         shell: bash
         run: |
           DUCKDB_VERSION=$(python ./scripts/print_duckdb_version.py)
-          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"-arm64
           echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore Cache
@@ -446,7 +449,7 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvarsarm64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
           mkdir build
           cd build
           mkdir release
@@ -463,58 +466,9 @@ jobs:
       - name: List Symbols
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvarsarm64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
           dumpbin.exe /imports build\release\bin\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
-
-      - name: Setup ODBC
-        shell: bash
-        run: |
-          ./build/release/bin/odbc_install.exe //CI //Install
-          Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources"
-          Reg Query "HKLM\SOFTWARE\ODBC\ODBC.INI\DuckDB"
-          Reg Query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\DuckDB Driver"
-
-      - name: Enable ODBC Trace HKCU
-        shell: bash
-        run: |
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //f
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v Trace //t REG_SZ //d 1
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceDll //t REG_SZ //d "C:\Windows\system32\odbctrac.dll"
-          REG ADD "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC" //v TraceFile //t REG_SZ //d "D:\a\duckdb-odbc\duckdb-odbc\ODBC_TRACE.log"
-          echo "----------------------------------------------------------------"
-          Reg Query "HKCU\SOFTWARE\ODBC\ODBC.INI\ODBC"
-
-      - name: Test Standard ODBC tests
-        if: ${{ inputs.skip_tests != 'true' }}
-        shell: bash
-        run: |
-          ./build/release/bin/test_odbc.exe
-
-      - name: Test PyODBC
-        if: ${{ inputs.skip_tests != 'true' }}
-        shell: bash
-        run: |
-          pip install pyodbc
-          python ./test/pyodbc-test.py
-
-      - name: Setup Register For Connection Tests
-        shell: bash
-        run: |
-          python ./scripts/create_ini_reg.py
-          echo "----------------------------------------------------------------"
-          Reg Query "HKCU\SOFTWARE\ODBC\ODBC.INI\DuckDB"
-
-      - name: Test Connection ODBC tests
-        if: ${{ inputs.skip_tests != 'true' }}
-        shell: bash
-        run: |
-          ./build/release/bin/test_connection_odbc.exe
-
-      - name: Print ODBC trace on failure
-        if: ${{ failure() }}
-        shell: bash
-        run: cat ODBC_TRACE.log
 
       - name: Sign files with Azure Trusted Signing (TM)
         if: github.repository == 'duckdb/duckdb-odbc' && github.event_name != 'pull_request'
@@ -555,7 +509,7 @@ jobs:
   odbc-osx-universal:
     name: macOS (Universal)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: macos-latest
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-macos-arm64' || 'macos-latest' }}
     env:
       GEN: ninja
       CC: 'ccache clang'
@@ -596,7 +550,9 @@ jobs:
 
       - name: Install UnixODBC
         shell: bash
-        run: CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
+        run: |
+          brew uninstall --ignore-dependencies unixodbc || true
+          CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
 
       - name: Build
         shell: bash
@@ -649,7 +605,7 @@ jobs:
   debug:
     name: Debug Tests
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-x64' || 'ubuntu-latest' }}
     needs: odbc-linux-amd64
     env:
       GEN: ninja
@@ -665,8 +621,8 @@ jobs:
 
       - name: Dependencies
         run: |
-          echo "set man-db/auto-update false" | sudo debconf-communicate
-          sudo dpkg-reconfigure man-db
+          echo "set man-db/auto-update false" | sudo debconf-communicate || true
+          sudo dpkg-reconfigure man-db || true
           sudo apt-get update -y -q -o=Dpkg::Use-Pty=0
           sudo apt-get install -y -q -o=Dpkg::Use-Pty=0 \
             ccache \
@@ -692,7 +648,7 @@ jobs:
 
       - name: Install PyODBC
         run: |
-          pip3 install pyodbc
+          pip3 install --break-system-packages pyodbc
 
       - name: Install nanodbc
         run: |
@@ -760,7 +716,7 @@ jobs:
       - odbc-windows-arm64
       - odbc-osx-universal
       - debug
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-slim' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
         with:
