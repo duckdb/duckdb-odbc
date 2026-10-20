@@ -14,7 +14,7 @@ env:
 
 jobs:
   staged-upload:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-slim' || 'ubuntu-latest' }}
     if: ${{ inputs.target_git_describe != '' }}
     steps:
       - uses: actions/checkout@v4
