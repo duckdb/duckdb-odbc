@@ -140,18 +140,19 @@ void OdbcHandleStmt::SetAPD(OdbcHandleDesc *new_apd) {
 	param_desc->SetCurrentAPD(new_apd);
 }
 
-void OdbcHandleStmt::FillIRD() {
-	D_ASSERT(stmt);
+void OdbcHandleStmt::FillIRD(const vector<LogicalType> &types, const vector<Identifier> &names) {
+	D_ASSERT(types.size() == names.size());
 	auto ird = row_desc->GetIRD();
 	ird->Reset();
 	ird->header.sql_desc_count = 0;
-	auto num_cols = stmt->ColumnCount();
+	auto num_cols = types.size();
 	for (duckdb::idx_t col_idx = 0; col_idx < num_cols; ++col_idx) {
 		duckdb::DescRecord new_record;
-		auto col_type = stmt->GetTypes()[col_idx];
+		auto &col_type = types[col_idx];
+		new_record.logical_type = col_type;
 
 		// TODO: Make more specific?
-		auto &name = stmt->GetNames()[col_idx].GetIdentifierName();
+		auto &name = names[col_idx].GetIdentifierName();
 		new_record.sql_desc_base_column_name = name;
 		new_record.sql_desc_name = name;
 		new_record.sql_desc_label = name;

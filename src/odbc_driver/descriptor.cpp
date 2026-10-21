@@ -330,6 +330,7 @@ DescRecord::DescRecord(const DescRecord &other) {
 	sql_desc_unnamed = other.sql_desc_unnamed;
 	sql_desc_unsigned = other.sql_desc_unsigned;
 	sql_desc_updatable = other.sql_desc_updatable;
+	logical_type = other.logical_type;
 }
 
 SQLRETURN DescRecord::SetSqlDataType(SQLSMALLINT type) {
