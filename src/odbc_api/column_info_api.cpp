@@ -75,16 +75,18 @@ static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT col
 		return ret;
 	}
 
-	if (column_number > hstmt->stmt->ColumnCount()) {
+	auto ird = hstmt->row_desc->GetIRD();
+	if (column_number < 1 || column_number > ird->GetRecordCount()) {
 		return SQL_ERROR;
 	}
 
 	duckdb::idx_t col_idx = column_number - 1;
+	auto desc_record = ird->GetDescRecord(col_idx);
 
-	const std::string &col_name = hstmt->stmt->GetNames()[col_idx].GetIdentifierName();
-	ret = WriteStringCol("SQLDescribeCol", hstmt, col_name, column_name, buffer_length, name_length_ptr);
+	ret = WriteStringCol("SQLDescribeCol", hstmt, desc_record->sql_desc_name, column_name, buffer_length,
+	                     name_length_ptr);
 
-	LogicalType col_type = hstmt->stmt->GetTypes()[col_idx];
+	const LogicalType &col_type = desc_record->logical_type;
 
 	if (data_type_ptr) {
 		*data_type_ptr = duckdb::ApiInfo::FindRelatedSQLType(col_type.id());
@@ -170,7 +172,7 @@ static SQLRETURN ColAttributeInternal(SQLHSTMT statement_handle, SQLUSMALLINT co
 
 	// TODO: SQL_DESC_TYPE and SQL_DESC_OCTET_LENGTH should return values if column_number is 0, otherwise they should
 	// return undefined values
-	if (column_number < 1 || column_number > hstmt->stmt->GetTypes().size()) {
+	if (column_number < 1 || column_number > hstmt->row_desc->GetIRD()->GetRecordCount()) {
 		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLColAttribute(s)", "Invalid descriptor index",
 		                                   SQLStateType::ST_07009, hstmt->dbc->GetDataSourceName());
 	}
@@ -344,7 +346,7 @@ SQLRETURN SQL_API SQLNumResultCols(SQLHSTMT statement_handle, SQLSMALLINT *colum
 	if (!column_count_ptr) {
 		return SQL_ERROR;
 	}
-	*column_count_ptr = (SQLSMALLINT)hstmt->stmt->ColumnCount();
+	*column_count_ptr = (SQLSMALLINT)hstmt->row_desc->GetIRD()->GetRecordCount();
 
 	switch (hstmt->stmt->GetStatementType()) {
 	case duckdb::StatementType::CALL_STATEMENT:

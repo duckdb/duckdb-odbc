@@ -56,6 +56,10 @@ public:
 	SQLSMALLINT sql_desc_unnamed;
 	SQLSMALLINT sql_desc_unsigned;
 	SQLSMALLINT sql_desc_updatable = SQL_ATTR_READONLY;
+
+	// driver-internal (not exposed through the ODBC API), only set for IRD records:
+	// engine type of the result column the record describes
+	duckdb::LogicalType logical_type;
 };
 
 struct DescHeader {
