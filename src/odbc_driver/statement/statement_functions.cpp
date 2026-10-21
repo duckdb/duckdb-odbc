@@ -5,6 +5,7 @@
 #include "odbc_utils.hpp"
 #include "descriptor.hpp"
 #include "parameter_descriptor.hpp"
+#include "row_descriptor.hpp"
 #include "widechar.hpp"
 
 #include "duckdb/common/types/timestamp.hpp"
@@ -60,28 +61,26 @@ SQLRETURN duckdb::FinalizeStmt(OdbcHandleStmt *hstmt) {
 
 	SQLRETURN ret = SQL_SUCCESS;
 
-	// Prepare call may be unable to bind the query when parameter types cannot be determined,
-	// for example: 'SELECT ?'.
-	// In this case the plan is not created at all and resulting columns (their types and names)
-	// returned with a partially-filled state, so we need to clear them. They are going to be re-filled after
-	// each execution and may be different depending on input parameters supplied for execution.
-	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
-		// TODO: partial types handling
-		// hstmt->stmt->data->types.clear();
-		// hstmt->stmt->data->names.clear();
-		ret = SetDiagnosticRecord(hstmt, SQL_SUCCESS_WITH_INFO, "PrepareStmt", "Not all parameters are bound",
-		                          SQLStateType::ST_01000, hstmt->dbc->GetDataSourceName());
-	}
-
 	// named_param_map is created on successfull parse stage, does not need to be corrected on rebind
 	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->GetNamedParameterMap().size()));
 
+	// Prepare call may be unable to bind the query when parameter types cannot be determined,
+	// for example: 'SELECT ?'.
+	// In this case the plan is not created at all and resulting columns (their types and names)
+	// in the prepared statement are left in a partially-filled state, so they must not be used.
 	// Bound columns and IRD records depend on resulting columns. When
 	// bound_all_parameters=false, we don't have resulting columns defined, so
-	// bound columns and IRD records are kept empty and are re-filled after
-	// every execution.
-	hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
-	hstmt->FillIRD();
+	// bound columns and IRD records are kept empty and are re-filled from the
+	// query result after every execution (they may be different depending on
+	// input parameters supplied for execution).
+	if (hstmt->stmt->GetStatementProperties().bound_all_parameters) {
+		hstmt->FillIRD(hstmt->stmt->GetTypes(), hstmt->stmt->GetNames());
+	} else {
+		hstmt->FillIRD({}, {});
+		ret = SetDiagnosticRecord(hstmt, SQL_SUCCESS_WITH_INFO, "PrepareStmt", "Not all parameters are bound",
+		                          SQLStateType::ST_01000, hstmt->dbc->GetDataSourceName());
+	}
+	hstmt->bound_cols.resize(hstmt->row_desc->GetIRD()->GetRecordCount());
 
 	return ret;
 }
@@ -110,17 +109,9 @@ SQLRETURN duckdb::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
 		D_ASSERT(hstmt->res);
 
-		// Copy up to date result types and names from the execution result
-		/* TODO: fixme
-		hstmt->stmt->data->types = hstmt->res->types;
-		for (const std::string &name : hstmt->res->names) {
-		    hstmt->stmt->data->names.emplace_back(Identifier(name));
-		}
-		*/
-
-		// Correct bounded columns and re-fill IRD records
-		hstmt->bound_cols.resize(hstmt->stmt->ColumnCount());
-		hstmt->FillIRD();
+		// Re-fill IRD records from up to date result types and names and correct bound columns
+		hstmt->FillIRD(hstmt->res->GetTypes(), hstmt->res->GetNames());
+		hstmt->bound_cols.resize(hstmt->row_desc->GetIRD()->GetRecordCount());
 	}
 
 	return ret;

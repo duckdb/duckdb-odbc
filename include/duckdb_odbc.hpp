@@ -128,7 +128,7 @@ public:
 	bool IsPrepared() {
 		return stmt != nullptr;
 	}
-	void FillIRD();
+	void FillIRD(const vector<LogicalType> &types, const vector<Identifier> &names);
 
 public:
 	OdbcHandleDbc *dbc;
