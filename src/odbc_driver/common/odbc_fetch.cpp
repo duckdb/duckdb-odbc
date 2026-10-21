@@ -340,7 +340,7 @@ SQLRETURN OdbcFetch::ColumnWise(OdbcHandleStmt *hstmt) {
 		SetRowStatus(row_idx, SQL_SUCCESS);
 		// now fill buffers in fetch if set
 		// TODO actually vectorize this
-		for (duckdb::idx_t col_idx = 0; col_idx < hstmt->stmt->ColumnCount(); col_idx++) {
+		for (duckdb::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
 			auto bound_col = hstmt->bound_cols[col_idx];
 
 			if (!bound_col.IsBound() && !bound_col.IsVarcharBound()) {
@@ -390,7 +390,7 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt) {
 		++chunk_row;
 		SetRowStatus(row_idx, SQL_SUCCESS);
 		auto row_offset = row_size * row_idx;
-		for (duckdb::idx_t col_idx = 0; col_idx < hstmt->stmt->ColumnCount(); col_idx++) {
+		for (duckdb::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
 			auto bound_col = hstmt->bound_cols[col_idx];
 			if (!bound_col.IsBound()) {
 				continue;
