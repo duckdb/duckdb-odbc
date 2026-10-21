@@ -506,8 +506,8 @@ jobs:
           path: |
             duckdb_odbc-windows-arm64.zip
 
-  odbc-osx-universal:
-    name: macOS (Universal)
+  odbc-macos-arm64:
+    name: macOS (arm64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
     runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-macos-arm64' || 'macos-latest' }}
     env:
@@ -516,7 +516,6 @@ jobs:
       CXX: 'ccache clang++'
       CCACHE_DIR: ${{ github.workspace }}/ccache
       ODBC_CONFIG: ${{ github.workspace }}/build/unixodbc/build/bin/odbc_config
-      OSX_BUILD_UNIVERSAL: 1
     needs: odbc-linux-amd64
     steps:
 
@@ -539,7 +538,7 @@ jobs:
         id: cache_key
         run: |
           DUCKDB_VERSION=$(python3 ./scripts/print_duckdb_version.py)
-          KEY="${{ runner.os }}-${{ runner.arch }}-$DUCKDB_VERSION"
+          KEY="${{ runner.os }}-${{ runner.arch }}-arm64-$DUCKDB_VERSION"
           echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore Cache
@@ -552,7 +551,7 @@ jobs:
         shell: bash
         run: |
           brew uninstall --ignore-dependencies unixodbc || true
-          CFLAGS="-arch x86_64 -arch arm64" ./scripts/install_unixodbc.sh
+          ./scripts/install_unixodbc.sh
 
       - name: Build
         shell: bash
@@ -582,10 +581,9 @@ jobs:
         run: |
           ./build/release/test/test_odbc
 
-      - name: See if this actually universal
+      - name: Check architecture
         shell: bash
-        run: |
-          lipo -archs build/release/libduckdb_odbc.dylib | grep "x86_64 arm64"
+        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "arm64"
 
       - name: Deploy
         env:
@@ -593,14 +591,109 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
-          zip -j duckdb_odbc-osx-universal.zip build/release/libduckdb_odbc.dylib
-          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-osx-universal.zip
+          zip -j duckdb_odbc-macos-arm64.zip build/release/libduckdb_odbc.dylib
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-macos-arm64.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: odbc-osx-universal
+          name: odbc-macos-arm64
           path: |
-            duckdb_odbc-osx-universal.zip
+            duckdb_odbc-macos-arm64.zip
+
+  odbc-macos-amd64:
+    name: macOS (amd64)
+    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-macos-arm64' || 'macos-latest' }}
+    env:
+      GEN: ninja
+      CC: 'ccache clang'
+      CXX: 'ccache clang++'
+      CCACHE_DIR: ${{ github.workspace }}/ccache
+      ODBC_CONFIG: ${{ github.workspace }}/build/unixodbc/build/bin/odbc_config
+      OSX_BUILD_AMD64: 1
+    needs: odbc-linux-amd64
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.git_ref }}
+
+      - name: Dependencies
+        run: |
+          brew install -q \
+            ccache \
+            ninja
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache Key
+        id: cache_key
+        run: |
+          DUCKDB_VERSION=$(python3 ./scripts/print_duckdb_version.py)
+          KEY="${{ runner.os }}-${{ runner.arch }}-amd64-$DUCKDB_VERSION"
+          echo "value=${KEY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
+      - name: Install UnixODBC
+        shell: bash
+        run: |
+          brew uninstall --ignore-dependencies unixodbc || true
+          CFLAGS="-arch x86_64" ./scripts/install_unixodbc.sh
+
+      - name: Build
+        shell: bash
+        run: make release
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ${{ steps.cache_key.outputs.value }}
+
+      - name: List Dependencies
+        run: |
+          otool -L ./build/release/libduckdb_odbc.dylib
+
+      - name: List Symbols
+        run: |
+          nm -gU ./build/release/libduckdb_odbc.dylib
+
+      - name: Check jemalloc
+        run: |
+          ! (nm ./build/release/libduckdb_odbc.dylib | grep jemalloc) || exit 1
+
+      - name: ODBC Tests
+        if: ${{ inputs.skip_tests != 'true' }}
+        shell: bash
+        run: |
+          ./build/release/test/test_odbc
+
+      - name: Check architecture
+        shell: bash
+        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "x86_64"
+
+      - name: Deploy
+        env:
+          AWS_ENDPOINT_URL: ${{ secrets.S3_DUCKDB_STAGING_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_DUCKDB_STAGING_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
+        run: |
+          zip -j duckdb_odbc-macos-amd64.zip build/release/libduckdb_odbc.dylib
+          ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-macos-amd64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: odbc-macos-amd64
+          path: |
+            duckdb_odbc-macos-amd64.zip
 
   debug:
     name: Debug Tests
@@ -714,7 +807,8 @@ jobs:
       - odbc-linux-aarch64
       - odbc-windows-amd64
       - odbc-windows-arm64
-      - odbc-osx-universal
+      - odbc-macos-arm64
+      - odbc-macos-amd64
       - debug
     runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-slim' || 'ubuntu-latest' }}
     steps:
