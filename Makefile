@@ -11,18 +11,18 @@ ifneq ($(ODBC_CONFIG),)
 	ODBC_CONFIG_FLAG=-DODBC_CONFIG=${ODBC_CONFIG}
 endif
 
-OSX_BUILD_UNIVERSAL_FLAG=
-ifneq ($(OSX_BUILD_UNIVERSAL),)
-	OSX_BUILD_UNIVERSAL_FLAG=-DOSX_BUILD_UNIVERSAL=1
+OSX_BUILD_AMD64_FLAG=
+ifneq ($(OSX_BUILD_AMD64),)
+	OSX_BUILD_AMD64_FLAG=-DOSX_BUILD_AMD64=1
 endif
 
 release:
 	mkdir -p build/release
-	cd build/release && cmake -DCMAKE_BUILD_TYPE=Release $(GENERATOR) $(ODBC_CONFIG_FLAG) $(OSX_BUILD_UNIVERSAL_FLAG) ../.. && cmake --build . --config Release
+	cd build/release && cmake -DCMAKE_BUILD_TYPE=Release $(GENERATOR) $(ODBC_CONFIG_FLAG) $(OSX_BUILD_AMD64_FLAG) ../.. && cmake --build . --config Release
 
 debug:
 	mkdir -p build/debug
-	cd build/debug && cmake -DCMAKE_BUILD_TYPE=Debug $(GENERATOR) $(ODBC_CONFIG_FLAG) $(OSX_BUILD_UNIVERSAL_FLAG) ../.. && cmake --build . --config Debug
+	cd build/debug && cmake -DCMAKE_BUILD_TYPE=Debug $(GENERATOR) $(ODBC_CONFIG_FLAG) $(OSX_BUILD_AMD64_FLAG) ../.. && cmake --build . --config Debug
 
 format-fix:
 	rm -rf src/amalgamation/*
