@@ -119,6 +119,13 @@ jobs:
         run: |
           nm -gU ./build/release/libduckdb_odbc.so
 
+      - name: Check self-binding
+        # The driver calls its own ODBC entry points internally (SQLAllocHandle, ...). Without -Bsymbolic those calls
+        # bind to the driver manager's functions of the same name, which reject the driver's own handles.
+        run: |
+          # a call the linker left interposable shows up as a dynamic relocation against the symbol
+          if readelf -rW ./build/release/libduckdb_odbc.so | grep -wE 'SQLAllocHandle|SQLFreeHandle'; then exit 1; fi
+
       - name: Check jemalloc
         run: |
           nm ./build/release/libduckdb_odbc.so | grep jemalloc || exit 1
@@ -210,6 +217,13 @@ jobs:
       - name: List Symbols
         run: |
           nm -gU ./build/release/libduckdb_odbc.so
+
+      - name: Check self-binding
+        # The driver calls its own ODBC entry points internally (SQLAllocHandle, ...). Without -Bsymbolic those calls
+        # bind to the driver manager's functions of the same name, which reject the driver's own handles.
+        run: |
+          # a call the linker left interposable shows up as a dynamic relocation against the symbol
+          if readelf -rW ./build/release/libduckdb_odbc.so | grep -wE 'SQLAllocHandle|SQLFreeHandle'; then exit 1; fi
 
       - name: Check jemalloc
         run: |

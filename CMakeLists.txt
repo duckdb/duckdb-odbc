@@ -636,8 +636,8 @@ target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
 if(NOT WIN32)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(duckdb_odbc PRIVATE
-      -Bsymbolic
-      -Bsymbolic-functions
+      -Wl,-Bsymbolic
+      -Wl,-Bsymbolic-functions
       -fvisibility=hidden
       -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.map)
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
