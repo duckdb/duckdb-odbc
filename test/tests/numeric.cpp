@@ -120,13 +120,17 @@ TEST_CASE("Test numeric limits and conversion", "[odbc]") {
 	TestNumericResult(hstmt, "25.212", "7C62000000000000", 5, 3);
 	TestNumericResult(hstmt, "24197857161011715162171839636988778104", "7856341278563412", 38, 0, 38, 0);
 	TestNumericResult(hstmt, "12345678901234567890123456789012345678", "4EF338DE509049C4", 38, 0, 38, 0);
-	TestNumericResult(hstmt, "-0", "0000000000000000", 1, 3);
-	TestNumericResult(hstmt, "0", "0000000000000000", 1, 3);
+	TestNumericResult(hstmt, "-0", "0000000000000000", 4, 3);
+	TestNumericResult(hstmt, "0", "0000000000000000", 4, 3);
 	TestNumericResult(hstmt, "-1", "0100000000000000", 1, 0, 1, 0, 0);
 	TestNumericResult(hstmt, "1", "0100000000000000", 1, 0, 1, 0);
 	TestNumericResult(hstmt, "7.70", "0203000000000000", 3, 2, 3, 2);
 	TestNumericResult(hstmt, "-7.70", "0203000000000000", 3, 2, 3, 2, 0);
-	TestNumericResult(hstmt, "999999999999", "FF0FA5D4E8000000", 12, 3);
+	// the value is 999999999999.000: all fraction digits are zero, and they must stay -- the scale stays 3, so
+	// dropping them would read back as 999999999.999
+	TestNumericResult(hstmt, "999999999999", "187CC6A47E8D0300", 15, 3);
+	TestNumericResult(hstmt, "30.0", "2C01000000000000", 3, 1, 18, 1);
+	TestNumericResult(hstmt, "30", "3075000000000000", 5, 3);
 	TestNumericResult(hstmt, "-1234567890123456789.12345", "59DB966CA0101F9B241A000000000000", 24, 5, 24, 5, 0);
 
 	// Free the statement handle

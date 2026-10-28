@@ -499,12 +499,8 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		if (pos_dot != string::npos) {
 			str_val.erase(std::remove(str_val.begin(), str_val.end(), '.'), str_val.end());
 			numeric->scale = static_cast<SQLSCHAR>(str_val.size() - pos_dot);
-
-			string str_fraction = str_val.substr(pos_dot);
-			// case all digits in fraction is 0, remove them
-			if (!str_fraction.empty() && str_fraction.find_first_not_of('0') == string::npos) {
-				str_val.erase(str_val.begin() + pos_dot, str_val.end());
-			}
+			// the fraction digits stay even when they are all zero: dropping them without also resetting the
+			// scale turned 30.0 into 3.0 (val 30, scale 1)
 			width = str_val.size();
 		}
 		numeric->precision = static_cast<SQLCHAR>(width);
