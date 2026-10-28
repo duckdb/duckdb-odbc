@@ -337,7 +337,10 @@ SQLRETURN OdbcFetch::ColumnWise(OdbcHandleStmt *hstmt) {
 
 	for (SQLULEN row_idx = first_row_to_fetch; row_idx < last_row_to_fetch; ++row_idx) {
 		++chunk_row;
-		SetRowStatus(row_idx, SQL_SUCCESS);
+		// the application's buffers hold ONE rowset: index them by the row's position in the rowset, not in the
+		// chunk -- from the second rowset of a chunk on, the chunk index runs past the end of every buffer
+		auto rowset_idx = row_idx - first_row_to_fetch;
+		SetRowStatus(rowset_idx, SQL_SUCCESS);
 		// now fill buffers in fetch if set
 		// TODO actually vectorize this
 		for (duckdb::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
@@ -355,14 +358,17 @@ SQLRETURN OdbcFetch::ColumnWise(OdbcHandleStmt *hstmt) {
 				if (pointer_size < 0) {
 					pointer_size = bound_col.len;
 				}
-				target_val_addr = (uint8_t *)target_val_addr + (row_idx * pointer_size);
-				target_len_addr += row_idx;
+				target_val_addr = (uint8_t *)target_val_addr + (rowset_idx * pointer_size);
+				// a column may be bound without a length/indicator buffer (NOT NULL, fixed width): keep it null
+				if (target_len_addr) {
+					target_len_addr += rowset_idx;
+				}
 			}
 
 			ret = duckdb::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type,
 			                                target_val_addr, bound_col.len, target_len_addr);
 			if (!SQL_SUCCEEDED(ret)) {
-				SetRowStatus(row_idx, SQL_ROW_ERROR);
+				SetRowStatus(rowset_idx, SQL_ROW_ERROR);
 			}
 		}
 	}
@@ -388,8 +394,9 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt) {
 	SQLULEN rows_fetched = 0;
 	for (SQLULEN row_idx = first_row_to_fetch; row_idx < last_row_to_fetch; ++row_idx, ++rows_fetched) {
 		++chunk_row;
-		SetRowStatus(row_idx, SQL_SUCCESS);
-		auto row_offset = row_size * row_idx;
+		SetRowStatus(rows_fetched, SQL_SUCCESS);
+		// rows_fetched is the row's position in the rowset (see ColumnWise)
+		auto row_offset = row_size * rows_fetched;
 		for (duckdb::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
 			auto bound_col = hstmt->bound_cols[col_idx];
 			if (!bound_col.IsBound()) {
@@ -398,12 +405,15 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt) {
 
 			// the addresses must be byte addressable for row offset pointer arithmetic
 			uint8_t *target_val_addr = (uint8_t *)bound_col.ptr + row_offset;
-			uint8_t *target_len_addr = (uint8_t *)bound_col.strlen_or_ind + row_offset;
+			// a column may be bound without a length/indicator buffer (NOT NULL, fixed width): offsetting a null
+			// pointer would hand GetData a non-null garbage address from the second row on
+			uint8_t *target_len_addr =
+			    bound_col.strlen_or_ind ? (uint8_t *)bound_col.strlen_or_ind + row_offset : nullptr;
 
 			ret = duckdb::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type,
 			                                target_val_addr, bound_col.len, (SQLLEN *)target_len_addr);
 			if (!SQL_SUCCEEDED(ret)) {
-				SetRowStatus(row_idx, SQL_ROW_ERROR);
+				SetRowStatus(rows_fetched, SQL_ROW_ERROR);
 			}
 		}
 	}
