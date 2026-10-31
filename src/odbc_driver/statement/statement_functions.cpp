@@ -482,49 +482,39 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		// reset numeric val to remove some garbage
 		memset(dataptr, '\0', SQL_MAX_NUMERIC_LEN);
 
-		numeric->sign = 1;
-		numeric->precision = numeric->scale = 0;
+		// precision and scale are taken from the column type, val holds the unscaled integer at that scale
+		numeric->precision = static_cast<SQLCHAR>(DecimalType::GetWidth(val.type()));
+		numeric->scale = static_cast<SQLSCHAR>(DecimalType::GetScale(val.type()));
 
-		string str_val = val.ToString();
-		auto width = str_val.size();
-
-		if (str_val[0] == '-') {
-			numeric->sign = 0;
-			str_val.erase(std::remove(str_val.begin(), str_val.end(), '-'), str_val.end());
-			// uncounting negative signal '-'
-			--width;
+		hugeint_t unscaled;
+		switch (val.type().InternalType()) {
+		case PhysicalType::INT16:
+			unscaled = hugeint_t(val.GetValueUnsafe<int16_t>());
+			break;
+		case PhysicalType::INT32:
+			unscaled = hugeint_t(val.GetValueUnsafe<int32_t>());
+			break;
+		case PhysicalType::INT64:
+			unscaled = hugeint_t(val.GetValueUnsafe<int64_t>());
+			break;
+		case PhysicalType::INT128:
+			unscaled = val.GetValueUnsafe<hugeint_t>();
+			break;
+		default:
+			return SQL_ERROR;
 		}
 
-		auto pos_dot = str_val.find('.');
-		if (pos_dot != string::npos) {
-			str_val.erase(std::remove(str_val.begin(), str_val.end(), '.'), str_val.end());
-			numeric->scale = static_cast<SQLSCHAR>(str_val.size() - pos_dot);
-
-			string str_fraction = str_val.substr(pos_dot);
-			// case all digits in fraction is 0, remove them
-			if (!str_fraction.empty() && str_fraction.find_first_not_of('0') == string::npos) {
-				str_val.erase(str_val.begin() + pos_dot, str_val.end());
-			}
-			width = str_val.size();
+		numeric->sign = unscaled < hugeint_t(0) ? 0 : 1;
+		if (numeric->sign == 0) {
+			// cannot overflow, max DECIMAL width is 38 digits
+			unscaled = -unscaled;
 		}
-		numeric->precision = static_cast<SQLCHAR>(width);
-
-		string_t str_t(str_val.c_str(), static_cast<uint32_t>(width));
-		if (numeric->precision <= Decimal::MAX_WIDTH_INT64) {
-			int64_t val_i64;
-			if (!duckdb::TryCast::Operation(str_t, val_i64)) {
-				return SQL_ERROR;
-			}
-			memcpy(dataptr, &val_i64, sizeof(val_i64));
-		} else {
-			hugeint_t huge_int;
-			// The string has already been processed to remove decimal point, so it's an integer string
-			// We need to convert it directly to hugeint_t
-			if (!duckdb::TryCast::Operation(str_t, huge_int)) {
-				return SQL_ERROR;
-			}
-			memcpy(dataptr, &huge_int.lower, sizeof(huge_int.lower));
-			memcpy(dataptr + sizeof(huge_int.lower), &huge_int.upper, sizeof(huge_int.upper));
+		// val is little-endian
+		uint64_t lower = unscaled.lower;
+		uint64_t upper = static_cast<uint64_t>(unscaled.upper);
+		for (idx_t i = 0; i < sizeof(uint64_t); i++) {
+			dataptr[i] = static_cast<uint8_t>(lower >> (i * 8));
+			dataptr[sizeof(uint64_t) + i] = static_cast<uint8_t>(upper >> (i * 8));
 		}
 
 		if (str_len_or_ind_ptr) {
