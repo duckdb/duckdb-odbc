@@ -145,7 +145,11 @@ void TestManySQLTypes(HSTMT &hstmt) {
 		REQUIRE(many_sql_types[i].d_ind != SQL_NO_DATA);
 		REQUIRE(many_sql_types[i].d == i);
 		REQUIRE(many_sql_types[i].n_ind != SQL_NO_DATA);
-		REQUIRE(many_sql_types[i].n.val[0] == i);
+		// i::numeric is DECIMAL(18,3), val holds the unscaled value
+		REQUIRE(many_sql_types[i].n.precision == 18);
+		REQUIRE(many_sql_types[i].n.scale == 3);
+		REQUIRE(many_sql_types[i].n.sign == 1);
+		REQUIRE((many_sql_types[i].n.val[0] | (many_sql_types[i].n.val[1] << 8)) == i * 1000);
 		REQUIRE(many_sql_types[i].vchar_len_or_ind != SQL_NO_DATA);
 		REQUIRE(ConvertToString(many_sql_types[i].vchar) == (std::to_string(i) + "-Varchar"));
 		REQUIRE(many_sql_types[i].date_len_or_ind != SQL_NO_DATA);

@@ -1,5 +1,7 @@
 #include "odbc_test_common.h"
 
+#include <cmath>
+
 using namespace odbc_test;
 
 static unsigned char HexToInt(char c) {
@@ -117,17 +119,83 @@ TEST_CASE("Test numeric limits and conversion", "[odbc]") {
 	TestNumericParams(hstmt, 0, "59DB966CA0101F9B241A", 24, 5, "-1234567890123456789.12345");
 
 	// Test setting numeric struct within the application
-	TestNumericResult(hstmt, "25.212", "7C62000000000000", 5, 3);
+	TestNumericResult(hstmt, "25.212", "7C62000000000000", 18, 3);
 	TestNumericResult(hstmt, "24197857161011715162171839636988778104", "7856341278563412", 38, 0, 38, 0);
 	TestNumericResult(hstmt, "12345678901234567890123456789012345678", "4EF338DE509049C4", 38, 0, 38, 0);
-	TestNumericResult(hstmt, "-0", "0000000000000000", 1, 3);
-	TestNumericResult(hstmt, "0", "0000000000000000", 1, 3);
+	TestNumericResult(hstmt, "-0", "0000000000000000", 18, 3);
+	TestNumericResult(hstmt, "0", "0000000000000000", 18, 3);
 	TestNumericResult(hstmt, "-1", "0100000000000000", 1, 0, 1, 0, 0);
 	TestNumericResult(hstmt, "1", "0100000000000000", 1, 0, 1, 0);
 	TestNumericResult(hstmt, "7.70", "0203000000000000", 3, 2, 3, 2);
 	TestNumericResult(hstmt, "-7.70", "0203000000000000", 3, 2, 3, 2, 0);
-	TestNumericResult(hstmt, "999999999999", "FF0FA5D4E8000000", 12, 3);
+	TestNumericResult(hstmt, "999999999999", "187CC6A47E8D0300", 18, 3);
 	TestNumericResult(hstmt, "-1234567890123456789.12345", "59DB966CA0101F9B241A000000000000", 24, 5, 24, 5, 0);
+
+	// Free the statement handle
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
+
+TEST_CASE("Test SQL_C_NUMERIC result with zero fractional part", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	// Connect to the database using SQLConnect
+	CONNECT_TO_DATABASE(env, dbc);
+
+	// Allocate a statement handle
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	// val must hold the unscaled value at the column scale, trailing zeros must not be stripped
+	TestNumericResult(hstmt, "60.00", "7017000000000000", 18, 2, 18, 2);
+	TestNumericResult(hstmt, "-60.00", "7017000000000000", 18, 2, 18, 2, 0);
+	TestNumericResult(hstmt, "1.00", "6400000000000000", 18, 2, 18, 2);
+	TestNumericResult(hstmt, "100.00", "1027000000000000", 18, 2, 18, 2);
+	TestNumericResult(hstmt, "0.60", "3C00000000000000", 18, 2, 18, 2);
+	TestNumericResult(hstmt, "60.10", "7A17000000000000", 18, 2, 18, 2);
+	TestNumericResult(hstmt, "12.34", "D204000000000000", 18, 2, 18, 2);
+	TestNumericResult(hstmt, "30.0", "2C01000000000000", 18, 1, 18, 1);
+	TestNumericResult(hstmt, "30", "3075000000000000", 18, 3);
+	// DECIMAL backed by int16, int32 and hugeint
+	TestNumericResult(hstmt, "60.00", "7017000000000000", 4, 2, 4, 2);
+	TestNumericResult(hstmt, "60.00", "7017000000000000", 9, 2, 9, 2);
+	TestNumericResult(hstmt, "100000000000000000000000.00", "0000004A48011416954508", 38, 2, 38, 2);
+	TestNumericResult(hstmt, "-100000000000000000000000.00", "0000004A48011416954508", 38, 2, 38, 2, 0);
+
+	// Same column fetched as SQL_C_CHAR and SQL_C_NUMERIC must decode to the same value
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT d FROM (VALUES (60.00::DECIMAL(18,2)), (0.60), (60.10), (1.00), "
+	                                   "(100.00), (12.34), (-60.00)) t(d)"),
+	                  SQL_NTS);
+	int rows = 0;
+	while (SQLFetch(hstmt) == SQL_SUCCESS) {
+		SQLCHAR char_val[64];
+		EXECUTE_AND_CHECK("SQLGetData (SQL_C_CHAR)", hstmt, SQLGetData, hstmt, 1, SQL_C_CHAR, char_val,
+		                  sizeof(char_val), nullptr);
+		SQL_NUMERIC_STRUCT numeric;
+		SQLLEN numeric_len = 0;
+		EXECUTE_AND_CHECK("SQLGetData (SQL_C_NUMERIC)", hstmt, SQLGetData, hstmt, 1, SQL_C_NUMERIC, &numeric,
+		                  sizeof(numeric), &numeric_len);
+		REQUIRE(numeric_len == sizeof(SQL_NUMERIC_STRUCT));
+		REQUIRE(numeric.precision == 18);
+		REQUIRE(numeric.scale == 2);
+
+		int64_t unscaled = 0;
+		for (int i = sizeof(int64_t) - 1; i >= 0; i--) {
+			unscaled = (unscaled << 8) | numeric.val[i];
+		}
+		if (numeric.sign == 0) {
+			unscaled = -unscaled;
+		}
+		std::string char_str = ConvertToString(char_val);
+		REQUIRE(unscaled == std::llround(std::stod(char_str) * 100));
+		rows++;
+	}
+	REQUIRE(rows == 7);
 
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
