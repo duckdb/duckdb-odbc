@@ -549,6 +549,9 @@ jobs:
 
       - name: Install UnixODBC
         shell: bash
+        env:
+          # statically linked into the driver, must target the same minimum macOS version
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: |
           brew uninstall --ignore-dependencies unixodbc || true
           ./scripts/install_unixodbc.sh
@@ -648,6 +651,9 @@ jobs:
 
       - name: Install UnixODBC
         shell: bash
+        env:
+          # statically linked into the driver, must target the same minimum macOS version
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: |
           brew uninstall --ignore-dependencies unixodbc || true
           CFLAGS="-arch x86_64" ./scripts/install_unixodbc.sh
