@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.5...3.29)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+if(OSX_BUILD_AMD64)
+  set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architectures for Mac OS X" FORCE)
+endif()
+
 project(duckdb-odbc C CXX)
 
 find_package(ODBC)
@@ -584,10 +589,6 @@ endif()
 set(DUCKDB_SYSTEM_LIBS ${CMAKE_DL_LIBS})
 if(MSVC)
   set(DUCKDB_SYSTEM_LIBS ${DUCKDB_SYSTEM_LIBS} ws2_32 rstrtmgr bcrypt)
-endif()
-
-if(OSX_BUILD_AMD64)
-  SET(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architectures for Mac OS X" FORCE)
 endif()
 
 add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DUCKDB_DEFINITIONS})

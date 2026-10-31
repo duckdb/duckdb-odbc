@@ -575,15 +575,19 @@ jobs:
         run: |
           ! (nm ./build/release/libduckdb_odbc.dylib | grep jemalloc) || exit 1
 
+      - name: Check architecture
+        shell: bash
+        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "arm64"
+
+      - name: Check minimum macOS version
+        shell: bash
+        run: otool -l build/release/libduckdb_odbc.dylib | grep -A4 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX'
+
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
           ./build/release/test/test_odbc
-
-      - name: Check architecture
-        shell: bash
-        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "arm64"
 
       - name: Deploy
         env:
@@ -670,15 +674,19 @@ jobs:
         run: |
           ! (nm ./build/release/libduckdb_odbc.dylib | grep jemalloc) || exit 1
 
+      - name: Check architecture
+        shell: bash
+        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "x86_64"
+
+      - name: Check minimum macOS version
+        shell: bash
+        run: otool -l build/release/libduckdb_odbc.dylib | grep -A4 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX'
+
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
           ./build/release/test/test_odbc
-
-      - name: Check architecture
-        shell: bash
-        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "x86_64"
 
       - name: Deploy
         env:
