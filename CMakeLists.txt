@@ -636,14 +636,17 @@ target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
 target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
 if(NOT WIN32)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_options(duckdb_odbc PRIVATE
-      -Bsymbolic
-      -Bsymbolic-functions
+    target_compile_options(duckdb_odbc PRIVATE
       -fvisibility=hidden
+      -fvisibility-inlines-hidden)
+    target_link_options(duckdb_odbc PRIVATE
+      -Wl,-Bsymbolic
       -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.map)
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-    target_link_options(duckdb_odbc PRIVATE
+    target_compile_options(duckdb_odbc PRIVATE
       -fvisibility=hidden
+      -fvisibility-inlines-hidden)
+    target_link_options(duckdb_odbc PRIVATE
       -Wl,-exported_symbols_list,${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.exp)
   endif()
 endif()
