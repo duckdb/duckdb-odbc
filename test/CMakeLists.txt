@@ -22,6 +22,7 @@ add_executable(
   tests/cte.cpp
   tests/cursor_commit.cpp
   tests/declare_fetch_block.cpp
+  tests/fetch_rowsets.cpp
   tests/data_execution.cpp
   tests/multicolumn_param_bind.cpp
   tests/numeric.cpp
