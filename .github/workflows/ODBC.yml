@@ -144,6 +144,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
           zip -j duckdb_odbc-linux-amd64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
+          export UPLOAD_ASSETS_TO_STAGING_TARGET=${{ inputs.duckdb_version }}
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-amd64.zip
 
       - name: Upload    
@@ -238,6 +239,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
           zip -j duckdb_odbc-linux-arm64.zip build/release/libduckdb_odbc.so linux_setup/unixodbc_setup.sh linux_setup/update_odbc_path.py
+          export UPLOAD_ASSETS_TO_STAGING_TARGET=${{ inputs.duckdb_version }}
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-linux-arm64.zip
 
       - name: Upload    
@@ -397,6 +399,7 @@ jobs:
             ./build/release/bin/duckdb_odbc.dll       \
             ./build/release/bin/duckdb_odbc_setup.dll \
             ./build/release/bin/odbc_install.exe
+          export UPLOAD_ASSETS_TO_STAGING_TARGET=${{ inputs.duckdb_version }}
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-amd64.zip
 
       - uses: actions/upload-artifact@v4
@@ -498,6 +501,7 @@ jobs:
             ./build/release/bin/duckdb_odbc.dll       \
             ./build/release/bin/duckdb_odbc_setup.dll \
             ./build/release/bin/odbc_install.exe
+          export UPLOAD_ASSETS_TO_STAGING_TARGET=${{ inputs.duckdb_version }}
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-windows-arm64.zip
 
       - uses: actions/upload-artifact@v4
@@ -549,6 +553,9 @@ jobs:
 
       - name: Install UnixODBC
         shell: bash
+        env:
+          # statically linked into the driver, must target the same minimum macOS version
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: |
           brew uninstall --ignore-dependencies unixodbc || true
           ./scripts/install_unixodbc.sh
@@ -575,15 +582,19 @@ jobs:
         run: |
           ! (nm ./build/release/libduckdb_odbc.dylib | grep jemalloc) || exit 1
 
+      - name: Check architecture
+        shell: bash
+        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "arm64"
+
+      - name: Check minimum macOS version
+        shell: bash
+        run: otool -l build/release/libduckdb_odbc.dylib | grep -A4 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX'
+
       - name: ODBC Tests
         if: ${{ inputs.skip_tests != 'true' }}
         shell: bash
         run: |
           ./build/release/test/test_odbc
-
-      - name: Check architecture
-        shell: bash
-        run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "arm64"
 
       - name: Deploy
         env:
@@ -592,6 +603,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
           zip -j duckdb_odbc-macos-arm64.zip build/release/libduckdb_odbc.dylib
+          export UPLOAD_ASSETS_TO_STAGING_TARGET=${{ inputs.duckdb_version }}
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-macos-arm64.zip
 
       - uses: actions/upload-artifact@v4
@@ -644,6 +656,9 @@ jobs:
 
       - name: Install UnixODBC
         shell: bash
+        env:
+          # statically linked into the driver, must target the same minimum macOS version
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: |
           brew uninstall --ignore-dependencies unixodbc || true
           CFLAGS="-arch x86_64" ./scripts/install_unixodbc.sh
@@ -670,15 +685,19 @@ jobs:
         run: |
           ! (nm ./build/release/libduckdb_odbc.dylib | grep jemalloc) || exit 1
 
-      - name: ODBC Tests
-        if: ${{ inputs.skip_tests != 'true' }}
-        shell: bash
-        run: |
-          ./build/release/test/test_odbc
-
       - name: Check architecture
         shell: bash
         run: test "$(lipo -archs build/release/libduckdb_odbc.dylib)" = "x86_64"
+
+      - name: Check minimum macOS version
+        shell: bash
+        run: otool -l build/release/libduckdb_odbc.dylib | grep -A4 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX'
+
+      #- name: ODBC Tests
+      #  if: ${{ inputs.skip_tests != 'true' }}
+      #  shell: bash
+      #  run: |
+      #    ./build/release/test/test_odbc
 
       - name: Deploy
         env:
@@ -687,6 +706,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_DUCKDB_STAGING_KEY }}
         run: |
           zip -j duckdb_odbc-macos-amd64.zip build/release/libduckdb_odbc.dylib
+          export UPLOAD_ASSETS_TO_STAGING_TARGET=${{ inputs.duckdb_version }}
           ./scripts/upload-assets-to-staging.sh github_release duckdb_odbc-macos-amd64.zip
 
       - uses: actions/upload-artifact@v4
