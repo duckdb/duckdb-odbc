@@ -13,11 +13,21 @@
 #include "duckdb/common/types/string.hpp"
 #include "duckdb/common/arena_containers/arena_ptr.hpp"
 
+#if defined(__has_include)
+#if __has_include(<sanitizer/asan_interface.h>)
+#define DUCKDB_ARENA_ALLOCATOR_HAS_ASAN_INTERFACE
+#endif
+#elif !defined(__MINGW32__)
+#define DUCKDB_ARENA_ALLOCATOR_HAS_ASAN_INTERFACE
+#endif
+
+#ifdef DUCKDB_ARENA_ALLOCATOR_HAS_ASAN_INTERFACE
 #if defined(__SANITIZE_ADDRESS__)
 #define DUCKDB_ARENA_ALLOCATOR_ASAN
 #elif defined(__has_feature)
 #if __has_feature(address_sanitizer)
 #define DUCKDB_ARENA_ALLOCATOR_ASAN
+#endif
 #endif
 #endif
 
@@ -69,6 +79,8 @@ public:
 		head->current_position += len;
 		return result;
 	}
+	//! Resize in place when possible, otherwise copy into this arena. The source may belong to another live arena.
+	//! Equal sizes return the source unchanged.
 	DUCKDB_API data_ptr_t Reallocate(data_ptr_t pointer, idx_t old_size, idx_t size);
 
 	DUCKDB_API data_ptr_t AllocateAligned(idx_t size);
@@ -121,18 +133,18 @@ public:
 	}
 
 	template <class T, class... ARGS>
-	T *Make(ARGS &&... args) {
+	T *Make(ARGS &&...args) {
 		auto mem = AllocateAligned(sizeof(T));
 		return new (mem) T(std::forward<ARGS>(args)...);
 	}
 
 	template <class T, class... ARGS>
-	arena_ptr<T> MakePtr(ARGS &&... args) {
+	arena_ptr<T> MakePtr(ARGS &&...args) {
 		return arena_ptr<T>(Make<T>(std::forward<ARGS>(args)...));
 	}
 
 	template <class T, class... ARGS>
-	unsafe_arena_ptr<T> MakeUnsafePtr(ARGS &&... args) {
+	unsafe_arena_ptr<T> MakeUnsafePtr(ARGS &&...args) {
 		return unsafe_arena_ptr<T>(Make<T>(std::forward<ARGS>(args)...));
 	}
 

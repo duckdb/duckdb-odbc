@@ -119,6 +119,7 @@ set(DUCKDB_SRC_FILES
   src/duckdb/extension/json/json_functions.cpp
   src/duckdb/extension/json/json_reader.cpp
   src/duckdb/extension/json/json_scan.cpp
+  src/duckdb/extension/json/json_schema_inference.cpp
   src/duckdb/extension/json/json_serializer.cpp
   src/duckdb/extension/json/serialize_json.cpp
   src/duckdb/extension/loader/static_extension_autoregister.cpp
@@ -134,6 +135,7 @@ set(DUCKDB_SRC_FILES
   src/duckdb/extension/parquet/parquet_int96.cpp
   src/duckdb/extension/parquet/parquet_metadata.cpp
   src/duckdb/extension/parquet/parquet_multi_file_info.cpp
+  src/duckdb/extension/parquet/parquet_page_index.cpp
   src/duckdb/extension/parquet/parquet_prefetch_cost_model.cpp
   src/duckdb/extension/parquet/parquet_reader.cpp
   src/duckdb/extension/parquet/parquet_shredding.cpp
