@@ -277,7 +277,7 @@ SQLCHAR *OdbcUtils::ConvertStringToSQLCHAR(const std::string &str) {
 }
 
 size_t OdbcUtils::WriteStringUtf8(const std::string &str, SQLCHAR *out_buf, size_t buf_len) {
-	if (out_buf != nullptr) {
+	if (out_buf != nullptr && buf_len > 0) {
 		size_t len_bytes = std::min(str.length(), static_cast<size_t>(buf_len) - 1);
 		std::memcpy(out_buf, str.c_str(), len_bytes);
 		out_buf[len_bytes] = '\0';

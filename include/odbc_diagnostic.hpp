@@ -9,7 +9,6 @@
 #include "sqltypes.h"
 
 #include "duckdb/common/string.hpp"
-#include "duckdb/common/stack.hpp"
 #include "duckdb/common/vector.hpp"
 #include "duckdb/common/set.hpp"
 #include "duckdb/common/unordered_map.hpp"
@@ -158,10 +157,8 @@ public:
 	DiagRecord(const DiagRecord &other);
 	DiagRecord &operator=(const DiagRecord &other);
 
-	std::string GetOriginalMessage();
-	std::string GetMessage(SQLSMALLINT buff_length);
+	std::string GetMessage();
 	void SetMessage(const std::string &new_msg);
-	void ClearStackMsgOffset();
 
 public:
 	// Some fields were commented out because they can be extracted from other fields or internal data structures
@@ -175,7 +172,6 @@ public:
 	// std::string sql_diag_subclass_origin;
 	// default id_diag
 	std::string sql_diag_message_text;
-	std::stack<duckdb::idx_t> stack_msg_offset;
 };
 
 struct DiagHeader {
@@ -183,7 +179,6 @@ public:
 	SQLLEN sql_diag_cursor_row_count;
 	// std::string sql_diag_dynamic_function; // this field is extract from map_dynamic_function
 	SQLINTEGER sql_diag_dynamic_function_code = SQL_DIAG_UNKNOWN_STATEMENT;
-	SQLINTEGER sql_diag_number;
 	SQLRETURN sql_diag_return_code;
 	SQLLEN sql_diag_row_count;
 };
@@ -192,8 +187,6 @@ class OdbcDiagnostic {
 public:
 	DiagHeader header;
 	vector<DiagRecord> diag_records;
-	// vector that mantains the indexes of DiagRecord
-	vector<SQLSMALLINT> vec_record_idx;
 	static const std::unordered_map<SQLINTEGER, std::string> MAP_DYNAMIC_FUNCTION;
 	static const std::set<std::string> SET_ODBC3_SUBCLASS_ORIGIN;
 	static const std::unordered_map<SQLStateType, SQLState, duckdb::EnumClassHash> MAP_ODBC_SQL_STATES;
@@ -203,7 +196,6 @@ public:
 
 	void FormatDiagnosticMessage(DiagRecord &diag_record, const std::string &data_source, const std::string &component);
 	void AddDiagRecord(DiagRecord &diag_record);
-	void AddNewRecIdx(SQLSMALLINT rec_idx);
 	duckdb::idx_t GetTotalRecords();
 
 	void Clean();
