@@ -104,7 +104,8 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_NUMBER: {
-			duckdb::Store<SQLINTEGER>(hdl->odbc_diagnostic->header.sql_diag_number, (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb::Store<SQLINTEGER>(static_cast<SQLINTEGER>(hdl->odbc_diagnostic->GetTotalRecords()),
+			                          (duckdb::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_RETURNCODE: {
@@ -157,7 +158,7 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			return WriteStringDiag("", reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length, string_length_ptr);
 		}
 		case SQL_DIAG_MESSAGE_TEXT: {
-			auto msg = diag_record.GetMessage(buffer_length);
+			auto msg = diag_record.GetMessage();
 			return WriteStringDiag(msg, reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length, string_length_ptr);
 		}
 		case SQL_DIAG_NATIVE: {
@@ -223,35 +224,36 @@ SQLRETURN SQL_API SQLGetDiagFieldW(SQLSMALLINT handle_type, SQLHANDLE handle, SQ
 //===--------------------------------------------------------------------===//
 // SQLGetDiagRec
 //===--------------------------------------------------------------------===//
-static void WriteStringWithLenInChars(const std::string msg_str, SQLCHAR *message_text, SQLSMALLINT buffer_length_chars,
-                                      SQLSMALLINT *text_length_chars_ptr) {
-	OdbcUtils::WriteStringUtf8(msg_str, message_text, buffer_length_chars);
-	if (text_length_chars_ptr != nullptr) {
-		*text_length_chars_ptr = static_cast<SQLSMALLINT>(msg_str.length());
+// Writes as much of the string as fits into the buffer and always reports the full length of the string, so the
+// caller can retry with a larger buffer. Returns SQL_SUCCESS_WITH_INFO if the string was truncated.
+static SQLRETURN WriteStringWithLenInChars(const std::string &msg_str, SQLCHAR *message_text,
+                                           SQLSMALLINT buffer_length_chars, SQLSMALLINT *text_length_chars_ptr) {
+	size_t len_chars = 0;
+	if (buffer_length_chars > 0) {
+		len_chars = OdbcUtils::WriteStringUtf8(msg_str, message_text, static_cast<size_t>(buffer_length_chars));
 	}
+	if (text_length_chars_ptr != nullptr) {
+		size_t max_len = std::numeric_limits<SQLSMALLINT>::max();
+		*text_length_chars_ptr = static_cast<SQLSMALLINT>(std::min(msg_str.length(), max_len));
+	}
+	return len_chars < msg_str.length() ? SQL_SUCCESS_WITH_INFO : SQL_SUCCESS;
 }
 
-static void WriteStringWithLenInChars(const std::string msg_str, SQLWCHAR *message_text,
-                                      SQLSMALLINT buffer_length_chars, SQLSMALLINT *text_length_chars_ptr) {
+static SQLRETURN WriteStringWithLenInChars(const std::string &msg_str, SQLWCHAR *message_text,
+                                           SQLSMALLINT buffer_length_chars, SQLSMALLINT *text_length_chars_ptr) {
 	auto utf16_vec =
 	    duckdb::widechar::utf8_to_utf16_lenient(reinterpret_cast<const SQLCHAR *>(msg_str.c_str()), msg_str.length());
-	if (buffer_length_chars <= 1) {
-		if (message_text != nullptr && buffer_length_chars == 1) {
-			message_text[0] = 0;
-		}
-		if (text_length_chars_ptr != nullptr) {
-			*text_length_chars_ptr = 0;
-			return;
-		}
-	}
-	size_t len_chars = std::min(utf16_vec.size(), static_cast<size_t>(buffer_length_chars - 1));
-	if (message_text != nullptr) {
+	size_t len_chars = 0;
+	if (message_text != nullptr && buffer_length_chars > 0) {
+		len_chars = std::min(utf16_vec.size(), static_cast<size_t>(buffer_length_chars - 1));
 		std::memcpy(message_text, utf16_vec.data(), len_chars * sizeof(SQLWCHAR));
 		message_text[len_chars] = 0;
 	}
 	if (text_length_chars_ptr != nullptr) {
-		*text_length_chars_ptr = static_cast<SQLSMALLINT>(len_chars);
+		size_t max_len = std::numeric_limits<SQLSMALLINT>::max();
+		*text_length_chars_ptr = static_cast<SQLSMALLINT>(std::min(utf16_vec.size(), max_len));
 	}
+	return len_chars < utf16_vec.size() ? SQL_SUCCESS_WITH_INFO : SQL_SUCCESS;
 }
 
 template <typename CHAR_TYPE>
@@ -326,39 +328,9 @@ static SQLRETURN GetDiagRecInternal(SQLSMALLINT handle_type, SQLHANDLE handle, S
 		duckdb::Store<SQLINTEGER>(diag_record.sql_diag_native, (duckdb::data_ptr_t)native_error_ptr);
 	}
 
-	std::string msg = diag_record.GetMessage(buffer_length);
-
-	if (message_text == nullptr) {
-		if (text_length_ptr) {
-			size_t len = msg.length();
-			size_t max_len = std::numeric_limits<SQLSMALLINT>::max();
-			*text_length_ptr = static_cast<SQLSMALLINT>(len <= max_len ? len : max_len);
-		}
-		return SQL_SUCCESS_WITH_INFO;
-	}
-
-	WriteStringWithLenInChars(msg, message_text, buffer_length, text_length_ptr);
-
-	if (text_length_ptr) {
-		SQLSMALLINT msg_len = 0;
-		if (!msg.empty()) {
-			if (sizeof(CHAR_TYPE) == sizeof(SQLWCHAR)) {
-				auto msg_utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(
-				    reinterpret_cast<const SQLCHAR *>(msg.c_str()), msg.length());
-				msg_len = static_cast<SQLSMALLINT>(msg_utf16_vec.size());
-			} else {
-				msg_len = static_cast<SQLSMALLINT>(msg.size());
-			}
-		}
-		SQLSMALLINT remaining_chars = static_cast<SQLSMALLINT>(msg_len - buffer_length);
-		if (remaining_chars > 0) {
-			// TODO needs to split the diagnostic message
-			hdl->odbc_diagnostic->AddNewRecIdx(rec_idx);
-			return SQL_SUCCESS_WITH_INFO;
-		}
-	}
-
-	return SQL_SUCCESS;
+	// reading a record must not change the diagnostics: driver managers fetch the same record again with a
+	// larger buffer when the message is truncated
+	return WriteStringWithLenInChars(diag_record.GetMessage(), message_text, buffer_length, text_length_ptr);
 }
 
 /**
