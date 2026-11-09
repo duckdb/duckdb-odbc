@@ -44,23 +44,29 @@ void ODBC_CHECK(SQLRETURN ret, const std::string &msg, HSTMT hstmt) {
 void ACCESS_DIAGNOSTIC(std::string &state, std::string &message, SQLHANDLE handle, SQLSMALLINT handle_type) {
 	SQLCHAR sqlstate[6];
 	SQLINTEGER native_error;
-	SQLCHAR message_text[256];
 	SQLSMALLINT text_length;
 	SQLSMALLINT rec_num = 0;
 	SQLRETURN ret = SQL_SUCCESS;
 
 	while (SQL_SUCCEEDED(ret)) {
 		rec_num++;
+		std::vector<SQLCHAR> message_text(256);
 		// SQLGetDiagRec returns the current values of multiple fields in a diagnostic record that contains error,
 		// warning, and status information.
-		ret = SQLGetDiagRec(handle_type, handle, rec_num, sqlstate, &native_error, message_text, sizeof(message_text),
-		                    &text_length);
+		ret = SQLGetDiagRec(handle_type, handle, rec_num, sqlstate, &native_error, message_text.data(),
+		                    static_cast<SQLSMALLINT>(message_text.size()), &text_length);
+		// The message was truncated, fetch the same record again with a buffer that fits the whole message
+		if (ret == SQL_SUCCESS_WITH_INFO && static_cast<size_t>(text_length) >= message_text.size()) {
+			message_text.resize(text_length + 1);
+			ret = SQLGetDiagRec(handle_type, handle, rec_num, sqlstate, &native_error, message_text.data(),
+			                    static_cast<SQLSMALLINT>(message_text.size()), &text_length);
+		}
 		// The function overwrites the previous contents of state and message, so only the last diagnostic record is
 		// available. Because this function usually is called on one diagnostic record, or used to confirm that two
 		// calls to SQLGetDiagRec doesn't change the state of the statement, this is not a problem.
 		if (SQL_SUCCEEDED(ret)) {
 			state = ConvertToString(sqlstate);
-			message += ConvertToString(message_text);
+			message += ConvertToString(message_text.data());
 		}
 	}
 
@@ -73,18 +79,23 @@ void ACCESS_DIAGNOSTIC_WIDE(std::string &state, std::string &message, SQLHANDLE 
 	std::vector<SQLWCHAR> sqlstate;
 	sqlstate.resize(6);
 	SQLINTEGER native_error;
-	std::vector<SQLWCHAR> message_text;
-	message_text.resize(256);
 	SQLSMALLINT text_length;
 	SQLSMALLINT rec_num = 0;
 	SQLRETURN ret = SQL_SUCCESS;
 
 	while (SQL_SUCCEEDED(ret)) {
 		rec_num++;
+		std::vector<SQLWCHAR> message_text(256);
 		// SQLGetDiagRec returns the current values of multiple fields in a diagnostic record that contains error,
 		// warning, and status information.
 		ret = SQLGetDiagRecW(handle_type, handle, rec_num, sqlstate.data(), &native_error, message_text.data(),
-		                     message_text.size(), &text_length);
+		                     static_cast<SQLSMALLINT>(message_text.size()), &text_length);
+		// The message was truncated, fetch the same record again with a buffer that fits the whole message
+		if (ret == SQL_SUCCESS_WITH_INFO && static_cast<size_t>(text_length) >= message_text.size()) {
+			message_text.resize(text_length + 1);
+			ret = SQLGetDiagRecW(handle_type, handle, rec_num, sqlstate.data(), &native_error, message_text.data(),
+			                     static_cast<SQLSMALLINT>(message_text.size()), &text_length);
+		}
 		// The function overwrites the previous contents of state and message, so only the last diagnostic record is
 		// available. Because this function usually is called on one diagnostic record, or used to confirm that two
 		// calls to SQLGetDiagRec doesn't change the state of the statement, this is not a problem.
