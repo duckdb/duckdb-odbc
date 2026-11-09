@@ -199,7 +199,7 @@ void OdbcDiagnostic::FormatDiagnosticMessage(DiagRecord &diag_record, const std:
                                              const std::string &component) {
 	// https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/diagnostic-messages?view=sql-server-ver15
 	// [ vendor-identifier ][ ODBC-component-identifier ][ data-source-identifier ] data-source-supplied-text
-	auto error_msg = diag_record.GetOriginalMessage();
+	auto error_msg = diag_record.GetMessage();
 
 	string msg = "ODBC_DuckDB";
 	if (!data_source.empty()) {
@@ -214,25 +214,16 @@ void OdbcDiagnostic::FormatDiagnosticMessage(DiagRecord &diag_record, const std:
 }
 
 void OdbcDiagnostic::AddDiagRecord(DiagRecord &diag_record) {
-	auto rec_idx = (SQLSMALLINT)diag_records.size();
 	diag_records.emplace_back(diag_record);
-	vec_record_idx.emplace_back(rec_idx);
-}
-
-void OdbcDiagnostic::AddNewRecIdx(SQLSMALLINT rec_idx) {
-	auto origin_idx = vec_record_idx[rec_idx];
-	auto begin = vec_record_idx.begin();
-	vec_record_idx.emplace(std::next(begin, rec_idx + 1), origin_idx);
 }
 
 duckdb::idx_t OdbcDiagnostic::GetTotalRecords() {
-	return vec_record_idx.size();
+	return diag_records.size();
 }
 
 void OdbcDiagnostic::Clean() {
 	header = DiagHeader();
 	diag_records.clear();
-	vec_record_idx.clear();
 }
 
 std::string OdbcDiagnostic::GetDiagDynamicFunction() {
@@ -248,18 +239,8 @@ bool OdbcDiagnostic::VerifyRecordIndex(SQLINTEGER rec_idx) {
 }
 
 DiagRecord &OdbcDiagnostic::GetDiagRecord(SQLINTEGER rec_idx) {
-	D_ASSERT(rec_idx < (SQLINTEGER)vec_record_idx.size() && rec_idx >= 0);
-	auto origin_idx = vec_record_idx[rec_idx];
-	auto diag_record = &diag_records[origin_idx];
-	// getting first record, clear up vec_record_idx
-	if (rec_idx == 0) {
-		vec_record_idx.clear();
-		for (duckdb::idx_t i = 0; i < diag_records.size(); ++i) {
-			vec_record_idx.emplace_back(i);
-			diag_records[i].ClearStackMsgOffset();
-		}
-	}
-	return *diag_record;
+	D_ASSERT(rec_idx < (SQLINTEGER)diag_records.size() && rec_idx >= 0);
+	return diag_records[rec_idx];
 }
 
 std::string OdbcDiagnostic::GetDiagClassOrigin(SQLINTEGER rec_idx) {
@@ -299,8 +280,6 @@ DiagRecord::DiagRecord(const std::string &msg, const SQLStateType &sqlstate_type
 	sql_diag_column_number = col_number;
 	sql_diag_native = sql_native;
 	sql_diag_row_number = row_number;
-
-	stack_msg_offset.push(0);
 }
 
 DiagRecord::DiagRecord(const DiagRecord &other) {
@@ -316,34 +295,15 @@ DiagRecord &DiagRecord::operator=(const DiagRecord &other) {
 		sql_diag_column_number = other.sql_diag_column_number;
 		sql_diag_native = other.sql_diag_native;
 		sql_diag_row_number = other.sql_diag_row_number;
-		stack_msg_offset = other.stack_msg_offset;
 	}
 	return *this;
 }
 
-std::string DiagRecord::GetOriginalMessage() {
+std::string DiagRecord::GetMessage() {
 	return sql_diag_message_text;
-}
-
-std::string DiagRecord::GetMessage(SQLSMALLINT buff_length) {
-	duckdb::idx_t last_offset = stack_msg_offset.top();
-	auto new_offset = last_offset + buff_length;
-	if (new_offset >= sql_diag_message_text.size()) {
-		ClearStackMsgOffset();
-	} else {
-		stack_msg_offset.push(new_offset);
-	}
-	return sql_diag_message_text.substr(last_offset);
 }
 
 void DiagRecord::SetMessage(const std::string &new_msg) {
 	D_ASSERT(!new_msg.empty());
 	sql_diag_message_text = new_msg;
-	ClearStackMsgOffset();
-}
-
-void DiagRecord::ClearStackMsgOffset() {
-	while (!stack_msg_offset.empty() && stack_msg_offset.top() != 0) {
-		stack_msg_offset.pop();
-	}
 }
