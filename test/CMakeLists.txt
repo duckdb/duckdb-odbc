@@ -70,3 +70,11 @@ endif()
 
 target_link_libraries(test_odbc duckdb_odbc)
 target_link_libraries(test_connection_odbc duckdb_odbc)
+if(DUCKDB_PREBUILT_LIBRARIES)
+  target_compile_definitions(test_odbc PRIVATE DUCKDB_STATIC_BUILD)
+  target_compile_definitions(test_connection_odbc PRIVATE DUCKDB_STATIC_BUILD)
+  target_link_libraries(test_odbc ${DUCKDB_PREBUILT_LIBRARIES} Threads::Threads
+                        ${DUCKDB_SYSTEM_LIBS})
+  target_link_libraries(test_connection_odbc ${DUCKDB_PREBUILT_LIBRARIES}
+                        Threads::Threads ${DUCKDB_SYSTEM_LIBS})
+endif()
