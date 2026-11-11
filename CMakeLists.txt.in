@@ -84,7 +84,7 @@ add_subdirectory(src)
 
 if(DUCKDB_PREBUILT_LIBRARIES)
   set(CORE_OBJECT_FILES
-      src/duckdb/generated_extension_loader_package_build.cpp
+      src/prebuilt_extension_loader.cpp
       src/duckdb/extension/loader/static_extension_autoregister.cpp)
 else()
   set(CORE_OBJECT_FILES ${DUCKDB_SRC_FILES})

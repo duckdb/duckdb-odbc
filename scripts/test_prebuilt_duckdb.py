@@ -32,9 +32,7 @@ class PrebuiltDuckDBTests(unittest.TestCase):
         self.version_file = self.staging / COMMIT / "latest_alpha_version.txt"
         self.version_file.parent.mkdir(parents=True)
         self.version_file.write_text(VERSION + "\n")
-        version_source = (
-            self.root / "src/duckdb/src/function/table/version/pragma_version.cpp"
-        )
+        version_source = self.root / "src/duckdb/src/function/table/version/pragma_version.cpp"
         version_source.parent.mkdir(parents=True)
         version_source.write_text(f'#define DUCKDB_SOURCE_ID "{COMMIT}"\n')
         self.probe = self.root / "probe.cmake"
@@ -47,11 +45,7 @@ class PrebuiltDuckDBTests(unittest.TestCase):
             for library in LIBRARIES:
                 if library in omit:
                     continue
-                name = (
-                    f"{library}.lib"
-                    if platform.startswith("windows-")
-                    else f"lib{library}.a"
-                )
+                name = f"{library}.lib" if platform.startswith("windows-") else f"lib{library}.a"
                 member = tarfile.TarInfo(name)
                 member.size = 8
                 target.addfile(member, io.BytesIO(b"!<arch>\n"))
