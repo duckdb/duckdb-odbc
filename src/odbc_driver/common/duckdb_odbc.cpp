@@ -170,7 +170,7 @@ void OdbcHandleStmt::FillIRD(const vector<LogicalType> &types, const vector<Iden
 
 		// Default cast unknown types (e.g. UUID) to VARCHAR. See api_info.cpp
 		if (sql_type == SQL_UNKNOWN_TYPE) {
-			new_record.sql_desc_type_name = duckdb::TypeIdToString(PhysicalType::VARCHAR);
+			new_record.sql_desc_type_name = "VARCHAR";
 		} else {
 			new_record.sql_desc_type_name = duckdb::TypeIdToString(col_type.InternalType());
 		}
