@@ -216,3 +216,77 @@ TEST_CASE("Test manual-commit mode", "[odbc]") {
 	DISCONNECT_FROM_DATABASE(env1, dbc1);
 	DISCONNECT_FROM_DATABASE(env2, dbc2);
 }
+
+//! Inserts a row through a manual-commit connection and rolls it back: it must not have been committed on its own.
+static void RequireInTransaction(HSTMT hstmt, SQLHANDLE dbc, HSTMT check_hstmt) {
+	auto before = FetchCount(check_hstmt, "SELECT count(*) FROM tm");
+	EXEC_SQL(hstmt, "INSERT INTO tm VALUES (100)");
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLEndTran (ROLLBACK)", nullptr, SQLEndTran, SQL_HANDLE_DBC, dbc, SQL_ROLLBACK);
+	REQUIRE(FetchCount(check_hstmt, "SELECT count(*) FROM tm") == before);
+}
+
+TEST_CASE("Test manual-commit mode after commented or failed transaction statements", "[odbc]") {
+	TempDirectory tmpdir;
+	std::string conn_str = "Database=" + tmpdir.path + "/manual_commit_errors.db";
+
+	SQLHANDLE env1, dbc1, env2, dbc2, env3, dbc3;
+	DRIVER_CONNECT_TO_DATABASE(env1, dbc1, conn_str);
+	DRIVER_CONNECT_TO_DATABASE(env2, dbc2, conn_str);
+	DRIVER_CONNECT_TO_DATABASE(env3, dbc3, conn_str);
+	HSTMT hstmt1 = SQL_NULL_HSTMT;
+	HSTMT hstmt2 = SQL_NULL_HSTMT;
+	HSTMT hstmt3 = SQL_NULL_HSTMT;
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt1, SQLAllocHandle, SQL_HANDLE_STMT, dbc1, &hstmt1);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt2, SQLAllocHandle, SQL_HANDLE_STMT, dbc2, &hstmt2);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt3, SQLAllocHandle, SQL_HANDLE_STMT, dbc3, &hstmt3);
+	EXEC_SQL(hstmt3, "CREATE TABLE tm (i INTEGER)");
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt3, SQLFreeStmt, hstmt3, SQL_CLOSE);
+	EXEC_SQL(hstmt3, "CREATE TABLE conflict (i INTEGER PRIMARY KEY)");
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt3, SQLFreeStmt, hstmt3, SQL_CLOSE);
+
+	for (auto dbc : {dbc1, dbc2}) {
+		EXECUTE_AND_CHECK("SQLSetConnectAttr (SQL_ATTR_AUTOCOMMIT)", nullptr, SQLSetConnectAttr, dbc,
+		                  SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
+	}
+
+	// COMMIT and ROLLBACK issued as SQL after a comment
+	EXEC_SQL(hstmt1, "/* done */ COMMIT");
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt1, SQLFreeStmt, hstmt1, SQL_CLOSE);
+	RequireInTransaction(hstmt1, dbc1, hstmt3);
+	EXEC_SQL(hstmt1, "-- done\nROLLBACK");
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt1, SQLFreeStmt, hstmt1, SQL_CLOSE);
+	RequireInTransaction(hstmt1, dbc1, hstmt3);
+
+	// a commit that fails on a conflict rolls the transaction back: a new one is started
+	int key = 0;
+	auto conflict = [&]() {
+		// the same key, inserted by two transactions: the second one to commit fails
+		auto insert = "INSERT INTO conflict VALUES (" + std::to_string(++key) + ")";
+		EXEC_SQL(hstmt1, insert);
+		EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt1, SQLFreeStmt, hstmt1, SQL_CLOSE);
+		EXEC_SQL(hstmt2, insert);
+		EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt2, SQLFreeStmt, hstmt2, SQL_CLOSE);
+		EXECUTE_AND_CHECK("SQLEndTran (COMMIT)", nullptr, SQLEndTran, SQL_HANDLE_DBC, dbc1, SQL_COMMIT);
+	};
+	conflict();
+	REQUIRE(SQLEndTran(SQL_HANDLE_DBC, dbc2, SQL_COMMIT) == SQL_ERROR);
+	RequireInTransaction(hstmt2, dbc2, hstmt3);
+
+	conflict();
+	REQUIRE(SQLExecDirect(hstmt2, ConvertToSQLCHAR("COMMIT"), SQL_NTS) == SQL_ERROR);
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt2, SQLFreeStmt, hstmt2, SQL_CLOSE);
+	RequireInTransaction(hstmt2, dbc2, hstmt3);
+
+	// switching to auto-commit fails with the commit, and the connection stays in manual-commit mode
+	conflict();
+	REQUIRE(SQLSetConnectAttr(dbc2, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER) == SQL_ERROR);
+	RequireInTransaction(hstmt2, dbc2, hstmt3);
+
+	for (auto hstmt : {hstmt1, hstmt2, hstmt3}) {
+		EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	}
+	DISCONNECT_FROM_DATABASE(env1, dbc1);
+	DISCONNECT_FROM_DATABASE(env2, dbc2);
+	DISCONNECT_FROM_DATABASE(env3, dbc3);
+}

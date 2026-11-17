@@ -163,6 +163,45 @@ SQLRETURN duckdb_odbc::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 	return ret;
 }
 
+//! Runs the statement with the current parameter values and reads its result in full.
+static SQLRETURN RunStatement(duckdb_odbc::OdbcHandleStmt *hstmt) {
+	auto &dbc = *hstmt->dbc;
+	duckdb_odbc::unique_ptr<duckdb_odbc::QueryResult> res;
+	try {
+		res = hstmt->stmt->Execute(*dbc.conn, hstmt->param_desc->values);
+	} catch (std::exception &ex) {
+		// binding the statement failed
+		hstmt->result_error = duckdb_odbc::ErrorMessage(ex);
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
+		                                        duckdb_odbc::SQLStateType::ST_42000, dbc.GetDataSourceName());
+	}
+
+	// DuckDB executes a statement as its result is read: read it in full, which frees the connection
+	auto prefetch_ret = hstmt->odbc_fetcher->Prefetch(hstmt, *res);
+	if (!SQL_SUCCEEDED(prefetch_ret)) {
+		return prefetch_ret;
+	}
+	try {
+		// only known once the result was read from, for a statement that expands into several
+		auto schema = res->GetSchema();
+		hstmt->result_types.clear();
+		hstmt->result_names.clear();
+		for (duckdb_odbc::idx_t i = 0; i < schema.GetFieldCount(); i++) {
+			hstmt->result_types.emplace_back(schema.GetFieldType(i));
+			hstmt->result_names.emplace_back(schema.GetFieldName(i));
+		}
+		hstmt->result_type = res->GetResultType();
+		hstmt->result_statement_type = res->GetStatementType();
+	} catch (std::exception &ex) {
+		hstmt->odbc_fetcher->ClearChunks();
+		hstmt->result_error = duckdb_odbc::ErrorMessage(ex);
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
+		                                        duckdb_odbc::SQLStateType::ST_HY000, dbc.GetDataSourceName());
+	}
+	hstmt->has_result = true;
+	return SQL_SUCCESS;
+}
+
 //! Execute statement only once
 SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 	hstmt->has_result = false;
@@ -179,47 +218,16 @@ SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 		return ret;
 	}
 
-	auto &dbc = *hstmt->dbc;
-	unique_ptr<QueryResult> res;
+	auto run_ret = RunStatement(hstmt);
 	try {
-		res = hstmt->stmt->Execute(*dbc.conn, hstmt->param_desc->values);
-	} catch (std::exception &ex) {
-		// binding the statement failed
-		hstmt->result_error = ErrorMessage(ex);
-		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
-		                                        duckdb_odbc::SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName());
-	}
-
-	// DuckDB executes a statement as its result is read: read it in full, which frees the connection
-	auto prefetch_ret = hstmt->odbc_fetcher->Prefetch(hstmt, *res);
-	if (!SQL_SUCCEEDED(prefetch_ret)) {
-		return prefetch_ret;
-	}
-	try {
-		// only known once the result was read from, for a statement that expands into several
-		auto schema = res->GetSchema();
-		hstmt->result_types.clear();
-		hstmt->result_names.clear();
-		for (idx_t i = 0; i < schema.GetFieldCount(); i++) {
-			hstmt->result_types.emplace_back(schema.GetFieldType(i));
-			hstmt->result_names.emplace_back(schema.GetFieldName(i));
-		}
-		hstmt->result_type = res->GetResultType();
-		hstmt->result_statement_type = res->GetStatementType();
-	} catch (std::exception &ex) {
-		hstmt->odbc_fetcher->ClearChunks();
-		hstmt->result_error = ErrorMessage(ex);
-		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
-		                                        duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
-	}
-	res.reset();
-	hstmt->has_result = true;
-
-	try {
-		dbc.AfterStatement(*hstmt->stmt->statement);
+		// also when the statement failed: e.g. a COMMIT that failed rolled the transaction back
+		hstmt->dbc->AfterStatement(*hstmt->stmt->statement);
 	} catch (std::exception &ex) {
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", ErrorMessage(ex),
 		                                        duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
+	}
+	if (!SQL_SUCCEEDED(run_ret)) {
+		return run_ret;
 	}
 
 	hstmt->open = true;

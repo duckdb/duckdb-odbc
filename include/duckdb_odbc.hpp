@@ -64,9 +64,12 @@ public:
 	void SetAutoCommit(bool autocommit_p);
 	//! Commits (or rolls back) the open transaction, starting the next one in manual-commit mode. Throws on error.
 	void EndTransaction(bool commit);
-	//! Called after the driver ran a statement: a COMMIT or ROLLBACK the application issued itself ends the open
-	//! transaction, so in manual-commit mode the next one is started.
+	//! Called after the driver ran a statement, whether it succeeded or not: in manual-commit mode, a transaction
+	//! statement the application issued itself (e.g. COMMIT, or a COMMIT that failed and rolled back) may have ended the
+	//! open transaction, so the next one is started.
 	void AfterStatement(const cxx::SqlStatement &statement);
+	//! In manual-commit mode, starts a transaction unless one is open, possibly aborted by an error. Throws on error.
+	void EnsureTransaction();
 
 public:
 	OdbcHandleEnv *env;

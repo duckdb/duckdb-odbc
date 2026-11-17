@@ -6,6 +6,8 @@
 #include "parameter_descriptor.hpp"
 #include "row_descriptor.hpp"
 
+#include "duckdb_v2.h"
+
 using duckdb_odbc::OdbcDiagnostic;
 using duckdb_odbc::OdbcHandle;
 using duckdb_odbc::OdbcHandleDbc;
@@ -97,7 +99,17 @@ void OdbcHandleDbc::SetAutoCommit(bool autocommit_p) {
 	}
 	if (conn) {
 		// switching to auto-commit commits the open transaction, switching to manual-commit opens one
-		ExecuteInternal(autocommit_p ? "COMMIT" : "BEGIN TRANSACTION");
+		if (autocommit_p) {
+			try {
+				ExecuteInternal("COMMIT");
+			} catch (...) {
+				// still in manual-commit mode, whose transaction a failed commit rolled back
+				EnsureTransaction();
+				throw;
+			}
+		} else {
+			ExecuteInternal("BEGIN TRANSACTION");
+		}
 	}
 	autocommit = autocommit_p;
 }
@@ -112,22 +124,33 @@ void OdbcHandleDbc::EndTransaction(bool commit) {
 		ExecuteInternal("ROLLBACK");
 		return;
 	}
-	ExecuteInternal(commit ? "COMMIT" : "ROLLBACK");
-	ExecuteInternal("BEGIN TRANSACTION");
+	try {
+		ExecuteInternal(commit ? "COMMIT" : "ROLLBACK");
+	} catch (...) {
+		// a failed commit rolls the transaction back
+		EnsureTransaction();
+		throw;
+	}
+	EnsureTransaction();
+}
+
+void OdbcHandleDbc::EnsureTransaction() {
+	if (autocommit || !conn) {
+		return;
+	}
+	try {
+		ExecuteInternal("BEGIN TRANSACTION");
+	} catch (cxx::Exception &ex) {
+		if (ex.GetCode() != DUCKDB_V2_ERROR_DATABASE_TRANSACTION) {
+			throw;
+		}
+		// a transaction is open already, or aborted by an error until it is rolled back
+	}
 }
 
 void OdbcHandleDbc::AfterStatement(const cxx::SqlStatement &statement) {
-	if (autocommit || statement.GetStatementType() != cxx::StatementType::TRANSACTION) {
-		return;
-	}
-	// BEGIN, COMMIT / END, or ROLLBACK / ABORT
-	auto text = StringUtil::Lower(OdbcUtils::TrimString(std::string(statement.GetText())));
-	for (auto keyword : {"commit", "end", "rollback", "abort"}) {
-		auto len = std::strlen(keyword);
-		if (text.compare(0, len, keyword) == 0 && (text.size() == len || !std::isalpha(text[len]))) {
-			ExecuteInternal("BEGIN TRANSACTION");
-			return;
-		}
+	if (statement.GetStatementType() == cxx::StatementType::TRANSACTION) {
+		EnsureTransaction();
 	}
 }
 
