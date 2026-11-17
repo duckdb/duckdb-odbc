@@ -231,6 +231,10 @@ SQLRETURN Connect::ReadFromIniFile() {
 }
 
 SQLRETURN Connect::SetConnection() {
+	if (dbc->conn) {
+		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", "Connection name in use", SQLStateType::ST_08002,
+		                           "");
+	}
 #if defined ODBC_LINK_ODBCINST || defined WIN32
 	ReadFromIniFile();
 #endif
@@ -302,7 +306,7 @@ SQLRETURN Connect::SetConnection() {
 		configuration += "enable_external_access=" + enable_external_access;
 
 		auto open_instance = [&]() {
-			auto instance = std::make_shared<cxx::Instance>(startup_options);
+			auto instance = make_uniq<cxx::Instance>(startup_options);
 			auto &instance_config = instance->GetConfig();
 			for (auto &option : runtime_options) {
 				instance_config.SetOption(option.first, std::string_view(option.second), cxx::SettingScope::GLOBAL);
@@ -318,19 +322,31 @@ SQLRETURN Connect::SetConnection() {
 
 		if (database == IN_MEMORY_PATH) {
 			// every in-memory database is its own
-			dbc->db = open_instance();
+			dbc->db = shared_ptr<cxx::Instance>(open_instance());
 		} else {
 			auto entry = GetCachedInstance(GetInstanceCacheKey(database));
-			std::lock_guard<std::mutex> guard(entry->lock);
-			auto instance = entry->instance.lock();
-			if (instance && entry->configuration != configuration) {
+			// declared before the guard: the last reference to a database must not be dropped while holding the lock
+			shared_ptr<cxx::Instance> instance;
+			bool configuration_differs = false;
+			{
+				std::lock_guard<std::mutex> guard(entry->lock);
+				instance = entry->instance.lock();
+				if (instance) {
+					configuration_differs = entry->configuration != configuration;
+				} else {
+					// The database is closed holding the entry's lock, when its last connection is: a connection to the
+					// same file waits for it to be closed, rather than opening the file while it is still closing.
+					instance = shared_ptr<cxx::Instance>(open_instance().release(), [entry](cxx::Instance *closing) {
+						std::lock_guard<std::mutex> close_guard(entry->lock);
+						delete closing;
+					});
+					entry->instance = instance;
+					entry->configuration = configuration;
+				}
+			}
+			if (configuration_differs) {
 				throw std::runtime_error("Can't open a connection to same database file with a different "
 				                         "configuration than existing connections");
-			}
-			if (!instance) {
-				instance = open_instance();
-				entry->instance = instance;
-				entry->configuration = configuration;
 			}
 			dbc->db = std::move(instance);
 		}
@@ -338,22 +354,19 @@ SQLRETURN Connect::SetConnection() {
 		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ErrorMessage(ex), SQLStateType::ST_IM003, "");
 	}
 
-	if (!dbc->conn) {
-		try {
-			dbc->conn = make_uniq<cxx::Connection>(dbc->db->Connect());
-			for (auto &option : session_options) {
-				dbc->conn->GetConfig().SetOption(option.first, std::string_view(option.second),
-				                                 cxx::SettingScope::SESSION);
-			}
-			if (!dbc->autocommit) {
-				// manual-commit mode: there is always an open transaction
-				dbc->conn->Execute("BEGIN TRANSACTION").Drain();
-			}
-		} catch (std::exception &ex) {
-			dbc->conn.reset();
-			return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ErrorMessage(ex), SQLStateType::ST_IM003,
-			                           "");
+	try {
+		dbc->conn = make_uniq<cxx::Connection>(dbc->db->Connect());
+		for (auto &option : session_options) {
+			dbc->conn->GetConfig().SetOption(option.first, std::string_view(option.second), cxx::SettingScope::SESSION);
 		}
+		if (!dbc->autocommit) {
+			// manual-commit mode: there is always an open transaction
+			dbc->conn->Execute("BEGIN TRANSACTION").Drain();
+		}
+	} catch (std::exception &ex) {
+		dbc->conn.reset();
+		dbc->db.reset();
+		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ErrorMessage(ex), SQLStateType::ST_IM003, "");
 	}
 
 	SQLRETURN ret = SQL_SUCCESS;
@@ -362,6 +375,7 @@ SQLRETURN Connect::SetConnection() {
 		ret = SessionInit::Run(dbc, session_init_content, db_created);
 		if (!SQL_SUCCEEDED(ret)) {
 			dbc->conn.reset();
+			dbc->db.reset();
 		}
 	}
 

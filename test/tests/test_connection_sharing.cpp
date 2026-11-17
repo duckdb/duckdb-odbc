@@ -290,3 +290,23 @@ TEST_CASE("Test manual-commit mode after commented or failed transaction stateme
 	DISCONNECT_FROM_DATABASE(env2, dbc2);
 	DISCONNECT_FROM_DATABASE(env3, dbc3);
 }
+
+TEST_CASE("Test connecting a connected handle", "[odbc]") {
+	SQLHANDLE env, dbc;
+	CONNECT_TO_DATABASE(env, dbc);
+	SQLCHAR out[1024];
+	SQLSMALLINT out_len;
+	REQUIRE(SQLDriverConnect(dbc, nullptr, ConvertToSQLCHAR("Database=:memory:"), SQL_NTS, out, sizeof(out), &out_len,
+	                         SQL_DRIVER_COMPLETE) == SQL_ERROR);
+	std::string state;
+	std::string message;
+	ACCESS_DIAGNOSTIC(state, message, dbc, SQL_HANDLE_DBC);
+	REQUIRE(state == "08002");
+
+	// the connection is still usable
+	HSTMT hstmt = SQL_NULL_HSTMT;
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	REQUIRE(FetchCount(hstmt, "SELECT count(*) FROM range(3)") == 3);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
