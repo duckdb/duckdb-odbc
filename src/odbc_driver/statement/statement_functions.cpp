@@ -33,9 +33,6 @@ void duckdb_odbc::PrepareQuery(OdbcHandleStmt *hstmt) {
 		hstmt->stmt.reset();
 	}
 
-	if (hstmt->res) {
-		hstmt->res.reset();
-	}
 	hstmt->has_result = false;
 	hstmt->result_error.clear();
 
@@ -51,8 +48,6 @@ duckdb_odbc::PrepareStatement(OdbcHandleStmt *hstmt, unique_ptr<cxx::SqlStatemen
 	result->statement = std::move(statement);
 	auto &conn = *hstmt->dbc->conn;
 	try {
-		// DuckDB runs one statement at a time per connection
-		hstmt->dbc->MaterializeResults(hstmt);
 		if (for_repeated_execution) {
 			result->prepared = make_uniq<cxx::PreparedStatement>(conn.Prepare(*result->statement));
 		}
@@ -170,13 +165,6 @@ SQLRETURN duckdb_odbc::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 
 //! Execute statement only once
 SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
-	if (hstmt->res) {
-		// the previous execution of a parameter array; reading it in full completes it
-		auto ret = hstmt->odbc_fetcher->Materialize(hstmt);
-		if (!SQL_SUCCEEDED(ret)) {
-			return ret;
-		}
-	}
 	hstmt->has_result = false;
 	hstmt->result_error.clear();
 	hstmt->odbc_fetcher->ClearChunks();
@@ -192,45 +180,39 @@ SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 	}
 
 	auto &dbc = *hstmt->dbc;
+	unique_ptr<QueryResult> res;
 	try {
-		// DuckDB runs one statement at a time per connection
-		auto materialize_ret = dbc.MaterializeResults(hstmt);
-		if (!SQL_SUCCEEDED(materialize_ret)) {
-			return materialize_ret;
-		}
-		hstmt->res = hstmt->stmt->Execute(*dbc.conn, hstmt->param_desc->values);
+		res = hstmt->stmt->Execute(*dbc.conn, hstmt->param_desc->values);
 	} catch (std::exception &ex) {
 		// binding the statement failed
-		hstmt->res.reset();
 		hstmt->result_error = ErrorMessage(ex);
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
 		                                        duckdb_odbc::SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName());
 	}
 
-	// DuckDB executes a statement as its result is read: read the first chunk to run it and to surface its errors
-	auto prefetch_ret = hstmt->odbc_fetcher->Prefetch(hstmt);
+	// DuckDB executes a statement as its result is read: read it in full, which frees the connection
+	auto prefetch_ret = hstmt->odbc_fetcher->Prefetch(hstmt, *res);
 	if (!SQL_SUCCEEDED(prefetch_ret)) {
 		return prefetch_ret;
 	}
 	try {
 		// only known once the result was read from, for a statement that expands into several
-		auto schema = hstmt->res->GetSchema();
+		auto schema = res->GetSchema();
 		hstmt->result_types.clear();
 		hstmt->result_names.clear();
 		for (idx_t i = 0; i < schema.GetFieldCount(); i++) {
 			hstmt->result_types.emplace_back(schema.GetFieldType(i));
 			hstmt->result_names.emplace_back(schema.GetFieldName(i));
 		}
-		hstmt->result_type = hstmt->res->GetResultType();
-		hstmt->result_statement_type = hstmt->res->GetStatementType();
+		hstmt->result_type = res->GetResultType();
+		hstmt->result_statement_type = res->GetStatementType();
 	} catch (std::exception &ex) {
-		hstmt->res.reset();
 		hstmt->odbc_fetcher->ClearChunks();
 		hstmt->result_error = ErrorMessage(ex);
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
 		                                        duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
 	}
-	hstmt->odbc_fetcher->ReleaseIfExhausted(hstmt);
+	res.reset();
 	hstmt->has_result = true;
 
 	try {
@@ -1057,7 +1039,6 @@ SQLRETURN duckdb_odbc::ExecDirectStmt(OdbcHandleStmt *hstmt, const std::string &
 	// Parse all the statements before running any of them
 	vector<unique_ptr<cxx::SqlStatement>> statements;
 	try {
-		hstmt->dbc->MaterializeResults(hstmt);
 		auto iterator = hstmt->dbc->conn->ParseSQL(query);
 		while (true) {
 			auto statement = iterator.Next();
@@ -1096,7 +1077,6 @@ SQLRETURN duckdb_odbc::PrepareStmt(OdbcHandleStmt *hstmt, const std::string &que
 
 	vector<unique_ptr<cxx::SqlStatement>> statements;
 	try {
-		hstmt->dbc->MaterializeResults(hstmt);
 		auto iterator = hstmt->dbc->conn->ParseSQL(query);
 		while (true) {
 			auto statement = iterator.Next();

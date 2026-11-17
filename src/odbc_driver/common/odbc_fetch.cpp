@@ -18,91 +18,34 @@ OdbcFetch::~OdbcFetch() {
 	chunks.clear();
 }
 
-SQLRETURN OdbcFetch::ReportError(OdbcHandleStmt *hstmt, const std::exception &ex) {
-	hstmt->res.reset();
-	hstmt->open = false;
-	hstmt->result_error = duckdb_odbc::ErrorMessage(ex);
-	return SetDiagnosticRecord(hstmt, SQL_ERROR, "FetchNext", hstmt->result_error, duckdb_odbc::SQLStateType::ST_HY000,
-	                           hstmt->dbc->GetDataSourceName());
-}
-
-duckdb_odbc::unique_ptr<duckdb_odbc::DataChunk> OdbcFetch::ReadChunk(OdbcHandleStmt *hstmt) {
-	ReleaseIfExhausted(hstmt);
-	if (!collection) {
-		return nullptr;
-	}
-	auto &factory = hstmt->dbc->conn->GetFactory();
-	if (!shared_scan) {
-		shared_scan = make_uniq<cxx::ColumnDataCollection::SharedScanState>(collection->CreateSharedScanState());
-		worker_scan = make_uniq<cxx::ColumnDataCollection::WorkerScanState>(collection->CreateWorkerScanState());
-	}
-	auto chunk = factory.CreateDataChunk(collection_types);
-	if (!collection->Scan(*shared_scan, *worker_scan, chunk)) {
-		return nullptr;
-	}
-	// the scanned chunk references the collection's buffers until the next scan, and fetching keeps chunks longer
-	return make_uniq<DataChunk>(chunk.Copy(factory));
-}
-
-SQLRETURN OdbcFetch::Prefetch(OdbcHandleStmt *hstmt) {
-	if (!hstmt->res || result_exhausted) {
-		return SQL_SUCCESS;
-	}
+SQLRETURN OdbcFetch::Prefetch(OdbcHandleStmt *hstmt, QueryResult &result) {
 	try {
-		auto &factory = hstmt->dbc->conn->GetFactory();
 		while (true) {
-			auto chunk = hstmt->res->FetchChunk();
+			auto chunk = result.FetchChunk();
 			if (!chunk || chunk.GetRowCount() == 0) {
 				break;
 			}
-			if (!collection) {
-				for (idx_t i = 0; i < chunk.GetVectorCount(); i++) {
-					collection_types.push_back(chunk.GetVector(i).GetLogicalType());
-				}
-				collection = make_uniq<cxx::ColumnDataCollection>(factory.CreateColumnDataCollection(collection_types));
-				append_state = make_uniq<cxx::ColumnDataCollection::AppendState>(collection->CreateAppendState());
-			}
-			collection->Append(*append_state, chunk);
+			pending_chunks.push_back(make_uniq<DataChunk>(std::move(chunk)));
 		}
-		append_state.reset();
-		result_exhausted = true;
 	} catch (std::exception &ex) {
-		return ReportError(hstmt, ex);
+		pending_chunks.clear();
+		hstmt->open = false;
+		hstmt->result_error = duckdb_odbc::ErrorMessage(ex);
+		return SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLExecute", hstmt->result_error,
+		                           duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
 	}
 	return SQL_SUCCESS;
 }
 
-void OdbcFetch::ReleaseIfExhausted(OdbcHandleStmt *hstmt) {
-	if (result_exhausted) {
-		hstmt->res.reset();
-		result_exhausted = false;
-	}
-}
-
-SQLRETURN OdbcFetch::Materialize(OdbcHandleStmt *hstmt) {
-	// the fetched chunks and the cursor position are kept, only the result is released
-	auto ret = Prefetch(hstmt);
-	ReleaseIfExhausted(hstmt);
-	return ret;
-}
-
 SQLRETURN OdbcFetch::FetchNext(OdbcHandleStmt *hstmt) {
-	// case hasn't reached the end of query result, then try to fetch
-	if (resultset_end) {
+	if (pending_chunks.empty()) {
+		resultset_end = true;
 		return SQL_NO_DATA;
 	}
-	try {
-		auto chunk = ReadChunk(hstmt);
-		if (!chunk || chunk->GetRowCount() == 0) {
-			resultset_end = true;
-			return SQL_NO_DATA;
-		}
-		chunk_begins.push_back(fetched_rows);
-		fetched_rows += chunk->GetRowCount();
-		chunks.emplace_back(std::move(chunk));
-	} catch (std::exception &ex) {
-		return ReportError(hstmt, ex);
-	}
+	chunk_begins.push_back(fetched_rows);
+	fetched_rows += pending_chunks.front()->GetRowCount();
+	chunks.emplace_back(std::move(pending_chunks.front()));
+	pending_chunks.pop_front();
 	return SQL_SUCCESS;
 }
 
@@ -411,12 +354,7 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt, idx_t rowset_idx) {
 
 void OdbcFetch::ClearChunks() {
 	chunks.clear();
-	shared_scan.reset();
-	worker_scan.reset();
-	append_state.reset();
-	collection.reset();
-	collection_types.clear();
-	result_exhausted = false;
+	pending_chunks.clear();
 	chunk_begins.clear();
 	fetched_rows = 0;
 	current_chunk = nullptr;

@@ -52,9 +52,6 @@ public:
 	};
 	~OdbcHandleDbc();
 	void EraseStmtRef(OdbcHandleStmt *stmt);
-	//! Moves every open result set of the connection's statements, except `except`'s, into the statement that owns
-	//! it, so that the connection can run another statement: DuckDB runs one statement at a time per connection.
-	SQLRETURN MaterializeResults(OdbcHandleStmt *except = nullptr);
 	void ResetStmtDescriptors(OdbcHandleDesc *old_desc);
 
 	void SetDatabaseName(const string &db_name);
@@ -155,8 +152,6 @@ public:
 	explicit OdbcHandleStmt(OdbcHandleDbc *dbc_p);
 	~OdbcHandleStmt();
 	void Close();
-	//! Reads the rest of the open result set into the fetcher and releases it, see OdbcHandleDbc::MaterializeResults.
-	SQLRETURN MaterializeResult();
 	void SetARD(OdbcHandleDesc *new_ard);
 	void SetAPD(OdbcHandleDesc *new_apd);
 	bool IsPrepared() {
@@ -171,8 +166,6 @@ public:
 public:
 	OdbcHandleDbc *dbc;
 	duckdb_odbc::unique_ptr<OdbcPreparedStatement> stmt;
-	//! The result of the last execution, while it is still being read from DuckDB. The fetcher holds the chunks read.
-	duckdb_odbc::unique_ptr<QueryResult> res;
 	//! Whether the statement was executed and has a result (that may since have been read in full).
 	bool has_result = false;
 	//! Why executing the statement, or reading its result, failed; empty when it did not.

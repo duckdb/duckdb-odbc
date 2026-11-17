@@ -30,11 +30,7 @@ SQLRETURN SQL_API SQLEndTran(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALL
 	switch (completion_type) {
 	case SQL_COMMIT:
 	case SQL_ROLLBACK:
-		// it needs to materialize the result sets because ODBC can still fetch after a commit
-		if (dbc->MaterializeResults() != SQL_SUCCESS) {
-			// for some reason we couldn't materialize the result set
-			return SQL_ERROR; // TODO add a proper error message
-		}
+		// the results were read in full when their statements were executed: they can still be fetched after
 		try {
 			dbc->EndTransaction(completion_type == SQL_COMMIT);
 			return SQL_SUCCESS;

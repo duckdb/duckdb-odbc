@@ -61,20 +61,6 @@ void OdbcHandleDbc::EraseStmtRef(OdbcHandleStmt *stmt) {
 	}
 }
 
-SQLRETURN OdbcHandleDbc::MaterializeResults(OdbcHandleStmt *except) {
-	SQLRETURN ret = SQL_SUCCESS;
-	for (auto stmt : vec_stmt_ref) {
-		if (stmt == except || !stmt->res) {
-			continue;
-		}
-		auto stmt_ret = stmt->MaterializeResult();
-		if (!SQL_SUCCEEDED(stmt_ret)) {
-			ret = stmt_ret;
-		}
-	}
-	return ret;
-}
-
 void OdbcHandleDbc::ResetStmtDescriptors(OdbcHandleDesc *old_desc) {
 	for (auto stmt : vec_stmt_ref) {
 		if (stmt->param_desc->GetAPD() == old_desc) {
@@ -102,7 +88,6 @@ std::string OdbcHandleDbc::GetDataSourceName() {
 
 void OdbcHandleDbc::ExecuteInternal(const std::string &sql) {
 	D_ASSERT(conn);
-	MaterializeResults();
 	conn->Execute(sql).Drain();
 }
 
@@ -174,20 +159,12 @@ OdbcHandleStmt::~OdbcHandleStmt() {
 
 void OdbcHandleStmt::Close() {
 	open = false;
-	res.reset();
 	has_result = false;
 	result_error.clear();
 	odbc_fetcher->ClearChunks();
 	// the parameter values can be reused after
 	param_desc->Reset();
 	// stmt->stmt.reset(); // the statment can be reuse in prepared statement
-}
-
-SQLRETURN OdbcHandleStmt::MaterializeResult() {
-	if (!res) {
-		return SQL_SUCCESS;
-	}
-	return odbc_fetcher->Materialize(this);
 }
 
 void OdbcHandleStmt::SetARD(OdbcHandleDesc *new_ard) {
