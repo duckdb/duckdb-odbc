@@ -310,3 +310,44 @@ TEST_CASE("Test connecting a connected handle", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test connections with equivalent configurations share a database", "[odbc]") {
+	TempDirectory tmpdir;
+	auto connect = [](const std::string &conn_str, SQLHANDLE &env, SQLHANDLE &dbc) {
+		REQUIRE(SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env) == SQL_SUCCESS);
+		EXECUTE_AND_CHECK("SQLSetEnvAttr", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+		                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+		EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+		SQLCHAR out[1024];
+		SQLSMALLINT out_len;
+		return SQLDriverConnect(dbc, nullptr, ConvertToSQLCHAR(conn_str), SQL_NTS, out, sizeof(out), &out_len,
+		                        SQL_DRIVER_COMPLETE);
+	};
+
+	std::string database = "Database=" + tmpdir.path + "/equivalent.db";
+	// the same settings, written differently: an alias, a different case, a different number format
+	std::vector<std::string> equivalent = {database + ";threads=3;access_mode=READ_WRITE",
+	                                       database + ";worker_threads=3;access_mode=read_write",
+	                                       database + ";threads=03;ACCESS_MODE=Read_Write"};
+	std::vector<std::pair<SQLHANDLE, SQLHANDLE>> handles;
+	for (auto &conn_str : equivalent) {
+		INFO(conn_str);
+		SQLHANDLE env, dbc;
+		REQUIRE(SQL_SUCCEEDED(connect(conn_str, env, dbc)));
+		handles.emplace_back(env, dbc);
+	}
+
+	// a different setting
+	SQLHANDLE env, dbc;
+	REQUIRE(connect(database + ";threads=2;access_mode=read_write", env, dbc) == SQL_ERROR);
+	std::string state;
+	std::string message;
+	ACCESS_DIAGNOSTIC(state, message, dbc, SQL_HANDLE_DBC);
+	REQUIRE(message.find("different configuration") != std::string::npos);
+	EXECUTE_AND_CHECK("SQLFreeHandle (DBC)", nullptr, SQLFreeHandle, SQL_HANDLE_DBC, dbc);
+	EXECUTE_AND_CHECK("SQLFreeHandle (ENV)", nullptr, SQLFreeHandle, SQL_HANDLE_ENV, env);
+
+	for (auto &handle : handles) {
+		DISCONNECT_FROM_DATABASE(handle.first, handle.second);
+	}
+}

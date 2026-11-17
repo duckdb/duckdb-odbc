@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <mutex>
+#include <set>
 #include <unordered_set>
 #include <utility>
 
@@ -53,8 +54,66 @@ struct CachedInstance {
 	//! Held while the database is looked up or opened: only connections to the same file wait for each other
 	std::mutex lock;
 	std::weak_ptr<cxx::Instance> instance;
-	std::string configuration;
+	//! The database-wide options it was opened with: their canonical names, and their values as given
+	std::map<std::string, std::string> configuration;
 };
+
+//! Whether a connection asking for the database-wide options `requested` can share a database opened with `opened`,
+//! which runs as `instance`. An option given differently, or left out by one of them, must result in the setting the
+//! database runs with: e.g. "READ_WRITE" and "read_write", or "4" and "04", are the same.
+bool IsSameConfiguration(cxx::Instance &instance, const std::map<std::string, std::string> &opened,
+                         const std::map<std::string, std::string> &requested) {
+	std::set<std::string> names;
+	for (auto &option : opened) {
+		names.insert(option.first);
+	}
+	for (auto &option : requested) {
+		names.insert(option.first);
+	}
+	auto &config = instance.GetConfig();
+	// only for its factory, to convert the requested values
+	unique_ptr<cxx::Connection> conn;
+	for (auto &name : names) {
+		auto opened_entry = opened.find(name);
+		auto requested_entry = requested.find(name);
+		if (opened_entry != opened.end() && requested_entry != requested.end() &&
+		    opened_entry->second == requested_entry->second) {
+			continue;
+		}
+		try {
+			auto current = config.TryGetOption(name);
+			if (!current) {
+				// e.g. an option of an extension that is not loaded
+				return false;
+			}
+			if (!conn) {
+				conn = make_uniq<cxx::Connection>(instance.Connect());
+			}
+			auto &factory = conn->GetFactory();
+			auto type = current->value.GetLogicalType();
+			auto value = requested_entry != requested.end()
+			                 ? CreateVarchar(factory, requested_entry->second).Cast(factory, type)
+			                 : config.DescribeOption(name).GetDefaultValue();
+			if (value.IsNull() || current->value.IsNull()) {
+				if (value.IsNull() != current->value.IsNull()) {
+					return false;
+				}
+				continue;
+			}
+			auto value_str = ValueToString(factory, value);
+			auto current_str = ValueToString(factory, current->value);
+			// a textual setting compares as DuckDB stores it, e.g. lower-cased for an enumeration
+			if (type.GetTypeId() == LogicalTypeId::VARCHAR ? !StringUtil::CIEquals(value_str, current_str)
+			                                               : value_str != current_str) {
+				return false;
+			}
+		} catch (std::exception &) {
+			// e.g. a value that does not convert to the setting's type
+			return false;
+		}
+	}
+	return true;
+}
 
 //! The database instance cache, used so that multiple connections to the same file point to the same database object.
 //! instance_cache_lock guards the map only, not the opening of a database.
@@ -298,12 +357,19 @@ SQLRETURN Connect::SetConnection() {
 			}
 		}
 
-		// The configuration a cached database must have been opened with to be shared
-		std::string configuration;
+		// The database-wide options, which a cached database must have been opened with to be shared
+		std::map<std::string, std::string> configuration;
 		for (auto &option : sorted_options) {
-			configuration += option.first + "=" + option.second + "\n";
+			auto entry = duckdb_options.find(StringUtil::Lower(option.first));
+			if (entry == duckdb_options.end()) {
+				configuration[StringUtil::Lower(option.first)] = option.second;
+			} else if (entry->second.global) {
+				configuration[entry->second.name] = option.second;
+			}
 		}
-		configuration += "enable_external_access=" + enable_external_access;
+		if (!enable_external_access.empty()) {
+			configuration["enable_external_access"] = enable_external_access;
+		}
 
 		auto open_instance = [&]() {
 			auto instance = make_uniq<cxx::Instance>(startup_options);
@@ -332,7 +398,7 @@ SQLRETURN Connect::SetConnection() {
 				std::lock_guard<std::mutex> guard(entry->lock);
 				instance = entry->instance.lock();
 				if (instance) {
-					configuration_differs = entry->configuration != configuration;
+					configuration_differs = !IsSameConfiguration(*instance, entry->configuration, configuration);
 				} else {
 					// The database is closed holding the entry's lock, when its last connection is: a connection to the
 					// same file waits for it to be closed, rather than opening the file while it is still closing.
