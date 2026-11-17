@@ -6,7 +6,7 @@
 #include "widechar.hpp"
 #include "../src/odbc_driver/widechar/widechar_utf16.hpp"
 
-using namespace duckdb::widechar;
+using namespace duckdb_odbc::widechar;
 using namespace odbc_test;
 
 static const uint32_t invalid_char_replacement = 0xfffd;

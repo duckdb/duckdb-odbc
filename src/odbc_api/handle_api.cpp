@@ -9,9 +9,9 @@
 
 #include "duckdb/main/config.hpp"
 
-using duckdb::OdbcDiagnostic;
-using duckdb::OdbcUtils;
-using duckdb::SQLStateType;
+using duckdb_odbc::OdbcDiagnostic;
+using duckdb_odbc::OdbcUtils;
+using duckdb_odbc::SQLStateType;
 
 //===--------------------------------------------------------------------===//
 // SQLAllocHandle
@@ -26,26 +26,26 @@ SQLRETURN SQL_API SQLAllocHandle(SQLSMALLINT handle_type, SQLHANDLE input_handle
 	case SQL_HANDLE_DBC: {
 		D_ASSERT(input_handle);
 
-		auto *env = static_cast<duckdb::OdbcHandleEnv *>(input_handle);
-		D_ASSERT(env->type == duckdb::OdbcHandleType::ENV);
-		*output_handle_ptr = new duckdb::OdbcHandleDbc(env);
+		auto *env = static_cast<duckdb_odbc::OdbcHandleEnv *>(input_handle);
+		D_ASSERT(env->type == duckdb_odbc::OdbcHandleType::ENV);
+		*output_handle_ptr = new duckdb_odbc::OdbcHandleDbc(env);
 		return SQL_SUCCESS;
 	}
 	case SQL_HANDLE_DESC: {
 		D_ASSERT(input_handle);
-		auto *dbc = static_cast<duckdb::OdbcHandleDbc *>(input_handle);
-		D_ASSERT(dbc->type == duckdb::OdbcHandleType::DBC);
-		*output_handle_ptr = new duckdb::OdbcHandleDesc(dbc);
+		auto *dbc = static_cast<duckdb_odbc::OdbcHandleDbc *>(input_handle);
+		D_ASSERT(dbc->type == duckdb_odbc::OdbcHandleType::DBC);
+		*output_handle_ptr = new duckdb_odbc::OdbcHandleDesc(dbc);
 		return SQL_SUCCESS;
 	}
 	case SQL_HANDLE_ENV:
-		*output_handle_ptr = new duckdb::OdbcHandleEnv();
+		*output_handle_ptr = new duckdb_odbc::OdbcHandleEnv();
 		return SQL_SUCCESS;
 	case SQL_HANDLE_STMT: {
 		D_ASSERT(input_handle);
-		auto *dbc = static_cast<duckdb::OdbcHandleDbc *>(input_handle);
-		D_ASSERT(dbc->type == duckdb::OdbcHandleType::DBC);
-		*output_handle_ptr = new duckdb::OdbcHandleStmt(dbc);
+		auto *dbc = static_cast<duckdb_odbc::OdbcHandleDbc *>(input_handle);
+		D_ASSERT(dbc->type == duckdb_odbc::OdbcHandleType::DBC);
+		*output_handle_ptr = new duckdb_odbc::OdbcHandleStmt(dbc);
 		return SQL_SUCCESS;
 	}
 	default:
@@ -62,7 +62,7 @@ SQLRETURN SQL_API SQLAllocHandle(SQLSMALLINT handle_type, SQLHANDLE input_handle
  * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlfreehandle-function?view=sql-server-ver16">Docs</a>
  */
 SQLRETURN SQL_API SQLFreeHandle(SQLSMALLINT handle_type, SQLHANDLE handle) {
-	return duckdb::FreeHandle(handle_type, handle);
+	return duckdb_odbc::FreeHandle(handle_type, handle);
 }
 
 //===--------------------------------------------------------------------===//
@@ -74,7 +74,7 @@ SQLRETURN SQL_API SQLFreeHandle(SQLSMALLINT handle_type, SQLHANDLE handle) {
  * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlfreestmt-function?view=sql-server-ver16">Docs</a>
  */
 SQLRETURN SQL_API SQLFreeStmt(SQLHSTMT statement_handle, SQLUSMALLINT option) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -82,7 +82,7 @@ SQLRETURN SQL_API SQLFreeStmt(SQLHSTMT statement_handle, SQLUSMALLINT option) {
 
 	if (option == SQL_DROP) {
 		// mapping FreeStmt with DROP option to SQLFreeHandle
-		return duckdb::FreeHandle(SQL_HANDLE_STMT, statement_handle);
+		return duckdb_odbc::FreeHandle(SQL_HANDLE_STMT, statement_handle);
 	}
 	if (option == SQL_UNBIND) {
 		hstmt->bound_cols.clear();
@@ -93,7 +93,7 @@ SQLRETURN SQL_API SQLFreeStmt(SQLHSTMT statement_handle, SQLUSMALLINT option) {
 		return SQL_SUCCESS;
 	}
 	if (option == SQL_CLOSE) {
-		return duckdb::CloseStmt(hstmt);
+		return duckdb_odbc::CloseStmt(hstmt);
 	}
 	return SQL_ERROR;
 }

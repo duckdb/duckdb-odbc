@@ -65,7 +65,7 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		SQLSMALLINT col_name_utf16_len_bytes = 0;
 		EXECUTE_AND_CHECK("SQLColAttributeW", hstmt, SQLColAttributeW, hstmt, i, SQL_DESC_NAME, col_name_utf16.data(),
 		                  col_name_utf16.size() * sizeof(SQLWCHAR), &col_name_utf16_len_bytes, nullptr);
-		auto utf16_len_calculated = duckdb::widechar::utf16_length(col_name_utf16.data());
+		auto utf16_len_calculated = duckdb_odbc::widechar::utf16_length(col_name_utf16.data());
 		REQUIRE(col_name_utf16_len_bytes == utf16_len_calculated * sizeof(SQLWCHAR));
 		std::string col_name_utf8 = ConvertToString(col_name_utf16.data());
 		REQUIRE(STR_EQUAL(col_name_utf8.c_str(), col_name));
@@ -207,7 +207,7 @@ TEST_CASE("Test SQLColAttribute with unicode column name", "[odbc]") {
 	SQLSMALLINT col_name_utf16_len_bytes = 0;
 	EXECUTE_AND_CHECK("SQLColAttributeW", hstmt, SQLColAttributeW, hstmt, 1, SQL_DESC_NAME, col_name_utf16.data(),
 	                  col_name_utf16.size() * sizeof(SQLWCHAR), &col_name_utf16_len_bytes, nullptr);
-	auto utf16_len_calculated = duckdb::widechar::utf16_length(col_name_utf16.data());
+	auto utf16_len_calculated = duckdb_odbc::widechar::utf16_length(col_name_utf16.data());
 	REQUIRE(col_name_utf16_len_bytes == utf16_len_calculated * sizeof(SQLWCHAR));
 	std::string col_name_utf8_converted = ConvertToString(col_name_utf16.data());
 	REQUIRE(STR_EQUAL(col_name_utf8_converted.c_str(), hello_bg_utf8_str.c_str()));

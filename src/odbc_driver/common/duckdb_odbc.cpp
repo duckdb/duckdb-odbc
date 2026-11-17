@@ -9,14 +9,14 @@
 #include "duckdb/main/database_manager.hpp"
 #include "duckdb/main/attached_database.hpp"
 
-using duckdb::OdbcDiagnostic;
-using duckdb::OdbcHandle;
-using duckdb::OdbcHandleDbc;
-using duckdb::OdbcHandleDesc;
-using duckdb::OdbcHandleStmt;
-using duckdb::OdbcHandleType;
+using duckdb_odbc::OdbcDiagnostic;
+using duckdb_odbc::OdbcHandle;
+using duckdb_odbc::OdbcHandleDbc;
+using duckdb_odbc::OdbcHandleDesc;
+using duckdb_odbc::OdbcHandleStmt;
+using duckdb_odbc::OdbcHandleType;
 
-std::string duckdb::OdbcHandleTypeToString(OdbcHandleType type) {
+std::string duckdb_odbc::OdbcHandleTypeToString(OdbcHandleType type) {
 	switch (type) {
 	case OdbcHandleType::ENV:
 		return "ENV";
@@ -147,7 +147,7 @@ void OdbcHandleStmt::FillIRD(const vector<LogicalType> &types, const vector<Iden
 	ird->header.sql_desc_count = 0;
 	auto num_cols = types.size();
 	for (duckdb::idx_t col_idx = 0; col_idx < num_cols; ++col_idx) {
-		duckdb::DescRecord new_record;
+		duckdb_odbc::DescRecord new_record;
 		auto &col_type = types[col_idx];
 		new_record.logical_type = col_type;
 
@@ -160,7 +160,7 @@ void OdbcHandleStmt::FillIRD(const vector<LogicalType> &types, const vector<Iden
 
 		new_record.sql_desc_unnamed = new_record.sql_desc_name.empty() ? SQL_UNNAMED : SQL_NAMED;
 
-		auto sql_type = duckdb::ApiInfo::FindRelatedSQLType(col_type.id());
+		auto sql_type = duckdb_odbc::ApiInfo::FindRelatedSQLType(col_type.id());
 		if (sql_type == SQL_INTERVAL) {
 			// default mapping from Logical::Interval -> SQL_INTERVAL_DAY_TO_SECOND
 			new_record.SetSqlDescType(SQL_INTERVAL_DAY_TO_SECOND);
@@ -183,12 +183,12 @@ void OdbcHandleStmt::FillIRD(const vector<LogicalType> &types, const vector<Iden
 				new_record.sql_desc_scale = duckdb::DecimalType::GetScale(col_type);
 			}
 		} else if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
-			uint8_t precision = duckdb::ApiInfo::GetTemporalPrecision(col_type.id());
+			uint8_t precision = duckdb_odbc::ApiInfo::GetTemporalPrecision(col_type.id());
 			new_record.sql_desc_precision = precision;
 			new_record.sql_desc_scale = precision; // ODBC uses scale for fractional seconds
 		}
 
-		new_record.sql_desc_display_size = duckdb::ApiInfo::GetDisplaySize(col_type);
+		new_record.sql_desc_display_size = duckdb_odbc::ApiInfo::GetDisplaySize(col_type);
 		new_record.SetDescUnsignedField(col_type);
 
 		auto &db_manager = dbc->env->db->instance->GetDatabaseManager();

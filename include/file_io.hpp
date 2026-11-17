@@ -5,7 +5,7 @@
 #include <exception>
 #include <string>
   
-namespace duckdb {
+namespace duckdb_odbc {
 
 bool FileExists(const std::string &path);
 
@@ -26,5 +26,5 @@ private:
     std::string message;
 };
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif // DUCKDB_FILE_IO_HPP

@@ -4,10 +4,10 @@
 #include "handle_functions.hpp"
 #include "duckdb/common/vector.hpp"
 
-using duckdb::ApiInfo;
 using duckdb::idx_t;
-using duckdb::OdbcTypeInfo;
 using duckdb::vector;
+using duckdb_odbc::ApiInfo;
+using duckdb_odbc::OdbcTypeInfo;
 
 /*** ApiInfo private attributes ********************************/
 
@@ -54,7 +54,7 @@ const std::unordered_set<SQLUSMALLINT> ApiInfo::ODBC3_EXTRA_SUPPORTED_FUNCTIONS 
  * 18. NUM_PREC_RADIX
  * 19. INTERVAL_PRECISION
  */
-const vector<duckdb::OdbcTypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
+const vector<duckdb_odbc::OdbcTypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 // |          1               |               2              |            3            |    4   |   5   |          6         |      7      |     8    |       9       |     10   |    11    |    12    |      13    | 14| 15|      16      |            17            | 18| 19|
 {                     "'CHAR'",                      SQL_CHAR, ApiInfo::MAX_COLUMN_SIZE,  "''''", "''''",          "'length'", SQL_NULLABLE,  SQL_TRUE, SQL_SEARCHABLE,        -1, SQL_FALSE, SQL_FALSE,      "NULL", -1, -1,      SQL_CHAR,                        -1, -1, -1},
 {                  "'BOOLEAN'",                       SQL_BIT,                        1,  "NULL", "NULL",              "NULL", SQL_NULLABLE, SQL_FALSE, SQL_PRED_BASIC,  SQL_TRUE,  SQL_TRUE, SQL_FALSE, "'boolean'", -1, -1,       SQL_BIT,                        -1, -1, -1},

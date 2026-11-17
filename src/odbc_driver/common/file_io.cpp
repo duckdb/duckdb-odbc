@@ -9,7 +9,7 @@
 
 #include "widechar.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
 
 #ifdef _WIN32
 static std::wstring WidenStr(const std::string &str) {
@@ -93,4 +93,4 @@ std::string FileReadToString(const std::string &path, size_t max_size_bytes) {
 	}
 }
 
-} // namespace duckdb
+} // namespace duckdb_odbc

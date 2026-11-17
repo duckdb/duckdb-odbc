@@ -10,7 +10,8 @@
 #define ROW_DEL     ';'
 #define KEY_VAL_DEL '='
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 class Connect {
 public:
@@ -50,5 +51,5 @@ private:
 	duckdb::DBConfig config;
 };
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif // DUCKDB_CONNECT_H

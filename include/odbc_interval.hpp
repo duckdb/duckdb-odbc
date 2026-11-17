@@ -5,7 +5,8 @@
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/value.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 struct OdbcInterval {
 public:
 	static bool GetInterval(Value &value, interval_t &interval, OdbcHandleStmt *hstmt);
@@ -42,5 +43,5 @@ public:
 
 	static SQLSMALLINT GetIntervalCode(SQLSMALLINT value_type);
 };
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif

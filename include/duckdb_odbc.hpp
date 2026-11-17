@@ -23,7 +23,8 @@
 #undef RemoveDirectory
 #endif
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 class OdbcFetch;
 class ParameterDescriptor;
@@ -198,6 +199,6 @@ public:
 	OdbcHandleStmt *stmt;
 };
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif // DUCKDB_ODBC_HPP

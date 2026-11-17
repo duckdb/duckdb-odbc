@@ -1,6 +1,7 @@
 
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 namespace widechar {
 
 template <typename u16bit_iterator>
@@ -53,4 +54,4 @@ static output_iterator utf16_replace_invalid(u16bit_iterator start, u16bit_itera
 }
 
 } // namespace widechar
-} // namespace duckdb
+} // namespace duckdb_odbc

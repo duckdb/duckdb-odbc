@@ -3,7 +3,8 @@
 
 #include "duckdb_odbc.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 class ParameterDescriptor {
 public:
 	explicit ParameterDescriptor(OdbcHandleStmt *stmt_ptr);
@@ -69,5 +70,5 @@ private:
 	// duckdb Values for the parameters
 	vector<Value> values;
 };
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif

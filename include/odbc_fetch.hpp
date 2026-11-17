@@ -10,7 +10,8 @@
 #include "duckdb/common/vector.hpp"
 #include "duckdb/common/stack.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 struct OdbcHandleStmt;
 
@@ -118,6 +119,6 @@ private:
 
 	void SetRowStatus(idx_t row_idx, SQLINTEGER status);
 };
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif // ODBC_FETCH_HPP

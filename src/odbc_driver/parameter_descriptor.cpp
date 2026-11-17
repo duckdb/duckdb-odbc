@@ -6,10 +6,10 @@
 #include "widechar.hpp"
 
 using duckdb::Decimal;
-using duckdb::OdbcHandleDesc;
-using duckdb::ParameterDescriptor;
 using duckdb::Value;
 using duckdb::vector;
+using duckdb_odbc::OdbcHandleDesc;
+using duckdb_odbc::ParameterDescriptor;
 
 ParameterDescriptor::ParameterDescriptor(OdbcHandleStmt *stmt_ptr)
     : stmt(stmt_ptr), paramset_idx(0), cur_paramset_idx(0), cur_param_idx(0) {
@@ -78,9 +78,9 @@ SQLRETURN ParameterDescriptor::GetParamValues(vector<Value> &values) {
 			return SQL_NEED_DATA;
 		}
 		if (ret != SQL_PARAM_SUCCESS) {
-			duckdb::SetDiagnosticRecord(this->stmt, SQL_SUCCESS_WITH_INFO, "GetParamValues",
-			                            "Failed to set parameter value", SQLStateType::ST_01000,
-			                            this->stmt->dbc->GetDataSourceName());
+			duckdb_odbc::SetDiagnosticRecord(this->stmt, SQL_SUCCESS_WITH_INFO, "GetParamValues",
+			                                 "Failed to set parameter value", SQLStateType::ST_01000,
+			                                 this->stmt->dbc->GetDataSourceName());
 			if (!ipd->header.sql_desc_array_status_ptr) {
 				return SQL_ERROR;
 			}
@@ -281,18 +281,18 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
 				*sql_ind_ptr_val_set =
-				    static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
+				    static_cast<SQLLEN>(duckdb_odbc::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
 			}
 			auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
-			auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
+			auto utf8_vec = duckdb_odbc::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
 			value = Value(std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size()));
 		} else {
 			auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
 				*sql_ind_ptr_val_set = strlen(str_data);
 			}
-			value = Value(
-			    duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), *sql_ind_ptr_val_set));
+			value = Value(duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data),
+			                                                             *sql_ind_ptr_val_set));
 		}
 		SetValue(value, rec_idx);
 		return SQL_PARAM_SUCCESS;
@@ -309,7 +309,7 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			*sql_ind_ptr_val_set = strlen(str_data);
 		}
 		auto str_len = *sql_ind_ptr_val_set;
-		value = Value(duckdb::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), str_len));
+		value = Value(duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), str_len));
 		break;
 	}
 	case SQL_WCHAR:
@@ -319,10 +319,11 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		                                  apd->records[rec_idx].sql_desc_octet_length);
 		auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
-			*sql_ind_ptr_val_set = static_cast<SQLLEN>(duckdb::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
+			*sql_ind_ptr_val_set =
+			    static_cast<SQLLEN>(duckdb_odbc::widechar::utf16_length(utf16_data) * sizeof(SQLWCHAR));
 		}
 		auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
-		auto utf8_vec = duckdb::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
+		auto utf8_vec = duckdb_odbc::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
 		auto utf8_str = std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size());
 		value = Value(utf8_str);
 		break;

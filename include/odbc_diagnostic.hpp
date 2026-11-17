@@ -13,7 +13,8 @@
 #include "duckdb/common/set.hpp"
 #include "duckdb/common/unordered_map.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 enum class SQLStateType : uint8_t {
 	ST_01000, // {"01000", "General warning"},
 	ST_01001, // {"01001", "Cursor operation conflict"},
@@ -207,5 +208,5 @@ public:
 	std::string GetDiagSubclassOrigin(SQLINTEGER rec_idx);
 };
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif
