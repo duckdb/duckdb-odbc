@@ -7,19 +7,17 @@
 #include "statement_functions.hpp"
 #include "widechar.hpp"
 
-#include "duckdb/common/helper.hpp"
-
 // From ODBC Spec (ODBCVER >= 0x0300 and ODBCVER >= 0x0400)
 // https://github.com/microsoft/ODBC-Specification/blob/master/Windows/inc/sqlext.h
 // Needed for use with Power Query SDK and Power BI
 #define SQL_DTC_TRANSACTION_COST 1750
 #define SQL_RETURN_ESCAPE_CLAUSE 180
 
-using duckdb::vector;
 using duckdb_odbc::ApiInfo;
 using duckdb_odbc::OdbcTypeInfo;
 using duckdb_odbc::OdbcUtils;
 using duckdb_odbc::SQLStateType;
+using duckdb_odbc::vector;
 using std::ptrdiff_t;
 
 static SQLRETURN SetDiagError(bool has_valid_handle, duckdb_odbc::OdbcHandleDbc *dbc) {
@@ -378,7 +376,7 @@ static SQLRETURN GetInfoInternal(SQLHDBC connection_handle, SQLUSMALLINT info_ty
 		}
 
 		std::string db_name = dbc->GetDatabaseName();
-		if (db_name == IN_MEMORY_PATH) {
+		if (db_name == duckdb_odbc::IN_MEMORY_PATH) {
 			db_name = "";
 		}
 		return WriteStringInfo(connection_handle, db_name, reinterpret_cast<CHAR_TYPE *>(info_value_ptr), buffer_length,
@@ -406,7 +404,7 @@ static SQLRETURN GetInfoInternal(SQLHDBC connection_handle, SQLUSMALLINT info_ty
 		// The engine is part of this library, so its version needs no statement. Running one here went through the
 		// public SQLAllocHandle/SQLExecDirect entry points, which resolve to the driver manager when it exports the
 		// same names (unixODBC): the allocation failed and the error path freed an uninitialized handle.
-		std::string dbms_ver = duckdb::DuckDB::LibraryVersion();
+		std::string dbms_ver = duckdb_odbc::cxx::LibraryVersion();
 		return WriteStringInfo(connection_handle, dbms_ver, reinterpret_cast<CHAR_TYPE *>(info_value_ptr),
 		                       buffer_length, string_length_ptr);
 	}

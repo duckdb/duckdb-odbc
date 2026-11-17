@@ -1,7 +1,5 @@
 #include "driver.hpp"
 
-#include "duckdb/main/config.hpp"
-#include "duckdb/main/db_instance_cache.hpp"
 #include "duckdb_odbc.hpp"
 #include "handle_functions.hpp"
 #include "odbc_diagnostic.hpp"
@@ -83,8 +81,8 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			if (hdl->type != duckdb_odbc::OdbcHandleType::STMT) {
 				return SQL_ERROR;
 			}
-			duckdb::Store<SQLLEN>(hdl->odbc_diagnostic->header.sql_diag_cursor_row_count,
-			                      (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLLEN>(hdl->odbc_diagnostic->header.sql_diag_cursor_row_count,
+			                           (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_DYNAMIC_FUNCTION: {
@@ -100,18 +98,18 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			if (hdl->type != duckdb_odbc::OdbcHandleType::STMT) {
 				return SQL_ERROR;
 			}
-			duckdb::Store<SQLINTEGER>(hdl->odbc_diagnostic->header.sql_diag_dynamic_function_code,
-			                          (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLINTEGER>(hdl->odbc_diagnostic->header.sql_diag_dynamic_function_code,
+			                               (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_NUMBER: {
-			duckdb::Store<SQLINTEGER>(static_cast<SQLINTEGER>(hdl->odbc_diagnostic->GetTotalRecords()),
-			                          (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLINTEGER>(static_cast<SQLINTEGER>(hdl->odbc_diagnostic->GetTotalRecords()),
+			                               (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_RETURNCODE: {
-			duckdb::Store<SQLRETURN>(hdl->odbc_diagnostic->header.sql_diag_return_code,
-			                         (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLRETURN>(hdl->odbc_diagnostic->header.sql_diag_return_code,
+			                              (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_ROW_COUNT: {
@@ -119,7 +117,8 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			if (hdl->type != duckdb_odbc::OdbcHandleType::STMT) {
 				return SQL_ERROR;
 			}
-			duckdb::Store<SQLLEN>(hdl->odbc_diagnostic->header.sql_diag_return_code, (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLLEN>(hdl->odbc_diagnostic->header.sql_diag_return_code,
+			                           (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		default:
@@ -151,7 +150,7 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			if (hdl->type != duckdb_odbc::OdbcHandleType::STMT) {
 				return SQL_ERROR;
 			}
-			duckdb::Store<SQLINTEGER>(diag_record.sql_diag_column_number, (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLINTEGER>(diag_record.sql_diag_column_number, (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_CONNECTION_NAME: {
@@ -163,7 +162,7 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			return WriteStringDiag(msg, reinterpret_cast<CHAR_TYPE *>(diag_info_ptr), buffer_length, string_length_ptr);
 		}
 		case SQL_DIAG_NATIVE: {
-			duckdb::Store<SQLINTEGER>(diag_record.sql_diag_native, (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLINTEGER>(diag_record.sql_diag_native, (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_ROW_NUMBER: {
@@ -171,7 +170,7 @@ static SQLRETURN GetDiagFieldInternal(SQLSMALLINT handle_type, SQLHANDLE handle,
 			if (hdl->type != duckdb_odbc::OdbcHandleType::STMT) {
 				return SQL_ERROR;
 			}
-			duckdb::Store<SQLLEN>(diag_record.sql_diag_row_number, (duckdb::data_ptr_t)diag_info_ptr);
+			duckdb_odbc::Store<SQLLEN>(diag_record.sql_diag_row_number, (duckdb_odbc::data_ptr_t)diag_info_ptr);
 			return SQL_SUCCESS;
 		}
 		case SQL_DIAG_SERVER_NAME: {
@@ -326,7 +325,7 @@ static SQLRETURN GetDiagRecInternal(SQLSMALLINT handle_type, SQLHANDLE handle, S
 		WriteStringWithLenInChars(diag_record.sql_diag_sqlstate, sql_state, static_cast<SQLSMALLINT>(6), len_out);
 	}
 	if (native_error_ptr) {
-		duckdb::Store<SQLINTEGER>(diag_record.sql_diag_native, (duckdb::data_ptr_t)native_error_ptr);
+		duckdb_odbc::Store<SQLINTEGER>(diag_record.sql_diag_native, (duckdb_odbc::data_ptr_t)native_error_ptr);
 	}
 
 	// reading a record must not change the diagnostics: driver managers fetch the same record again with a

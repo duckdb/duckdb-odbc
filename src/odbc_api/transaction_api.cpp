@@ -29,23 +29,17 @@ SQLRETURN SQL_API SQLEndTran(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALL
 
 	switch (completion_type) {
 	case SQL_COMMIT:
-		// it needs to materialize the result set because ODBC can still fetch after a commit
-		if (dbc->MaterializeResult() != SQL_SUCCESS) {
+	case SQL_ROLLBACK:
+		// it needs to materialize the result sets because ODBC can still fetch after a commit
+		if (dbc->MaterializeResults() != SQL_SUCCESS) {
 			// for some reason we couldn't materialize the result set
 			return SQL_ERROR; // TODO add a proper error message
 		}
-		if (dbc->conn->IsAutoCommit()) {
-			return SQL_SUCCESS;
-		}
-		dbc->conn->Commit();
-		return SQL_SUCCESS;
-	case SQL_ROLLBACK:
 		try {
-			dbc->conn->Rollback();
+			dbc->EndTransaction(completion_type == SQL_COMMIT);
 			return SQL_SUCCESS;
 		} catch (std::exception &ex) {
-			duckdb::ErrorData parsed_error(ex);
-			return duckdb_odbc::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", parsed_error.RawMessage(),
+			return duckdb_odbc::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", duckdb_odbc::RawErrorMessage(ex),
 			                                        SQLStateType::ST_HY115, dbc->GetDataSourceName());
 		}
 	default:

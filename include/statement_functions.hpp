@@ -6,9 +6,16 @@
 #include "duckdb_odbc.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 
 void PrepareQuery(OdbcHandleStmt *hstmt);
+
+//! Prepares a parsed statement: for repeated execution (SQLPrepare), learning its parameter and result types, or
+//! to run it once (SQLExecDirect). A statement that fails to prepare carries the error.
+unique_ptr<OdbcPreparedStatement> PrepareStatement(OdbcHandleStmt *hstmt, unique_ptr<cxx::SqlStatement> statement,
+                                                   bool for_repeated_execution);
+
+//! SQLPrepare: prepares the single statement in `query`.
+SQLRETURN PrepareStmt(OdbcHandleStmt *hstmt, const string &query);
 
 SQLRETURN FinalizeStmt(OdbcHandleStmt *hstmt);
 

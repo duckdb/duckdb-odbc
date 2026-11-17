@@ -18,9 +18,72 @@ OdbcFetch::~OdbcFetch() {
 	chunks.clear();
 }
 
+SQLRETURN OdbcFetch::ReportError(OdbcHandleStmt *hstmt, const std::exception &ex) {
+	hstmt->res.reset();
+	hstmt->open = false;
+	hstmt->result_error = duckdb_odbc::ErrorMessage(ex);
+	return SetDiagnosticRecord(hstmt, SQL_ERROR, "FetchNext", hstmt->result_error, duckdb_odbc::SQLStateType::ST_HY000,
+	                           hstmt->dbc->GetDataSourceName());
+}
+
+duckdb_odbc::unique_ptr<duckdb_odbc::DataChunk> OdbcFetch::ReadChunk(OdbcHandleStmt *hstmt) {
+	ReleaseIfExhausted(hstmt);
+	if (!collection) {
+		return nullptr;
+	}
+	auto &factory = hstmt->dbc->conn->GetFactory();
+	if (!shared_scan) {
+		shared_scan = make_uniq<cxx::ColumnDataCollection::SharedScanState>(collection->CreateSharedScanState());
+		worker_scan = make_uniq<cxx::ColumnDataCollection::WorkerScanState>(collection->CreateWorkerScanState());
+	}
+	auto chunk = factory.CreateDataChunk(collection_types);
+	if (!collection->Scan(*shared_scan, *worker_scan, chunk)) {
+		return nullptr;
+	}
+	// the scanned chunk references the collection's buffers until the next scan, and fetching keeps chunks longer
+	return make_uniq<DataChunk>(chunk.Copy(factory));
+}
+
+SQLRETURN OdbcFetch::Prefetch(OdbcHandleStmt *hstmt) {
+	if (!hstmt->res || result_exhausted) {
+		return SQL_SUCCESS;
+	}
+	try {
+		auto &factory = hstmt->dbc->conn->GetFactory();
+		while (true) {
+			auto chunk = hstmt->res->FetchChunk();
+			if (!chunk || chunk.GetRowCount() == 0) {
+				break;
+			}
+			if (!collection) {
+				for (idx_t i = 0; i < chunk.GetVectorCount(); i++) {
+					collection_types.push_back(chunk.GetVector(i).GetLogicalType());
+				}
+				collection = make_uniq<cxx::ColumnDataCollection>(factory.CreateColumnDataCollection(collection_types));
+				append_state = make_uniq<cxx::ColumnDataCollection::AppendState>(collection->CreateAppendState());
+			}
+			collection->Append(*append_state, chunk);
+		}
+		append_state.reset();
+		result_exhausted = true;
+	} catch (std::exception &ex) {
+		return ReportError(hstmt, ex);
+	}
+	return SQL_SUCCESS;
+}
+
+void OdbcFetch::ReleaseIfExhausted(OdbcHandleStmt *hstmt) {
+	if (result_exhausted) {
+		hstmt->res.reset();
+		result_exhausted = false;
+	}
+}
+
 SQLRETURN OdbcFetch::Materialize(OdbcHandleStmt *hstmt) {
-	// the fetched chunks are only appended to, the cursor position is preserved
-	return FetchAll(hstmt);
+	// the fetched chunks and the cursor position are kept, only the result is released
+	auto ret = Prefetch(hstmt);
+	ReleaseIfExhausted(hstmt);
+	return ret;
 }
 
 SQLRETURN OdbcFetch::FetchNext(OdbcHandleStmt *hstmt) {
@@ -29,25 +92,16 @@ SQLRETURN OdbcFetch::FetchNext(OdbcHandleStmt *hstmt) {
 		return SQL_NO_DATA;
 	}
 	try {
-		auto chunk = hstmt->res->Fetch();
-		if (hstmt->res->HasError()) {
-			hstmt->open = false;
-			return SetDiagnosticRecord(hstmt, SQL_ERROR, "FetchNext", hstmt->res->GetError(),
-			                           duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
-		}
-		if (!chunk || chunk->size() == 0) {
+		auto chunk = ReadChunk(hstmt);
+		if (!chunk || chunk->GetRowCount() == 0) {
 			resultset_end = true;
 			return SQL_NO_DATA;
 		}
 		chunk_begins.push_back(fetched_rows);
-		fetched_rows += chunk->size();
+		fetched_rows += chunk->GetRowCount();
 		chunks.emplace_back(std::move(chunk));
-	} catch (duckdb::Exception &e) {
-		// TODO this is quite dirty, we should have separate error holder
-		hstmt->res->SetError(ErrorData(e));
-		hstmt->open = false;
-		return SetDiagnosticRecord(hstmt, SQL_ERROR, "FetchNext", hstmt->res->GetError(),
-		                           duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
+	} catch (std::exception &ex) {
+		return ReportError(hstmt, ex);
 	}
 	return SQL_SUCCESS;
 }
@@ -74,7 +128,7 @@ SQLRETURN OdbcFetch::FetchAll(OdbcHandleStmt *hstmt) {
 void OdbcFetch::SetCurrentRow(idx_t row) {
 	D_ASSERT(!chunks.empty() && row >= chunk_begins.front() && row < fetched_rows);
 	if (!current_chunk || row < chunk_begins[current_chunk_idx] ||
-	    row >= chunk_begins[current_chunk_idx] + current_chunk->size()) {
+	    row >= chunk_begins[current_chunk_idx] + current_chunk->GetRowCount()) {
 		// the chunk holding the row is the last one beginning at or before it
 		auto next_chunk = std::upper_bound(chunk_begins.begin(), chunk_begins.end(), row);
 		current_chunk_idx = static_cast<idx_t>(next_chunk - chunk_begins.begin()) - 1;
@@ -86,7 +140,7 @@ void OdbcFetch::SetCurrentRow(idx_t row) {
 
 void OdbcFetch::DropChunksBefore(idx_t row) {
 	idx_t drop_count = 0;
-	while (drop_count < chunks.size() && chunk_begins[drop_count] + chunks[drop_count]->size() <= row) {
+	while (drop_count < chunks.size() && chunk_begins[drop_count] + chunks[drop_count]->GetRowCount() <= row) {
 		drop_count++;
 	}
 	if (drop_count == 0) {
@@ -126,7 +180,7 @@ SQLRETURN OdbcFetch::ScrollRowsetBegin(OdbcHandleStmt *hstmt, SQLULEN fetch_orie
 			if (ret != SQL_SUCCESS) {
 				return ret;
 			}
-			new_rowset_begin = duckdb::MaxValue<row_t>(static_cast<row_t>(fetched_rows) - rowset_size, 0);
+			new_rowset_begin = duckdb_odbc::MaxValue<row_t>(static_cast<row_t>(fetched_rows) - rowset_size, 0);
 			return SQL_SUCCESS;
 		}
 		if (rowset_begin == 0) {
@@ -190,8 +244,8 @@ SQLRETURN OdbcFetch::DummyFetch() {
 			return SQL_NO_DATA;
 		}
 		if (hstmt_ref->row_desc->ird->header.sql_desc_array_status_ptr) {
-			duckdb::idx_t row_idx;
-			for (row_idx = 0; row_idx < (duckdb::idx_t)row_set_size; row_idx++) {
+			duckdb_odbc::idx_t row_idx;
+			for (row_idx = 0; row_idx < (duckdb_odbc::idx_t)row_set_size; row_idx++) {
 				hstmt_ref->row_desc->ird->header.sql_desc_array_status_ptr[row_idx] = SQL_ROW_SUCCESS;
 			}
 			for (; row_idx < hstmt_ref->row_desc->ard->header.sql_desc_array_size; row_idx++) {
@@ -203,13 +257,9 @@ SQLRETURN OdbcFetch::DummyFetch() {
 	return SQL_NEED_DATA;
 }
 
-SQLRETURN OdbcFetch::GetValue(SQLUSMALLINT col_idx, duckdb::Value &value) {
-	if (!current_chunk || chunk_row < 0) {
-		// the cursor is not positioned on a row
-		return SQL_ERROR;
-	}
-	value = current_chunk->GetValue(col_idx, chunk_row);
-	return SQL_SUCCESS;
+duckdb_odbc::Value OdbcFetch::GetValue(SQLUSMALLINT col_idx) {
+	D_ASSERT(HasCurrentRow());
+	return current_chunk->GetVector(col_idx).GetValue(static_cast<idx_t>(chunk_row));
 }
 
 SQLRETURN OdbcFetch::Fetch(OdbcHandleStmt *hstmt, SQLULEN fetch_orientation, SQLLEN fetch_offset) {
@@ -280,7 +330,7 @@ SQLRETURN OdbcFetch::Fetch(OdbcHandleStmt *hstmt, SQLULEN fetch_orientation, SQL
 	if (hstmt->rows_fetched_ptr) {
 		*hstmt->rows_fetched_ptr = rowset_idx;
 	}
-	row_count = duckdb::MaxValue<SQLLEN>(row_count, static_cast<SQLLEN>(rowset_begin_row + rowset_idx));
+	row_count = duckdb_odbc::MaxValue<SQLLEN>(row_count, static_cast<SQLLEN>(rowset_begin_row + rowset_idx));
 	return ret;
 }
 
@@ -297,7 +347,7 @@ SQLRETURN OdbcFetch::ColumnWise(OdbcHandleStmt *hstmt, idx_t rowset_idx) {
 	SetRowStatus(rowset_idx, SQL_SUCCESS);
 	// now fill buffers in fetch if set
 	// TODO actually vectorize this
-	for (duckdb::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
+	for (duckdb_odbc::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
 		auto bound_col = hstmt->bound_cols[col_idx];
 
 		if (!bound_col.IsBound() && !bound_col.IsVarcharBound()) {
@@ -337,7 +387,7 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt, idx_t rowset_idx) {
 	SetRowStatus(rowset_idx, SQL_SUCCESS);
 	// the application's buffers hold ONE rowset: index them by the row's position in the rowset
 	auto row_offset = row_size * rowset_idx;
-	for (duckdb::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
+	for (duckdb_odbc::idx_t col_idx = 0; col_idx < hstmt->bound_cols.size(); col_idx++) {
 		auto bound_col = hstmt->bound_cols[col_idx];
 		if (!bound_col.IsBound()) {
 			continue;
@@ -361,6 +411,12 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt, idx_t rowset_idx) {
 
 void OdbcFetch::ClearChunks() {
 	chunks.clear();
+	shared_scan.reset();
+	worker_scan.reset();
+	append_state.reset();
+	collection.reset();
+	collection_types.clear();
+	result_exhausted = false;
 	chunk_begins.clear();
 	fetched_rows = 0;
 	current_chunk = nullptr;
@@ -402,7 +458,7 @@ SQLLEN OdbcFetch::GetRowCount() {
 	// the chunk of the current row, or the first one fetched when the cursor is not on a row
 	auto chunk = current_chunk ? current_chunk : (chunks.empty() ? nullptr : chunks.front().get());
 	if (chunk) {
-		return duckdb::MaxValue(row_count, (SQLLEN)chunk->size());
+		return duckdb_odbc::MaxValue(row_count, (SQLLEN)chunk->GetRowCount());
 	}
 	return row_count;
 }

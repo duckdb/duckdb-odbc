@@ -2,7 +2,7 @@
 #define ODBC_UTILS_HPP
 
 // needs to be first because BOOL
-#include "duckdb.hpp"
+#include "odbc_common.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -22,10 +22,8 @@
 #include <utility>
 #include <vector>
 
-#include "duckdb/common/vector.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 struct OdbcUtils {
 public:
 

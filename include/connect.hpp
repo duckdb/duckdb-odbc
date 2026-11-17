@@ -5,13 +5,13 @@
 #include "handle_functions.hpp"
 
 #include <locale>
+#include <map>
 #include <odbcinst.h>
 
 #define ROW_DEL     ';'
 #define KEY_VAL_DEL '='
 
 namespace duckdb_odbc {
-using namespace duckdb;
 
 class Connect {
 public:
@@ -46,9 +46,8 @@ private:
 	std::string input_str;
 	bool success_with_info = false;
 
-	map<string, bool> seen_config_options;
-	case_insensitive_map_t<Value> config_map;
-	duckdb::DBConfig config;
+	std::map<string, bool> seen_config_options;
+	case_insensitive_map_t<std::string> config_map;
 };
 
 } // namespace duckdb_odbc

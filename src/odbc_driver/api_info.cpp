@@ -2,12 +2,11 @@
 #include "api_info.hpp"
 #include "statement_functions.hpp"
 #include "handle_functions.hpp"
-#include "duckdb/common/vector.hpp"
 
-using duckdb::idx_t;
-using duckdb::vector;
 using duckdb_odbc::ApiInfo;
+using duckdb_odbc::idx_t;
 using duckdb_odbc::OdbcTypeInfo;
+using duckdb_odbc::vector;
 
 /*** ApiInfo private attributes ********************************/
 
@@ -90,11 +89,11 @@ const vector<duckdb_odbc::OdbcTypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 // clang-format on
 
 void ApiInfo::FindDataType(SQLSMALLINT data_type, vector<OdbcTypeInfo> &vec_types) {
-	duckdb::idx_t size_types = ODBC_SUPPORTED_SQL_TYPES.size();
-	for (duckdb::idx_t i = 0; i < size_types; ++i) {
+	duckdb_odbc::idx_t size_types = ODBC_SUPPORTED_SQL_TYPES.size();
+	for (duckdb_odbc::idx_t i = 0; i < size_types; ++i) {
 		if (ODBC_SUPPORTED_SQL_TYPES[i].data_type == data_type) {
 			// get next info type using the same data type
-			for (duckdb::idx_t type_idx = i;
+			for (duckdb_odbc::idx_t type_idx = i;
 			     type_idx < size_types && ODBC_SUPPORTED_SQL_TYPES[type_idx].data_type == data_type; ++type_idx) {
 				vec_types.emplace_back(ODBC_SUPPORTED_SQL_TYPES[type_idx]);
 			}
@@ -104,7 +103,7 @@ void ApiInfo::FindDataType(SQLSMALLINT data_type, vector<OdbcTypeInfo> &vec_type
 }
 
 void ApiInfo::WriteInfoTypesToQueryString(const vector<OdbcTypeInfo> &vec_types, string &query) {
-	for (duckdb::idx_t i = 0; i < vec_types.size(); i++) {
+	for (duckdb_odbc::idx_t i = 0; i < vec_types.size(); i++) {
 		auto info_type = vec_types[i];
 		query += "(";
 		query += "CAST(" + string(info_type.type_name) + " AS VARCHAR),";
@@ -169,7 +168,7 @@ SQLRETURN ApiInfo::GetFunctions30(SQLHDBC connection_handle, SQLUSMALLINT functi
 	return SQL_SUCCESS;
 }
 
-SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb::LogicalTypeId type_id) {
+SQLSMALLINT ApiInfo::FindRelatedSQLType(duckdb_odbc::LogicalTypeId type_id) {
 	switch (type_id) {
 	case LogicalTypeId::BOOLEAN:
 		return SQL_CHAR;
@@ -465,7 +464,7 @@ bool ApiInfo::IsNumericInfoType(SQLUSMALLINT info_type) {
 	}
 }
 
-uint8_t ApiInfo::GetTemporalPrecision(duckdb::LogicalTypeId type_id) {
+uint8_t ApiInfo::GetTemporalPrecision(duckdb_odbc::LogicalTypeId type_id) {
 	switch (type_id) {
 	case LogicalTypeId::TIME:
 	case LogicalTypeId::TIMESTAMP:
@@ -483,17 +482,17 @@ uint8_t ApiInfo::GetTemporalPrecision(duckdb::LogicalTypeId type_id) {
 }
 
 //! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-ver15
-SQLINTEGER ApiInfo::GetColumnSize(const duckdb::LogicalType &logical_type) {
-	auto sql_type = FindRelatedSQLType(logical_type.id());
+SQLINTEGER ApiInfo::GetColumnSize(const OdbcType &logical_type) {
+	auto sql_type = FindRelatedSQLType(logical_type.id);
 	switch (sql_type) {
 	case SQL_DECIMAL:
 	case SQL_NUMERIC:
-		switch (logical_type.id()) {
-		case LogicalType::HUGEINT:
-		case LogicalType::UHUGEINT:
+		switch (logical_type.id) {
+		case LogicalTypeId::HUGEINT:
+		case LogicalTypeId::UHUGEINT:
 			return 38;
 		default:
-			return duckdb::DecimalType::GetWidth(logical_type);
+			return logical_type.decimal_width;
 		}
 	case SQL_BIT:
 		return 1;
@@ -513,11 +512,11 @@ SQLINTEGER ApiInfo::GetColumnSize(const duckdb::LogicalType &logical_type) {
 	case SQL_TYPE_DATE:
 		return 10;
 	case SQL_TYPE_TIME: {
-		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		uint8_t precision = GetTemporalPrecision(logical_type.id);
 		return precision > 0 ? 9 + precision : 8;
 	}
 	case SQL_TYPE_TIMESTAMP: {
-		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		uint8_t precision = GetTemporalPrecision(logical_type.id);
 		return precision > 0 ? 20 + precision : 19;
 	}
 	case SQL_VARCHAR:
@@ -530,17 +529,17 @@ SQLINTEGER ApiInfo::GetColumnSize(const duckdb::LogicalType &logical_type) {
 }
 
 //! https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/display-size?view=sql-server-ver15
-SQLINTEGER ApiInfo::GetDisplaySize(const duckdb::LogicalType &logical_type) {
-	auto sql_type = FindRelatedSQLType(logical_type.id());
+SQLINTEGER ApiInfo::GetDisplaySize(const OdbcType &logical_type) {
+	auto sql_type = FindRelatedSQLType(logical_type.id);
 	switch (sql_type) {
 	case SQL_DECIMAL:
 	case SQL_NUMERIC:
-		switch (logical_type.id()) {
-		case LogicalType::HUGEINT:
-		case LogicalType::UHUGEINT:
+		switch (logical_type.id) {
+		case LogicalTypeId::HUGEINT:
+		case LogicalTypeId::UHUGEINT:
 			return 40;
 		default:
-			return duckdb::DecimalType::GetWidth(logical_type) + 2;
+			return logical_type.decimal_width + 2;
 		}
 	case SQL_BIT:
 		return 1;
@@ -560,11 +559,11 @@ SQLINTEGER ApiInfo::GetDisplaySize(const duckdb::LogicalType &logical_type) {
 	case SQL_TYPE_DATE:
 		return 10;
 	case SQL_TYPE_TIME: {
-		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		uint8_t precision = GetTemporalPrecision(logical_type.id);
 		return precision > 0 ? 9 + precision : 8;
 	}
 	case SQL_TYPE_TIMESTAMP: {
-		uint8_t precision = GetTemporalPrecision(logical_type.id());
+		uint8_t precision = GetTemporalPrecision(logical_type.id);
 		return precision > 0 ? 20 + precision : 19;
 	}
 	case SQL_VARCHAR:

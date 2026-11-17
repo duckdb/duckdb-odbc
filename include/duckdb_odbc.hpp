@@ -2,29 +2,16 @@
 #define DUCKDB_ODBC_HPP
 
 // needs to be first because BOOL
-#include "duckdb.hpp"
-#include "duckdb/common/shared_ptr.hpp"
+#include "odbc_common.hpp"
 
-#include "duckdb/common/windows.hpp"
 #include "descriptor.hpp"
 #include "odbc_diagnostic.hpp"
 #include "odbc_utils.hpp"
 
 #include <sqltypes.h>
 #include <sqlext.h>
-#include "duckdb/common/vector.hpp"
-
-#ifdef _WIN32
-#define VC_EXTRALEAN
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <Windows.h>
-#undef CreateDirectory
-#undef RemoveDirectory
-#endif
 
 namespace duckdb_odbc {
-using namespace duckdb;
 
 class OdbcFetch;
 class ParameterDescriptor;
@@ -41,18 +28,13 @@ struct OdbcHandle {
 
 	OdbcHandleType type;
 
-	duckdb::unique_ptr<OdbcDiagnostic> odbc_diagnostic;
+	duckdb_odbc::unique_ptr<OdbcDiagnostic> odbc_diagnostic;
 };
 
 struct OdbcHandleEnv : public OdbcHandle {
 	OdbcHandleEnv() : OdbcHandle(OdbcHandleType::ENV) {
-		duckdb::DBConfig ODBC_CONFIG;
-		ODBC_CONFIG.SetOptionByName("duckdb_api", "odbc");
-		ODBC_CONFIG.SetOptionByName("threads", 1);
-		db = make_shared_ptr<DuckDB>(nullptr, &ODBC_CONFIG);
-	};
+	}
 
-	shared_ptr<DuckDB> db;
 	SQLINTEGER odbc_version;
 	SQLUINTEGER connection_pooling;
 	SQLUINTEGER cp_match;
@@ -67,20 +49,33 @@ public:
 	explicit OdbcHandleDbc(OdbcHandleEnv *env_p)
 	    : OdbcHandle(OdbcHandleType::DBC), env(env_p), autocommit(true), sql_attr_access_mode(SQL_MODE_READ_WRITE) {
 		D_ASSERT(env_p);
-		D_ASSERT(env_p->db);
 	};
 	~OdbcHandleDbc();
 	void EraseStmtRef(OdbcHandleStmt *stmt);
-	SQLRETURN MaterializeResult();
+	//! Moves every open result set of the connection's statements, except `except`'s, into the statement that owns
+	//! it, so that the connection can run another statement: DuckDB runs one statement at a time per connection.
+	SQLRETURN MaterializeResults(OdbcHandleStmt *except = nullptr);
 	void ResetStmtDescriptors(OdbcHandleDesc *old_desc);
 
 	void SetDatabaseName(const string &db_name);
 	std::string GetDatabaseName();
 	std::string GetDataSourceName();
 
+	//! Executes a statement on the connection for the driver itself, discarding any result. Throws on error.
+	void ExecuteInternal(const std::string &sql);
+	//! Switches between auto-commit and manual-commit mode (SQL_ATTR_AUTOCOMMIT). Throws on error.
+	void SetAutoCommit(bool autocommit_p);
+	//! Commits (or rolls back) the open transaction, starting the next one in manual-commit mode. Throws on error.
+	void EndTransaction(bool commit);
+	//! Called after the driver ran a statement: a COMMIT or ROLLBACK the application issued itself ends the open
+	//! transaction, so in manual-commit mode the next one is started.
+	void AfterStatement(const cxx::SqlStatement &statement);
+
 public:
 	OdbcHandleEnv *env;
-	duckdb::unique_ptr<Connection> conn;
+	//! The database the connection is open on. Declared before `conn`, which must not outlive it.
+	shared_ptr<cxx::Instance> db;
+	duckdb_odbc::unique_ptr<cxx::Connection> conn;
 	bool autocommit;
 	SQLUINTEGER sql_attr_metadata_id;
 	SQLUINTEGER sql_attr_access_mode;
@@ -118,23 +113,75 @@ public:
 	SQLULEN max_len = 0;
 };
 
+//! A statement prepared by SQLPrepare or SQLExecDirect, with what the driver learned about it before executing it.
+struct OdbcPreparedStatement {
+	bool HasError() const {
+		return !error.empty();
+	}
+	const std::string &GetError() const {
+		return error;
+	}
+	cxx::StatementType GetStatementType() const {
+		return statement_type;
+	}
+	idx_t ParameterCount() const {
+		return parameter_count;
+	}
+	//! Executes the statement with positional parameters.
+	unique_ptr<QueryResult> Execute(cxx::Connection &conn, const vector<Value> &values);
+
+	//! The parsed statement.
+	unique_ptr<cxx::SqlStatement> statement;
+	//! The statement prepared for repeated execution, by SQLPrepare. SQLExecDirect executes `statement` directly.
+	unique_ptr<cxx::PreparedStatement> prepared;
+	//! Why the statement could not be prepared; empty when it was.
+	std::string error;
+	cxx::StatementType statement_type = cxx::StatementType::INVALID;
+	idx_t parameter_count = 0;
+	//! Whether the types of the parameters and of the result columns are known before executing. They are not when a
+	//! parameter's type cannot be inferred, as in `SELECT ?`, and then come from each execution's result.
+	bool bound_all_parameters = false;
+	//! Whether to report a statement whose parameter types are unknown with SQL_SUCCESS_WITH_INFO.
+	bool warn_unbound_parameters = false;
+	//! The parameter types, in parameter order, when `bound_all_parameters`.
+	vector<OdbcType> parameter_types;
+	//! The result columns, when `bound_all_parameters`.
+	vector<OdbcType> types;
+	vector<std::string> names;
+};
+
 struct OdbcHandleStmt : public OdbcHandle {
 public:
 	explicit OdbcHandleStmt(OdbcHandleDbc *dbc_p);
 	~OdbcHandleStmt();
 	void Close();
+	//! Reads the rest of the open result set into the fetcher and releases it, see OdbcHandleDbc::MaterializeResults.
 	SQLRETURN MaterializeResult();
 	void SetARD(OdbcHandleDesc *new_ard);
 	void SetAPD(OdbcHandleDesc *new_apd);
 	bool IsPrepared() {
 		return stmt != nullptr;
 	}
-	void FillIRD(const vector<LogicalType> &types, const vector<Identifier> &names);
+	void FillIRD(const vector<OdbcType> &types, const vector<std::string> &names);
+	//! Whether the statement produces a result set (as opposed to a row count or nothing).
+	bool ReturnsRows();
+	//! The kind of statement, as executed when there is a result and as written otherwise.
+	cxx::StatementType GetStatementType();
 
 public:
 	OdbcHandleDbc *dbc;
-	duckdb::unique_ptr<PreparedStatement> stmt;
-	duckdb::unique_ptr<QueryResult> res;
+	duckdb_odbc::unique_ptr<OdbcPreparedStatement> stmt;
+	//! The result of the last execution, while it is still being read from DuckDB. The fetcher holds the chunks read.
+	duckdb_odbc::unique_ptr<QueryResult> res;
+	//! Whether the statement was executed and has a result (that may since have been read in full).
+	bool has_result = false;
+	//! Why executing the statement, or reading its result, failed; empty when it did not.
+	std::string result_error;
+	cxx::ResultType result_type = cxx::ResultType::NOTHING;
+	cxx::StatementType result_statement_type = cxx::StatementType::INVALID;
+	vector<OdbcType> result_types;
+	vector<std::string> result_names;
+
 	vector<OdbcBoundCol> bound_cols;
 	bool open;
 	SQLULEN retrieve_data = SQL_RD_ON;
@@ -144,11 +191,11 @@ public:
 	OdbcStmtClientAttrs client_attrs;
 
 	// fetcher
-	duckdb::unique_ptr<OdbcFetch> odbc_fetcher;
+	duckdb_odbc::unique_ptr<OdbcFetch> odbc_fetcher;
 
-	duckdb::unique_ptr<ParameterDescriptor> param_desc;
+	duckdb_odbc::unique_ptr<ParameterDescriptor> param_desc;
 
-	duckdb::unique_ptr<RowDescriptor> row_desc;
+	duckdb_odbc::unique_ptr<RowDescriptor> row_desc;
 };
 
 struct OdbcHandleDesc : public OdbcHandle {

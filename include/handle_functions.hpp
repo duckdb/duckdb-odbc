@@ -6,7 +6,6 @@
 #include "duckdb_odbc.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 
 /**
  * @brief Sets the diagnostic record for the given handle and returns the given return value

@@ -34,9 +34,6 @@ SQLRETURN duckdb_odbc::ConvertEnvironment(SQLHANDLE &environment_handle, OdbcHan
 	if (env->type != OdbcHandleType::ENV) {
 		return SQL_INVALID_HANDLE;
 	}
-	if (!env->db) {
-		return SetDiagnosticRecord(env, SQL_ERROR, "env", "No database connection found", SQLStateType::ST_HY000, "");
-	}
 
 	return SQL_SUCCESS;
 }
@@ -97,12 +94,12 @@ SQLRETURN duckdb_odbc::ConvertHSTMTResult(SQLHANDLE &statement_handle, OdbcHandl
 	if (ret != SQL_SUCCESS) {
 		return ret;
 	}
-	if (!hstmt->res) {
-		return SetDiagnosticRecord(hstmt, SQL_ERROR, "stmt", "No result set found", SQLStateType::ST_HY000,
+	if (!hstmt->result_error.empty()) {
+		return SetDiagnosticRecord(hstmt, SQL_ERROR, "stmt", hstmt->result_error, SQLStateType::ST_HY000,
 		                           hstmt->dbc->GetDataSourceName());
 	}
-	if (hstmt->res->HasError()) {
-		return SetDiagnosticRecord(hstmt, SQL_ERROR, "stmt", hstmt->stmt->GetError(), SQLStateType::ST_HY000,
+	if (!hstmt->has_result) {
+		return SetDiagnosticRecord(hstmt, SQL_ERROR, "stmt", "No result set found", SQLStateType::ST_HY000,
 		                           hstmt->dbc->GetDataSourceName());
 	}
 	return SQL_SUCCESS;

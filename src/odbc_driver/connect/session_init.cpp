@@ -44,12 +44,12 @@ SessionInitSQLFile SessionInit::ReadSQLFile(const std::string &session_init_sql_
 	}
 
 	if (!FileExists(session_init_sql_file)) {
-		throw FileIOException("Specified session init SQL file not found, path: " + session_init_sql_file);
+		throw std::runtime_error("Specified session init SQL file not found, path: " + session_init_sql_file);
 	}
 
 	size_t file_size = FileSizeBytes(session_init_sql_file);
 	if (file_size > SessionInitSQLFile::SQL_FILE_MAX_SIZE_BYTES) {
-		throw FileIOException(
+		throw std::runtime_error(
 		    "Specified session init SQL file size: " + std::to_string(file_size) +
 		    " exceeds max allowed size: " + std::to_string(SessionInitSQLFile::SQL_FILE_MAX_SIZE_BYTES));
 	}
@@ -64,15 +64,15 @@ SessionInitSQLFile SessionInit::ReadSQLFile(const std::string &session_init_sql_
 		picosha2::hash256(orig_file_text.begin(), orig_file_text.end(), digest.begin(), digest.end());
 		std::string actual_sha256 = picosha2::bytes_to_hex_string(digest.begin(), digest.end());
 		if (actual_sha256 != session_init_sql_file_sha256) {
-			throw FileIOException("Session init SQL file SHA-256 mismatch, expected: " + expected_sha256 +
-			                      ", actual: " + actual_sha256);
+			throw std::runtime_error("Session init SQL file SHA-256 mismatch, expected: " + expected_sha256 +
+			                         ", actual: " + actual_sha256);
 		}
 	}
 
 	std::vector<std::string> parts = SplitByMarker(orig_file_text);
 	if (parts.size() > 2) {
-		throw FileIOException("Connection init marker: '" + SessionInitSQLFile::CONN_INIT_MARKER +
-		                      "' can only be specified once");
+		throw std::runtime_error("Connection init marker: '" + SessionInitSQLFile::CONN_INIT_MARKER +
+		                         "' can only be specified once");
 	}
 
 	std::string db_init_sql = OdbcUtils::TrimString(parts.at(0));

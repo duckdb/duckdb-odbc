@@ -7,13 +7,11 @@
 #include "odbc_utils.hpp"
 #include "widechar.hpp"
 
-#include "duckdb/main/config.hpp"
-#include "duckdb/main/db_instance_cache.hpp"
 #include "duckdb_odbc.hpp"
 
 #include <locale>
 
-using duckdb::LogicalTypeId;
+using duckdb_odbc::LogicalTypeId;
 using duckdb_odbc::OdbcDiagnostic;
 using duckdb_odbc::OdbcUtils;
 using duckdb_odbc::SQLStateType;
@@ -317,12 +315,14 @@ static SQLRETURN SetConnectAttrInternal(SQLHDBC connection_handle, SQLINTEGER at
 	case SQL_ATTR_AUTOCOMMIT:
 		switch ((ptrdiff_t)value_ptr) {
 		case (ptrdiff_t)SQL_AUTOCOMMIT_ON:
-			dbc->autocommit = true;
-			dbc->conn->SetAutoCommit(true);
-			return SQL_SUCCESS;
 		case (ptrdiff_t)SQL_AUTOCOMMIT_OFF:
-			dbc->autocommit = false;
-			dbc->conn->SetAutoCommit(false);
+			try {
+				dbc->SetAutoCommit((ptrdiff_t)value_ptr == (ptrdiff_t)SQL_AUTOCOMMIT_ON);
+			} catch (std::exception &ex) {
+				return duckdb_odbc::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLSetConnectAttr",
+				                                        duckdb_odbc::RawErrorMessage(ex), SQLStateType::ST_HY000,
+				                                        dbc->GetDataSourceName());
+			}
 			return SQL_SUCCESS;
 		case SQL_ATTR_METADATA_ID: {
 			if (value_ptr) {

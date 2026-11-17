@@ -2,7 +2,7 @@
 
 using namespace odbc_test;
 
-void CheckEmpty(const SQLHSTMT hstmt, idx_t expected_col_count) {
+void CheckEmpty(const SQLHSTMT hstmt, SQLSMALLINT expected_col_count) {
 	// Check columns
 	SQLSMALLINT col_count;
 	EXECUTE_AND_CHECK("SQLNumResultCols", hstmt, SQLNumResultCols, hstmt, &col_count);
@@ -179,7 +179,7 @@ void CheckForErrorAndDiagnosticRecord(const SQLRETURN ret, const SQLHANDLE handl
 	std::string message;
 	ACCESS_DIAGNOSTIC(state, message, handle, handle_type);
 	REQUIRE(state == "HYC00");
-	REQUIRE(duckdb::StringUtil::Contains(message, "not implemented"));
+	REQUIRE(duckdb_odbc::StringUtil::Contains(message, "not implemented"));
 }
 
 // The following functions are stubs that should return an error.

@@ -38,7 +38,7 @@ static void check_read_file(HSTMT hstmt, const std::string &path, SQLRETURN expe
 		std::string state, message;
 		ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
 		REQUIRE(state == expected_state);
-		REQUIRE(duckdb::StringUtil::Contains(message, expected_msg));
+		REQUIRE(duckdb_odbc::StringUtil::Contains(message, expected_msg));
 	}
 }
 
@@ -49,7 +49,7 @@ TEST_CASE("Test allowed_paths option", "[odbc]") {
 	HSTMT hstmt = SQL_NULL_HSTMT;
 
 	// TODO: need to add generic scratch test dir support
-	auto fs = duckdb::FileSystem::CreateLocal();
+	auto fs = LocalFileSystem::Create();
 	std::string dir = fs->GetWorkingDirectory();
 	std::string file_allowed_1 = fs->JoinPath(dir, "test_allowed_paths_1.txt");
 	std::string file_allowed_2 = fs->JoinPath(dir, "test_allowed_paths_2.txt");
@@ -85,7 +85,7 @@ TEST_CASE("Test allowed_directories option", "[odbc]") {
 	HSTMT hstmt = SQL_NULL_HSTMT;
 
 	// TODO: need to add generic scratch test dir support
-	auto fs = duckdb::FileSystem::CreateLocal();
+	auto fs = LocalFileSystem::Create();
 	std::string dir = fs->GetWorkingDirectory();
 	std::string dir_allowed_1 = fs->JoinPath(dir, "test_allowed_paths_dir_1");
 	fs->CreateDirectory(dir_allowed_1);

@@ -1,5 +1,4 @@
 #include "odbc_utils.hpp"
-#include "duckdb/common/string_util.hpp"
 #include "sqlext.h"
 
 #include <sql.h>
@@ -12,13 +11,11 @@
 #include <time.h>
 #endif //!_WIN32
 
-#include "duckdb/common/vector.hpp"
-
 #include "handle_functions.hpp"
 #include "widechar.hpp"
 
-using duckdb::vector;
 using duckdb_odbc::OdbcUtils;
+using duckdb_odbc::vector;
 
 SQLRETURN OdbcUtils::SetStringValueLength(const string &val_str, SQLLEN *str_len_or_ind_ptr) {
 	if (str_len_or_ind_ptr) {
@@ -58,7 +55,7 @@ std::string OdbcUtils::GetStringAsIdentifier(const string &str) {
 	} else {
 		// removing trailing blanks
 		str_ret = std::regex_replace(str, std::regex(" +$|( ) +"), "$1");
-		str_ret = duckdb::StringUtil::Upper(str_ret);
+		str_ret = duckdb_odbc::StringUtil::Upper(str_ret);
 	}
 
 	return str_ret;
