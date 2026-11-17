@@ -10,7 +10,7 @@
 
 #include "widechar_utf16.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
 namespace widechar {
 
 static const uint32_t invalid_char_replacement = 0xfffd;
@@ -121,7 +121,7 @@ size_t utf16_write_str(SQLRETURN ret, const std::vector<SQLCHAR> &utf8_vec, SQLW
 	}
 
 	// Convert and write UTF-16 string
-	auto utf16_vec = duckdb::widechar::utf8_to_utf16_lenient(utf8_vec.data(), len_utf8);
+	auto utf16_vec = duckdb_odbc::widechar::utf8_to_utf16_lenient(utf8_vec.data(), len_utf8);
 	size_t len_chars = std::min(utf16_vec.size(), static_cast<size_t>(buffer_len_chars - 1));
 	if (utf16_str_out != nullptr) {
 		std::memcpy(utf16_str_out, utf16_vec.data(), len_chars * sizeof(SQLWCHAR));
@@ -188,4 +188,4 @@ std::string utf16_conv::to_utf8_str() {
 }
 
 } // namespace widechar
-} // namespace duckdb
+} // namespace duckdb_odbc

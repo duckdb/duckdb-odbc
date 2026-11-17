@@ -1,7 +1,7 @@
 #include "row_descriptor.hpp"
 
-using duckdb::OdbcHandleDesc;
-using duckdb::RowDescriptor;
+using duckdb_odbc::OdbcHandleDesc;
+using duckdb_odbc::RowDescriptor;
 
 RowDescriptor::RowDescriptor(OdbcHandleStmt *stmt_ptr) : stmt(stmt_ptr) {
 	ard = make_uniq<OdbcHandleDesc>(stmt->dbc);

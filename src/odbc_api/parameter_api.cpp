@@ -22,7 +22,7 @@ using duckdb::Value;
 SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT parameter_number, SQLSMALLINT *data_type_ptr,
                                    SQLULEN *parameter_size_ptr, SQLSMALLINT *decimal_digits_ptr,
                                    SQLSMALLINT *nullable_ptr) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMTPrepared(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -85,7 +85,7 @@ SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT param
  * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlnumparams-function?view=sql-server-ver15">Docs</a>
  */
 SQLRETURN SQL_API SQLNumParams(SQLHSTMT statement_handle, SQLSMALLINT *parameter_count_ptr) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMTPrepared(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -107,7 +107,7 @@ SQLRETURN SQL_API SQLNumParams(SQLHSTMT statement_handle, SQLSMALLINT *parameter
  * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlparamdata-function?view=sql-server-ver15">Docs</a>
  */
 SQLRETURN SQL_API SQLParamData(SQLHSTMT statement_handle, SQLPOINTER *value_ptr_ptr) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMTPrepared(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -130,7 +130,7 @@ SQLRETURN SQL_API SQLParamData(SQLHSTMT statement_handle, SQLPOINTER *value_ptr_
  * href="https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlputdata-function?view=sql-server-ver16">Docs</a>
  */
 SQLRETURN SQL_API SQLPutData(SQLHSTMT statement_handle, SQLPOINTER data_ptr, SQLLEN str_len_or_ind_ptr) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMTPrepared(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;

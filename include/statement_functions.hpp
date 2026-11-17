@@ -5,7 +5,8 @@
 
 #include "duckdb_odbc.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 void PrepareQuery(OdbcHandleStmt *hstmt);
 
@@ -28,5 +29,5 @@ SQLRETURN BindParameterStmt(OdbcHandleStmt *hstmt, SQLUSMALLINT parameter_number
                             SQLLEN *str_len_or_ind_ptr);
 
 SQLRETURN CloseStmt(OdbcHandleStmt *hstmt);
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif

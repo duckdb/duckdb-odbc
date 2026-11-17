@@ -43,7 +43,7 @@ TEST_CASE("Test SQLBindParameter with WVARCHAR type", "[odbc]") {
 	buf_utf16.resize(256);
 	EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_WCHAR, buf_utf16.data(),
 	                  buf_utf16.size() * sizeof(SQLWCHAR), nullptr);
-	REQUIRE(duckdb::widechar::utf16_length(buf_utf16.data()) == hello_bg_utf16.size());
+	REQUIRE(duckdb_odbc::widechar::utf16_length(buf_utf16.data()) == hello_bg_utf16.size());
 	REQUIRE(std::equal(hello_bg_utf16.begin(), hello_bg_utf16.end(), buf_utf16.begin()));
 
 	// Fetch and check UTF-8

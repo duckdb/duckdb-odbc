@@ -24,7 +24,8 @@
 
 #include "duckdb/common/vector.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 struct OdbcUtils {
 public:
 
@@ -79,5 +80,5 @@ public:
 
 	static std::string TrimString(const std::string& str);
 };
-} // namespace duckdb
+} // namespace duckdb_odbc
 #endif

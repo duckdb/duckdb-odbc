@@ -12,7 +12,8 @@
 
 #define NUM_FUNC_SUPPORTED 4000
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 struct OdbcTypeInfo {
 public:
@@ -87,6 +88,6 @@ public:
 
 }; // end ApiInfo struct
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif // API_INFO_HPP

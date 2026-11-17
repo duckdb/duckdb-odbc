@@ -11,7 +11,8 @@
 #include "sqlext.h"
 #include <sqltypes.h>
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 struct DescRecord {
 public:
@@ -79,6 +80,6 @@ public:
 	SQLULEN *sql_desc_rows_processed_ptr;
 };
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif

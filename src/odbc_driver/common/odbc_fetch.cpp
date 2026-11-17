@@ -11,8 +11,8 @@
 
 #include <algorithm>
 
-using duckdb::OdbcFetch;
-using duckdb::OdbcHandleStmt;
+using duckdb_odbc::OdbcFetch;
+using duckdb_odbc::OdbcHandleStmt;
 
 OdbcFetch::~OdbcFetch() {
 	chunks.clear();
@@ -33,7 +33,7 @@ SQLRETURN OdbcFetch::FetchNext(OdbcHandleStmt *hstmt) {
 		if (hstmt->res->HasError()) {
 			hstmt->open = false;
 			return SetDiagnosticRecord(hstmt, SQL_ERROR, "FetchNext", hstmt->res->GetError(),
-			                           duckdb::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
+			                           duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
 		}
 		if (!chunk || chunk->size() == 0) {
 			resultset_end = true;
@@ -47,7 +47,7 @@ SQLRETURN OdbcFetch::FetchNext(OdbcHandleStmt *hstmt) {
 		hstmt->res->SetError(ErrorData(e));
 		hstmt->open = false;
 		return SetDiagnosticRecord(hstmt, SQL_ERROR, "FetchNext", hstmt->res->GetError(),
-		                           duckdb::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
+		                           duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
 	}
 	return SQL_SUCCESS;
 }
@@ -320,8 +320,8 @@ SQLRETURN OdbcFetch::ColumnWise(OdbcHandleStmt *hstmt, idx_t rowset_idx) {
 			}
 		}
 
-		ret = duckdb::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type, target_val_addr,
-		                                bound_col.len, target_len_addr);
+		ret = duckdb_odbc::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type,
+		                                     target_val_addr, bound_col.len, target_len_addr);
 		if (!SQL_SUCCEEDED(ret)) {
 			SetRowStatus(rowset_idx, SQL_ROW_ERROR);
 		}
@@ -349,8 +349,8 @@ SQLRETURN OdbcFetch::RowWise(OdbcHandleStmt *hstmt, idx_t rowset_idx) {
 		// pointer would hand GetData a non-null garbage address from the second row on
 		uint8_t *target_len_addr = bound_col.strlen_or_ind ? (uint8_t *)bound_col.strlen_or_ind + row_offset : nullptr;
 
-		ret = duckdb::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type, target_val_addr,
-		                                bound_col.len, (SQLLEN *)target_len_addr);
+		ret = duckdb_odbc::GetDataStmtResult(hstmt, static_cast<SQLUSMALLINT>(col_idx + 1), bound_col.type,
+		                                     target_val_addr, bound_col.len, (SQLLEN *)target_len_addr);
 		if (!SQL_SUCCEEDED(ret)) {
 			SetRowStatus(rowset_idx, SQL_ROW_ERROR);
 		}

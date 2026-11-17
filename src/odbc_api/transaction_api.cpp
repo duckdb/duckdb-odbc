@@ -4,7 +4,7 @@
 #include "odbc_utils.hpp"
 #include "handle_functions.hpp"
 
-using duckdb::SQLStateType;
+using duckdb_odbc::SQLStateType;
 
 //===--------------------------------------------------------------------===//
 // SQLEndTran
@@ -16,11 +16,12 @@ using duckdb::SQLStateType;
  */
 SQLRETURN SQL_API SQLEndTran(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALLINT completion_type) {
 	if (handle_type != SQL_HANDLE_DBC) { // theoretically this can also be done on env but no no no
-		return duckdb::SetDiagnosticRecord(static_cast<duckdb::OdbcHandle *>(handle), SQL_ERROR, "SQLEndTran",
-		                                   "Invalid handle type, must be SQL_HANDLE_DBC.", SQLStateType::ST_HY092, "");
+		return duckdb_odbc::SetDiagnosticRecord(static_cast<duckdb_odbc::OdbcHandle *>(handle), SQL_ERROR, "SQLEndTran",
+		                                        "Invalid handle type, must be SQL_HANDLE_DBC.", SQLStateType::ST_HY092,
+		                                        "");
 	}
 
-	duckdb::OdbcHandleDbc *dbc = nullptr;
+	duckdb_odbc::OdbcHandleDbc *dbc = nullptr;
 	SQLRETURN ret = ConvertConnection(handle, dbc);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -44,11 +45,11 @@ SQLRETURN SQL_API SQLEndTran(SQLSMALLINT handle_type, SQLHANDLE handle, SQLSMALL
 			return SQL_SUCCESS;
 		} catch (std::exception &ex) {
 			duckdb::ErrorData parsed_error(ex);
-			return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", parsed_error.RawMessage(),
-			                                   SQLStateType::ST_HY115, dbc->GetDataSourceName());
+			return duckdb_odbc::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", parsed_error.RawMessage(),
+			                                        SQLStateType::ST_HY115, dbc->GetDataSourceName());
 		}
 	default:
-		return duckdb::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", "Invalid completion type.",
-		                                   SQLStateType::ST_HY012, dbc->GetDataSourceName());
+		return duckdb_odbc::SetDiagnosticRecord(dbc, SQL_ERROR, "SQLEndTran", "Invalid completion type.",
+		                                        SQLStateType::ST_HY012, dbc->GetDataSourceName());
 	}
 }

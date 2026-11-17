@@ -1,10 +1,10 @@
 #include "odbc_diagnostic.hpp"
 
-using duckdb::DiagHeader;
-using duckdb::DiagRecord;
-using duckdb::OdbcDiagnostic;
-using duckdb::SQLState;
-using duckdb::SQLStateType;
+using duckdb_odbc::DiagHeader;
+using duckdb_odbc::DiagRecord;
+using duckdb_odbc::OdbcDiagnostic;
+using duckdb_odbc::SQLState;
+using duckdb_odbc::SQLStateType;
 
 // OdbcDiagnostic static initializations and functions ******************************
 const std::unordered_map<SQLINTEGER, std::string> OdbcDiagnostic::MAP_DYNAMIC_FUNCTION = {

@@ -157,7 +157,7 @@ TEST_CASE("Test truncation: buffer too small behavior", "[odbc]") {
 		CheckDiagCode(hstmt, SQL_HANDLE_STMT);
 		REQUIRE(len == 18); // "Здравейте" bytes
 		REQUIRE(buf[2] == 0);
-		auto utf8_buf = duckdb::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
+		auto utf8_buf = duckdb_odbc::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
 		REQUIRE(utf8_buf.size() == 4);
 		REQUIRE(utf8_buf.at(0) == 0xd0);
 		REQUIRE(utf8_buf.at(1) == 0x97);
@@ -187,7 +187,7 @@ TEST_CASE("Test truncation: buffer too small behavior", "[odbc]") {
 		CheckDiagCode(hstmt, SQL_HANDLE_STMT);
 		REQUIRE(len == 9); // "Здравейте" chars
 		REQUIRE(buf[2] == 0);
-		auto utf8_buf = duckdb::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
+		auto utf8_buf = duckdb_odbc::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
 		REQUIRE(utf8_buf.size() == 4);
 		REQUIRE(utf8_buf.at(0) == 0xd0);
 		REQUIRE(utf8_buf.at(1) == 0x97);
@@ -217,7 +217,7 @@ TEST_CASE("Test truncation: buffer too small behavior", "[odbc]") {
 		CheckDiagCode(dbc, SQL_HANDLE_DBC);
 		REQUIRE(len == 16); // ":memory:" chars
 		REQUIRE(buf[2] == 0);
-		auto utf8_buf = duckdb::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
+		auto utf8_buf = duckdb_odbc::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
 		REQUIRE(utf8_buf.size() == 2);
 		REQUIRE(utf8_buf.at(0) == ':');
 		REQUIRE(utf8_buf.at(1) == 'm');
@@ -247,7 +247,7 @@ TEST_CASE("Test truncation: buffer too small behavior", "[odbc]") {
 		CheckDiagCode(hird, SQL_HANDLE_DESC);
 		REQUIRE(len == 18); // "Здравейте" bytes
 		REQUIRE(buf[2] == 0);
-		auto utf8_buf = duckdb::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
+		auto utf8_buf = duckdb_odbc::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
 		REQUIRE(utf8_buf.size() == 4);
 		REQUIRE(utf8_buf.at(0) == 0xd0);
 		REQUIRE(utf8_buf.at(1) == 0x97);
@@ -281,7 +281,7 @@ TEST_CASE("Test truncation: buffer too small behavior", "[odbc]") {
 		REQUIRE(SQL_SUCCEEDED(ret));
 		REQUIRE(len == 130);
 		REQUIRE(buf[2] == 0);
-		auto utf8_buf = duckdb::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
+		auto utf8_buf = duckdb_odbc::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
 		REQUIRE(utf8_buf.size() == 2);
 		REQUIRE(utf8_buf.at(0) == 'O');
 		REQUIRE(utf8_buf.at(1) == 'D');
@@ -309,7 +309,7 @@ TEST_CASE("Test truncation: buffer too small behavior", "[odbc]") {
 		CheckDiagCode(dbc, SQL_HANDLE_DBC);
 		REQUIRE(len == 12); // "DuckDB" bytes
 		REQUIRE(buf[2] == 0);
-		auto utf8_buf = duckdb::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
+		auto utf8_buf = duckdb_odbc::widechar::utf16_to_utf8_lenient(buf.data(), buf.size() - 1);
 		REQUIRE(utf8_buf.size() == 2);
 		REQUIRE(utf8_buf.at(0) == 'D');
 		REQUIRE(utf8_buf.at(1) == 'u');

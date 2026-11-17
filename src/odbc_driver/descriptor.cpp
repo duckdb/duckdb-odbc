@@ -7,12 +7,12 @@
 #include "duckdb/common/vector.hpp"
 #include "handle_functions.hpp"
 
-using duckdb::ApiInfo;
-using duckdb::DescHeader;
-using duckdb::DescRecord;
-using duckdb::OdbcHandleDesc;
-using duckdb::OdbcInterval;
 using duckdb::vector;
+using duckdb_odbc::ApiInfo;
+using duckdb_odbc::DescHeader;
+using duckdb_odbc::DescRecord;
+using duckdb_odbc::OdbcHandleDesc;
+using duckdb_odbc::OdbcInterval;
 
 //! OdbcHandleDesc functions ********************************
 
@@ -39,7 +39,7 @@ void OdbcHandleDesc::CopyFieldByField(const OdbcHandleDesc &other) {
 	// TODO
 }
 
-duckdb::DescRecord *OdbcHandleDesc::GetDescRecord(duckdb::idx_t param_idx) {
+duckdb_odbc::DescRecord *OdbcHandleDesc::GetDescRecord(duckdb::idx_t param_idx) {
 	if (param_idx >= records.size()) {
 		records.resize(param_idx + 1);
 		header.sql_desc_count = static_cast<SQLSMALLINT>(records.size());
@@ -52,8 +52,8 @@ SQLRETURN OdbcHandleDesc::ReturnInvalidFieldIdentifier(bool is_readonly) {
 	if (is_readonly) {
 		msg += " (read-only field)";
 	}
-	return duckdb::SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", msg, duckdb::SQLStateType::ST_HY092,
-	                                   dbc->GetDataSourceName());
+	return duckdb_odbc::SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", msg,
+	                                        duckdb_odbc::SQLStateType::ST_HY092, dbc->GetDataSourceName());
 }
 
 SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field_identifier, SQLPOINTER value_ptr,
@@ -71,7 +71,7 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 		auto size = *(SQLULEN *)value_ptr;
 		if (size <= 0) {
 			return SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", "Invalid attribute/option identifier.",
-			                           duckdb::SQLStateType::ST_HY092, this->dbc->GetDataSourceName());
+			                           duckdb_odbc::SQLStateType::ST_HY092, this->dbc->GetDataSourceName());
 		}
 		header.sql_desc_array_size = size;
 		return SQL_SUCCESS;
@@ -107,7 +107,7 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 		}
 		if (*(SQLULEN *)value_ptr < 0) {
 			return SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", "Invalid descriptor index.",
-			                           duckdb::SQLStateType::ST_07009, this->dbc->GetDataSourceName());
+			                           duckdb_odbc::SQLStateType::ST_07009, this->dbc->GetDataSourceName());
 		}
 		header.sql_desc_rows_processed_ptr = (SQLULEN *)value_ptr;
 		return SQL_SUCCESS;
@@ -118,7 +118,7 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 
 	if (rec_number <= 0) {
 		return SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", "Invalid descriptor index.",
-		                           duckdb::SQLStateType::ST_07009, this->dbc->GetDataSourceName());
+		                           duckdb_odbc::SQLStateType::ST_07009, this->dbc->GetDataSourceName());
 	}
 	auto rec_idx = rec_number - 1;
 	auto desc_record = GetDescRecord(rec_idx);
@@ -166,7 +166,7 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 		}
 		if (desc_record->SetSqlDescType(desc_record->sql_desc_type)) {
 			return SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", "Inconsistent descriptor information.",
-			                           duckdb::SQLStateType::ST_HY021, this->dbc->GetDataSourceName());
+			                           duckdb_odbc::SQLStateType::ST_HY021, this->dbc->GetDataSourceName());
 		}
 		return SQL_SUCCESS;
 	}
@@ -196,7 +196,7 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 			return ReturnInvalidFieldIdentifier(true);
 		}
 		desc_record->sql_desc_name =
-		    duckdb::OdbcUtils::ConvertSQLCHARToString(static_cast<SQLCHAR *>(value_ptr), buffer_length);
+		    duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(static_cast<SQLCHAR *>(value_ptr), buffer_length);
 		return SQL_SUCCESS;
 	}
 	case SQL_DESC_NUM_PREC_RADIX: {
@@ -248,7 +248,7 @@ SQLRETURN OdbcHandleDesc::SetDescField(SQLSMALLINT rec_number, SQLSMALLINT field
 		auto sql_type = *(SQLSMALLINT *)value_ptr;
 		if (desc_record->SetSqlDescType(sql_type)) {
 			return SetDiagnosticRecord(this, SQL_ERROR, "SQLSetDescField", "Inconsistent descriptor information.",
-			                           duckdb::SQLStateType::ST_HY021, this->dbc->GetDataSourceName());
+			                           duckdb_odbc::SQLStateType::ST_HY021, this->dbc->GetDataSourceName());
 		}
 		return SQL_SUCCESS;
 	}
@@ -349,7 +349,7 @@ SQLRETURN DescRecord::SetSqlDataType(SQLSMALLINT type) {
 }
 
 SQLRETURN DescRecord::SetSqlDescType(SQLSMALLINT type) {
-	vector<duckdb::OdbcTypeInfo> vec_typeinfo;
+	vector<duckdb_odbc::OdbcTypeInfo> vec_typeinfo;
 	ApiInfo::FindDataType(type, vec_typeinfo);
 	if (vec_typeinfo.empty()) {
 		return SQL_ERROR; // handled

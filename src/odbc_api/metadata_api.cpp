@@ -11,8 +11,8 @@
 #include <regex>
 
 using duckdb::LogicalTypeId;
-using duckdb::OdbcUtils;
-using duckdb::SQLStateType;
+using duckdb_odbc::OdbcUtils;
+using duckdb_odbc::SQLStateType;
 
 //===--------------------------------------------------------------------===//
 // SQLTables
@@ -21,7 +21,7 @@ using duckdb::SQLStateType;
 static SQLRETURN TablesInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                 SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
                                 SQLSMALLINT name_length3, SQLCHAR *table_type, SQLSMALLINT name_length4) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
@@ -112,7 +112,7 @@ SELECT
 		tables_query = OdbcUtils::GetQueryDuckdbTables(catalog_filter, schema_filter, table_filter, table_tp);
 	}
 
-	return duckdb::ExecDirectStmt(hstmt, tables_query);
+	return duckdb_odbc::ExecDirectStmt(hstmt, tables_query);
 }
 
 /**
@@ -134,10 +134,10 @@ SQLRETURN SQL_API SQLTables(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQ
 SQLRETURN SQL_API SQLTablesW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, SQLSMALLINT name_length1,
                              SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
                              SQLSMALLINT name_length3, SQLWCHAR *table_type, SQLSMALLINT name_length4) {
-	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
-	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
-	auto table_name_conv = duckdb::widechar::utf16_conv(table_name, name_length3);
-	auto table_type_conv = duckdb::widechar::utf16_conv(table_type, name_length4);
+	auto catalog_name_conv = duckdb_odbc::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb_odbc::widechar::utf16_conv(schema_name, name_length2);
+	auto table_name_conv = duckdb_odbc::widechar::utf16_conv(table_name, name_length3);
+	auto table_type_conv = duckdb_odbc::widechar::utf16_conv(table_type, name_length4);
 	return TablesInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
 	                      schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(), table_name_conv.utf8_str,
 	                      table_name_conv.utf8_len_smallint(), table_type_conv.utf8_str,
@@ -151,7 +151,7 @@ SQLRETURN SQL_API SQLTablesW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name, 
 static SQLRETURN ColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_name, SQLSMALLINT name_length1,
                                  SQLCHAR *schema_name, SQLSMALLINT name_length2, SQLCHAR *table_name,
                                  SQLSMALLINT name_length3, SQLCHAR *column_name, SQLSMALLINT name_length4) {
-	duckdb::OdbcHandleStmt *hstmt = nullptr;
+	duckdb_odbc::OdbcHandleStmt *hstmt = nullptr;
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -183,7 +183,7 @@ static SQLRETURN ColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_nam
 	std::string sql_columns =
 	    OdbcUtils::GetQueryDuckdbColumns(catalog_filter, schema_filter, table_filter, column_filter);
 
-	ret = duckdb::ExecDirectStmt(hstmt, sql_columns);
+	ret = duckdb_odbc::ExecDirectStmt(hstmt, sql_columns);
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
 	}
@@ -210,10 +210,10 @@ SQLRETURN SQL_API SQLColumnsW(SQLHSTMT statement_handle, SQLWCHAR *catalog_name,
                               SQLWCHAR *schema_name, SQLSMALLINT name_length2, SQLWCHAR *table_name,
                               SQLSMALLINT name_length3, SQLWCHAR *column_name, SQLSMALLINT name_length4) {
 
-	auto catalog_name_conv = duckdb::widechar::utf16_conv(catalog_name, name_length1);
-	auto schema_name_conv = duckdb::widechar::utf16_conv(schema_name, name_length2);
-	auto table_name_conv = duckdb::widechar::utf16_conv(table_name, name_length3);
-	auto column_name_conv = duckdb::widechar::utf16_conv(column_name, name_length4);
+	auto catalog_name_conv = duckdb_odbc::widechar::utf16_conv(catalog_name, name_length1);
+	auto schema_name_conv = duckdb_odbc::widechar::utf16_conv(schema_name, name_length2);
+	auto table_name_conv = duckdb_odbc::widechar::utf16_conv(table_name, name_length3);
+	auto column_name_conv = duckdb_odbc::widechar::utf16_conv(column_name, name_length4);
 
 	return ColumnsInternal(statement_handle, catalog_name_conv.utf8_str, catalog_name_conv.utf8_len_smallint(),
 	                       schema_name_conv.utf8_str, schema_name_conv.utf8_len_smallint(), table_name_conv.utf8_str,

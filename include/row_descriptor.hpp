@@ -3,7 +3,8 @@
 
 #include "duckdb_odbc.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 class RowDescriptor {
 public:
 	explicit RowDescriptor(OdbcHandleStmt *stmt_ptr);
@@ -26,6 +27,6 @@ private:
 	// pointer to the current ARD descriptor
 	OdbcHandleDesc *cur_ard;
 };
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif

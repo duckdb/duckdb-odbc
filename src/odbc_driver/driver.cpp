@@ -11,35 +11,35 @@
 
 #include <locale>
 
-using namespace duckdb;
-using duckdb::OdbcDiagnostic;
-using duckdb::OdbcUtils;
-using duckdb::SQLStateType;
+using namespace duckdb_odbc;
+using duckdb_odbc::OdbcDiagnostic;
+using duckdb_odbc::OdbcUtils;
+using duckdb_odbc::SQLStateType;
 
-SQLRETURN duckdb::FreeHandle(SQLSMALLINT handle_type, SQLHANDLE handle) {
+SQLRETURN duckdb_odbc::FreeHandle(SQLSMALLINT handle_type, SQLHANDLE handle) {
 	if (!handle) {
 		return SQL_INVALID_HANDLE;
 	}
 
 	switch (handle_type) {
 	case SQL_HANDLE_DBC: {
-		auto *hdl = static_cast<duckdb::OdbcHandleDbc *>(handle);
+		auto *hdl = static_cast<duckdb_odbc::OdbcHandleDbc *>(handle);
 		delete hdl;
 		return SQL_SUCCESS;
 	}
 	case SQL_HANDLE_DESC: {
-		auto *hdl = static_cast<duckdb::OdbcHandleDesc *>(handle);
+		auto *hdl = static_cast<duckdb_odbc::OdbcHandleDesc *>(handle);
 		hdl->dbc->ResetStmtDescriptors(hdl);
 		delete hdl;
 		return SQL_SUCCESS;
 	}
 	case SQL_HANDLE_ENV: {
-		auto *hdl = static_cast<duckdb::OdbcHandleEnv *>(handle);
+		auto *hdl = static_cast<duckdb_odbc::OdbcHandleEnv *>(handle);
 		delete hdl;
 		return SQL_SUCCESS;
 	}
 	case SQL_HANDLE_STMT: {
-		auto *hdl = static_cast<duckdb::OdbcHandleStmt *>(handle);
+		auto *hdl = static_cast<duckdb_odbc::OdbcHandleStmt *>(handle);
 		hdl->dbc->EraseStmtRef(hdl);
 		delete hdl;
 		return SQL_SUCCESS;

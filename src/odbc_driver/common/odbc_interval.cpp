@@ -5,11 +5,11 @@
 #include <sqlext.h>
 
 using duckdb::interval_t;
-using duckdb::OdbcInterval;
-using duckdb::SQLStateType;
 using duckdb::Value;
+using duckdb_odbc::OdbcInterval;
+using duckdb_odbc::SQLStateType;
 
-bool OdbcInterval::GetInterval(Value &value, interval_t &interval, duckdb::OdbcHandleStmt *hstmt) {
+bool OdbcInterval::GetInterval(Value &value, interval_t &interval, duckdb_odbc::OdbcHandleStmt *hstmt) {
 	switch (value.type().id()) {
 	case LogicalTypeId::INTERVAL:
 		interval = IntervalValue::Get(value);
@@ -21,7 +21,7 @@ bool OdbcInterval::GetInterval(Value &value, interval_t &interval, duckdb::OdbcH
 		if (!TryCastErrorMessage::Operation<string_t, interval_t>(string_t(val_str), interval, parameters)) {
 			error_message = CastExceptionText<string_t, interval_t>(string_t(val_str));
 			auto data_source = hstmt->dbc->GetDataSourceName();
-			duckdb::DiagRecord diag_rec(error_message, SQLStateType::ST_22007, data_source);
+			duckdb_odbc::DiagRecord diag_rec(error_message, SQLStateType::ST_22007, data_source);
 			hstmt->odbc_diagnostic->FormatDiagnosticMessage(diag_rec, data_source, "OdbcInterval::GetInterval");
 			hstmt->odbc_diagnostic->AddDiagRecord(diag_rec);
 			return false;

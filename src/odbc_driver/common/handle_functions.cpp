@@ -3,9 +3,9 @@
 #include "odbc_utils.hpp"
 #include "parameter_descriptor.hpp"
 
-SQLRETURN duckdb::SetDiagnosticRecord(OdbcHandle *handle, const SQLRETURN &ret, const std::string &component,
-                                      const std::string &msg, const SQLStateType &sqlstate_type,
-                                      const std::string &server_name) {
+SQLRETURN duckdb_odbc::SetDiagnosticRecord(OdbcHandle *handle, const SQLRETURN &ret, const std::string &component,
+                                           const std::string &msg, const SQLStateType &sqlstate_type,
+                                           const std::string &server_name) {
 	DiagRecord diag_rec(msg, sqlstate_type, server_name);
 
 	handle->odbc_diagnostic->FormatDiagnosticMessage(diag_rec, server_name, component);
@@ -13,7 +13,7 @@ SQLRETURN duckdb::SetDiagnosticRecord(OdbcHandle *handle, const SQLRETURN &ret, 
 	return ret;
 }
 
-SQLRETURN duckdb::ConvertHandle(SQLHANDLE &handle, OdbcHandle *&hdl) {
+SQLRETURN duckdb_odbc::ConvertHandle(SQLHANDLE &handle, OdbcHandle *&hdl) {
 	if (!handle) {
 		return SQL_INVALID_HANDLE;
 	}
@@ -26,7 +26,7 @@ SQLRETURN duckdb::ConvertHandle(SQLHANDLE &handle, OdbcHandle *&hdl) {
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::ConvertEnvironment(SQLHANDLE &environment_handle, OdbcHandleEnv *&env) {
+SQLRETURN duckdb_odbc::ConvertEnvironment(SQLHANDLE &environment_handle, OdbcHandleEnv *&env) {
 	if (!environment_handle) {
 		return SQL_INVALID_HANDLE;
 	}
@@ -41,7 +41,7 @@ SQLRETURN duckdb::ConvertEnvironment(SQLHANDLE &environment_handle, OdbcHandleEn
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::ConvertConnection(SQLHANDLE &connection_handle, OdbcHandleDbc *&dbc) {
+SQLRETURN duckdb_odbc::ConvertConnection(SQLHANDLE &connection_handle, OdbcHandleDbc *&dbc) {
 	if (!connection_handle) {
 		return SQL_INVALID_HANDLE;
 	}
@@ -59,7 +59,7 @@ SQLRETURN duckdb::ConvertConnection(SQLHANDLE &connection_handle, OdbcHandleDbc 
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::ConvertHSTMT(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt) {
+SQLRETURN duckdb_odbc::ConvertHSTMT(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt) {
 	if (!statement_handle) {
 		return SQL_INVALID_HANDLE;
 	}
@@ -77,7 +77,7 @@ SQLRETURN duckdb::ConvertHSTMT(SQLHANDLE &statement_handle, OdbcHandleStmt *&hst
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::ConvertHSTMTPrepared(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt) {
+SQLRETURN duckdb_odbc::ConvertHSTMTPrepared(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt) {
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -92,7 +92,7 @@ SQLRETURN duckdb::ConvertHSTMTPrepared(SQLHANDLE &statement_handle, OdbcHandleSt
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::ConvertHSTMTResult(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt) {
+SQLRETURN duckdb_odbc::ConvertHSTMTResult(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt) {
 	SQLRETURN ret = ConvertHSTMT(statement_handle, hstmt);
 	if (ret != SQL_SUCCESS) {
 		return ret;
@@ -108,7 +108,7 @@ SQLRETURN duckdb::ConvertHSTMTResult(SQLHANDLE &statement_handle, OdbcHandleStmt
 	return SQL_SUCCESS;
 }
 
-SQLRETURN duckdb::ConvertDescriptor(SQLHANDLE &descriptor_handle, duckdb::OdbcHandleDesc *&desc) {
+SQLRETURN duckdb_odbc::ConvertDescriptor(SQLHANDLE &descriptor_handle, duckdb_odbc::OdbcHandleDesc *&desc) {
 	if (!descriptor_handle) {
 		return SQL_INVALID_HANDLE;
 	}

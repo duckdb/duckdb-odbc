@@ -5,7 +5,8 @@
   
 #include "duckdb_odbc.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 class SessionInitSQLFile {
 public:
@@ -33,6 +34,6 @@ public:
   static SQLRETURN Run(OdbcHandleDbc *dbc, const SessionInitSQLFile &sql_file, bool db_created);
 };
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif // DUCKDB_SESSION_INIT_H 

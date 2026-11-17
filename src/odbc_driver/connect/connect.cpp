@@ -7,7 +7,7 @@
 
 #include "session_init.hpp"
 
-using namespace duckdb;
+using namespace duckdb_odbc;
 
 //! The database instance cache, used so that multiple connections to the same file point to the same database object
 DBInstanceCache instance_cache;

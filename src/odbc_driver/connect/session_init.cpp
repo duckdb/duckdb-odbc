@@ -9,7 +9,7 @@
 #include "file_io.hpp"
 #include "handle_functions.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
 
 const size_t SessionInitSQLFile::SQL_FILE_MAX_SIZE_BYTES = 1 << 20; // 1MB
 const std::string SessionInitSQLFile::CONN_INIT_MARKER = "/\\*\\s*DUCKDB_CONNECTION_INIT_BELOW_MARKER\\s*\\*/";
@@ -136,4 +136,4 @@ SQLRETURN SessionInit::Run(OdbcHandleDbc *dbc, const SessionInitSQLFile &sql_fil
 	                           "Session init SQL:\n" + sql_file.orig_file_text, SQLStateType::ST_01000, "");
 }
 
-} // namespace duckdb
+} // namespace duckdb_odbc

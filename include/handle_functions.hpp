@@ -5,7 +5,8 @@
 
 #include "duckdb_odbc.hpp"
 
-namespace duckdb {
+namespace duckdb_odbc {
+using namespace duckdb;
 
 /**
  * @brief Sets the diagnostic record for the given handle and returns the given return value
@@ -77,6 +78,6 @@ SQLRETURN ConvertHSTMTResult(SQLHANDLE &statement_handle, OdbcHandleStmt *&hstmt
  */
 SQLRETURN ConvertDescriptor(SQLHANDLE &descriptor_handle, OdbcHandleDesc *&desc);
 
-} // namespace duckdb
+} // namespace duckdb_odbc
 
 #endif // HANDLE_FUNCTIONS_HPP
