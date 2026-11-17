@@ -60,8 +60,9 @@ duckdb_odbc::PrepareStatement(OdbcHandleStmt *hstmt, unique_ptr<cxx::SqlStatemen
 		result->error = ErrorMessage(ex);
 		return result;
 	}
-	if (!for_repeated_execution && result->parameter_count == 0) {
-		// SQLExecDirect: the result columns are taken from the result
+	if (!for_repeated_execution) {
+		// SQLExecDirect: the result columns are taken from the result, and the parameter types are inferred when the
+		// statement is executed
 		return result;
 	}
 
@@ -90,12 +91,6 @@ duckdb_odbc::PrepareStatement(OdbcHandleStmt *hstmt, unique_ptr<cxx::SqlStatemen
 		}
 		result->bound_all_parameters = all_known;
 		result->warn_unbound_parameters = !all_known;
-		if (!for_repeated_execution) {
-			// SQLExecDirect binds only to tell whether the parameter types are known: the result columns are taken from
-			// the result
-			result->bound_all_parameters = false;
-			return result;
-		}
 		if (!all_known) {
 			result->parameter_types.clear();
 			result->types.clear();
