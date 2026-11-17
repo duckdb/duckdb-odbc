@@ -50,13 +50,26 @@ const std::unordered_set<std::string> &GetRuntimeOptions() {
 
 //! A database shared by the connections to the same file, and the configuration it was opened with.
 struct CachedInstance {
+	//! Held while the database is looked up or opened: only connections to the same file wait for each other
+	std::mutex lock;
 	std::weak_ptr<cxx::Instance> instance;
 	std::string configuration;
 };
 
-//! The database instance cache, used so that multiple connections to the same file point to the same database object
+//! The database instance cache, used so that multiple connections to the same file point to the same database object.
+//! instance_cache_lock guards the map only, not the opening of a database.
 std::mutex instance_cache_lock;
-std::unordered_map<std::string, CachedInstance> instance_cache;
+std::unordered_map<std::string, std::shared_ptr<CachedInstance>> instance_cache;
+
+//! The cache entry of a database file, created on first use.
+std::shared_ptr<CachedInstance> GetCachedInstance(const std::string &key) {
+	std::lock_guard<std::mutex> guard(instance_cache_lock);
+	auto &entry = instance_cache[key];
+	if (!entry) {
+		entry = std::make_shared<CachedInstance>();
+	}
+	return entry;
+}
 
 //! The key a database file is cached under: its absolute path, or the path as given for e.g. "md:" databases.
 std::string GetInstanceCacheKey(const std::string &database) {
@@ -307,20 +320,17 @@ SQLRETURN Connect::SetConnection() {
 			// every in-memory database is its own
 			dbc->db = open_instance();
 		} else {
-			auto key = GetInstanceCacheKey(database);
-			std::lock_guard<std::mutex> guard(instance_cache_lock);
-			auto entry = instance_cache.find(key);
-			shared_ptr<cxx::Instance> instance;
-			if (entry != instance_cache.end()) {
-				instance = entry->second.instance.lock();
-				if (instance && entry->second.configuration != configuration) {
-					throw std::runtime_error("Can't open a connection to same database file with a different "
-					                         "configuration than existing connections");
-				}
+			auto entry = GetCachedInstance(GetInstanceCacheKey(database));
+			std::lock_guard<std::mutex> guard(entry->lock);
+			auto instance = entry->instance.lock();
+			if (instance && entry->configuration != configuration) {
+				throw std::runtime_error("Can't open a connection to same database file with a different "
+				                         "configuration than existing connections");
 			}
 			if (!instance) {
 				instance = open_instance();
-				instance_cache[key] = CachedInstance {instance, configuration};
+				entry->instance = instance;
+				entry->configuration = configuration;
 			}
 			dbc->db = std::move(instance);
 		}

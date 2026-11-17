@@ -1,6 +1,9 @@
 #include "odbc_test_common.h"
 #include "temp_directory.hpp"
 
+#include <thread>
+#include <vector>
+
 using namespace odbc_test;
 
 static SQLBIGINT FetchCount(HSTMT hstmt, const std::string &query) {
@@ -62,6 +65,72 @@ TEST_CASE("Test connections to the same database file share it", "[odbc]") {
 	REQUIRE(SQLExecDirect(hstmt3, ConvertToSQLCHAR("INSERT INTO shared VALUES (42)"), SQL_NTS) == SQL_ERROR);
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt3, SQLFreeHandle, SQL_HANDLE_STMT, hstmt3);
 	DISCONNECT_FROM_DATABASE(env3, dbc3);
+}
+
+TEST_CASE("Test concurrent connections to several database files", "[odbc]") {
+	TempDirectory tmpdir;
+	const size_t file_count = 3;
+	const size_t connections_per_file = 4;
+	std::vector<std::string> conn_strs;
+	for (size_t i = 0; i < file_count; i++) {
+		conn_strs.push_back("Database=" + tmpdir.path + "/concurrent" + std::to_string(i) + ".db");
+		SQLHANDLE env, dbc;
+		DRIVER_CONNECT_TO_DATABASE(env, dbc, conn_strs.back());
+		HSTMT hstmt = SQL_NULL_HSTMT;
+		EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+		EXEC_SQL(hstmt, "CREATE TABLE t (i INTEGER)");
+		EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+		DISCONNECT_FROM_DATABASE(env, dbc);
+	}
+
+	// every database is opened by connections racing to connect to it, while others connect to the other files.
+	// Catch's assertions are not thread-safe: the threads only record their outcome.
+	struct ConcurrentConnection {
+		SQLHANDLE env = nullptr;
+		SQLHANDLE dbc = nullptr;
+		SQLRETURN connect_ret = SQL_ERROR;
+		SQLRETURN insert_ret = SQL_ERROR;
+	};
+	std::vector<ConcurrentConnection> connections(file_count * connections_per_file);
+	std::vector<std::thread> threads;
+	for (size_t i = 0; i < connections.size(); i++) {
+		threads.emplace_back([&connections, &conn_strs, i, file_count]() {
+			auto &connection = connections[i];
+			SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &connection.env);
+			SQLSetEnvAttr(connection.env, SQL_ATTR_ODBC_VERSION, ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+			SQLAllocHandle(SQL_HANDLE_DBC, connection.env, &connection.dbc);
+			SQLCHAR out[1024];
+			SQLSMALLINT out_len;
+			connection.connect_ret =
+			    SQLDriverConnect(connection.dbc, nullptr, ConvertToSQLCHAR(conn_strs[i % file_count]), SQL_NTS, out,
+			                     sizeof(out), &out_len, SQL_DRIVER_COMPLETE);
+			if (!SQL_SUCCEEDED(connection.connect_ret)) {
+				return;
+			}
+			HSTMT hstmt = SQL_NULL_HSTMT;
+			SQLAllocHandle(SQL_HANDLE_STMT, connection.dbc, &hstmt);
+			connection.insert_ret = SQLExecDirect(hstmt, ConvertToSQLCHAR("INSERT INTO t VALUES (1)"), SQL_NTS);
+			SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
+		});
+	}
+	for (auto &thread : threads) {
+		thread.join();
+	}
+	for (auto &connection : connections) {
+		REQUIRE(connection.connect_ret == SQL_SUCCESS);
+		REQUIRE(connection.insert_ret == SQL_SUCCESS);
+	}
+
+	// the connections to a file share one database: each sees the rows inserted through the others
+	for (size_t i = 0; i < file_count; i++) {
+		HSTMT hstmt = SQL_NULL_HSTMT;
+		EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, connections[i].dbc, &hstmt);
+		REQUIRE(FetchCount(hstmt, "SELECT count(*) FROM t") == static_cast<SQLBIGINT>(connections_per_file));
+		EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	}
+	for (auto &connection : connections) {
+		DISCONNECT_FROM_DATABASE(connection.env, connection.dbc);
+	}
 }
 
 TEST_CASE("Test interleaving statements on one connection", "[odbc]") {
