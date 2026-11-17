@@ -1,16 +1,104 @@
 #include "connect.hpp"
 
-#include "duckdb/main/db_instance_cache.hpp"
-#include "duckdb/common/virtual_file_system.hpp"
-
+#include <cstdlib>
+#include <filesystem>
+#include <mutex>
+#include <unordered_set>
 #include <utility>
 
 #include "session_init.hpp"
 
 using namespace duckdb_odbc;
 
+//! Registers the extensions linked into the driver, generated with the engine (see scripts/build_duckdb.py).
+extern "C" int32_t duckdb_register_static_extensions(void);
+
+namespace {
+
+//! Registers the statically linked extensions, before the first database is opened.
+void RegisterStaticExtensions() {
+	static std::once_flag once;
+	std::call_once(once, [] {
+		if (duckdb_register_static_extensions() != 0) {
+			throw std::runtime_error("Failed to register the extensions linked into the DuckDB ODBC driver");
+		}
+	});
+}
+
+//! A DuckDB option a connection string or DSN can set.
+struct OptionInfo {
+	std::string name;
+	//! Whether the option can be set database-wide; session-only options are set on the connection.
+	bool global;
+};
+
+//! The options DuckDB knows, including the aliases they go by, keyed by their lower-case name.
+const std::map<std::string, OptionInfo> &GetDuckDBOptions() {
+	static std::once_flag once;
+	static std::map<std::string, OptionInfo> options;
+	std::call_once(once, [] {
+		RegisterStaticExtensions();
+		// an instance with nothing attached, just to describe the options
+		cxx::Instance instance;
+		auto &config = instance.GetConfig();
+		for (size_t i = 0; i < config.GetOptionCount(); i++) {
+			auto description = config.DescribeOption(i);
+			OptionInfo info {std::string(description.GetName()), description.SupportsScope(cxx::SettingScope::GLOBAL)};
+			options.emplace(StringUtil::Lower(info.name), info);
+			for (size_t alias_idx = 0; alias_idx < description.GetAliasCount(); alias_idx++) {
+				options.emplace(StringUtil::Lower(std::string(description.GetAliasByIndex(alias_idx))), info);
+			}
+		}
+	});
+	return options;
+}
+
+//! Options that can only be written once the database is running: they are set after it starts.
+const std::unordered_set<std::string> &GetRuntimeOptions() {
+	static const std::unordered_set<std::string> options = {
+	    "allowed_directories", "allowed_paths",   "disabled_filesystems", "enable_logging",     "logging_level",
+	    "logging_mode",        "logging_storage", "enabled_log_types",    "disabled_log_types",
+	};
+	return options;
+}
+
+//! A database shared by the connections to the same file, and the configuration it was opened with.
+struct CachedInstance {
+	std::weak_ptr<cxx::Instance> instance;
+	std::string configuration;
+};
+
 //! The database instance cache, used so that multiple connections to the same file point to the same database object
-DBInstanceCache instance_cache;
+std::mutex instance_cache_lock;
+std::unordered_map<std::string, CachedInstance> instance_cache;
+
+//! The key a database file is cached under: its absolute path, or the path as given for e.g. "md:" databases.
+std::string GetInstanceCacheKey(const std::string &database) {
+	auto colon = database.find(':');
+	if (colon != std::string::npos && colon > 1) {
+		// a database type or URL prefix, e.g. "md:" or "s3://"
+		return database;
+	}
+	std::string path = database;
+	if (path.size() >= 1 && path[0] == '~' && (path.size() == 1 || path[1] == '/' || path[1] == '\\')) {
+		const char *home = std::getenv("HOME");
+#ifdef _WIN32
+		if (!home) {
+			home = std::getenv("USERPROFILE");
+		}
+#endif
+		if (home) {
+			path = std::string(home) + path.substr(1);
+		}
+	}
+	try {
+		return std::filesystem::absolute(std::filesystem::path(path)).lexically_normal().string();
+	} catch (std::exception &) {
+		return path;
+	}
+}
+
+} // namespace
 
 const std::vector<std::string> Connect::IGNORE_KEYS = {
     "driver",             // can be used by any client connecting without DSN
@@ -35,12 +123,10 @@ SQLRETURN Connect::FindMatchingKey(const std::string &input, string &key) {
 		return SQL_SUCCESS;
 	}
 
-	auto config_names = DBConfig::GetOptionNames();
-
 	// If the input doesn't match a keyname, find a similar keyname
 	vector<string> config_name_strings;
-	for (auto &id : config_names) {
-		config_name_strings.emplace_back(id.GetIdentifierName());
+	for (auto &option : GetDuckDBOptions()) {
+		config_name_strings.emplace_back(option.first);
 	}
 	auto msg = StringUtil::CandidatesErrorMessage(config_name_strings, input, "Did you mean: ");
 	return SetDiagnosticRecord(dbc, SQL_SUCCESS_WITH_INFO, "SQLDriverConnect",
@@ -152,8 +238,6 @@ SQLRETURN Connect::SetConnection() {
 	std::string database = GetOptionFromConfigMap("database", IN_MEMORY_PATH);
 	dbc->SetDatabaseName(database);
 
-	config.SetOptionByName("duckdb_api", "odbc");
-
 	// When 'enable_external_access' is set to 'false' then it is not allowed to change
 	// 'allowed_paths' or 'allowed_directories' options, so we are setting 'enable_external_access'
 	// after all other options
@@ -178,32 +262,103 @@ SQLRETURN Connect::SetConnection() {
 	config_map.erase("enable_external_access");
 
 	bool db_created = false;
+	// options to set on the connection, as they cannot be set database-wide
+	std::vector<std::pair<std::string, std::string>> session_options;
 	try {
 		session_init_content = SessionInit::ReadSQLFile(session_init_sql_file, session_init_sql_file_sha256);
 
-		// Validate and set all options
-		identifier_map_t<Value> config_map_ids;
-		for (auto &en : config_map) {
-			config_map_ids.emplace(en.first, en.second);
+		// Sort the options by when they can be set: at startup, once the database runs, or on the connection
+		auto &duckdb_options = GetDuckDBOptions();
+		cxx::StartupOptions startup_options;
+		startup_options.Set("duckdb_api", "odbc");
+		std::vector<std::pair<std::string, std::string>> runtime_options;
+		std::map<std::string, std::string> sorted_options(config_map.begin(), config_map.end());
+		for (auto &option : sorted_options) {
+			auto entry = duckdb_options.find(StringUtil::Lower(option.first));
+			auto name = entry == duckdb_options.end() ? option.first : entry->second.name;
+			if (entry != duckdb_options.end() && !entry->second.global) {
+				session_options.emplace_back(name, option.second);
+			} else if (GetRuntimeOptions().count(name)) {
+				runtime_options.emplace_back(name, option.second);
+			} else {
+				startup_options.Set(name, option.second);
+			}
 		}
-		config.SetOptionsByName(config_map_ids);
-
+		bool disable_external_access = false;
 		if (!enable_external_access.empty()) {
-			config.SetOptionByName("enable_external_access", duckdb::Value(enable_external_access));
+			auto value = StringUtil::Lower(OdbcUtils::TrimString(enable_external_access));
+			if (value == "false" || value == "0" || value == "f" || value == "off" || value == "no" || value == "n") {
+				// set last: it forbids changing 'allowed_paths' and 'allowed_directories'
+				disable_external_access = true;
+			} else {
+				startup_options.Set("enable_external_access", enable_external_access);
+			}
 		}
 
-		bool cache_instance = database != IN_MEMORY_PATH;
+		// The configuration a cached database must have been opened with to be shared
+		std::string configuration;
+		for (auto &option : sorted_options) {
+			configuration += option.first + "=" + option.second + "\n";
+		}
+		configuration += "enable_external_access=" + enable_external_access;
 
-		dbc->env->db = instance_cache.GetOrCreateInstance(database, config, cache_instance,
-		                                                  [&db_created](DuckDB &_) { db_created = true; });
+		auto open_instance = [&]() {
+			RegisterStaticExtensions();
+			auto instance = std::make_shared<cxx::Instance>(startup_options);
+			auto &instance_config = instance->GetConfig();
+			for (auto &option : runtime_options) {
+				instance_config.SetOption(option.first, std::string_view(option.second), cxx::SettingScope::GLOBAL);
+			}
+			if (disable_external_access) {
+				instance_config.SetOption("enable_external_access", std::string_view(enable_external_access),
+				                          cxx::SettingScope::GLOBAL);
+			}
+			instance->Attach(database == IN_MEMORY_PATH ? std::string() : database, true);
+			db_created = true;
+			return instance;
+		};
+
+		if (database == IN_MEMORY_PATH) {
+			// every in-memory database is its own
+			dbc->db = open_instance();
+		} else {
+			auto key = GetInstanceCacheKey(database);
+			std::lock_guard<std::mutex> guard(instance_cache_lock);
+			auto entry = instance_cache.find(key);
+			shared_ptr<cxx::Instance> instance;
+			if (entry != instance_cache.end()) {
+				instance = entry->second.instance.lock();
+				if (instance && entry->second.configuration != configuration) {
+					throw std::runtime_error("Can't open a connection to same database file with a different "
+					                         "configuration than existing connections");
+				}
+			}
+			if (!instance) {
+				instance = open_instance();
+				instance_cache[key] = CachedInstance {instance, configuration};
+			}
+			dbc->db = std::move(instance);
+		}
 	} catch (std::exception &ex) {
-		ErrorData error(ex);
-		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", error.Message(), SQLStateType::ST_IM003, "");
+		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ErrorMessage(ex), SQLStateType::ST_IM003, "");
 	}
 
 	if (!dbc->conn) {
-		dbc->conn = make_uniq<Connection>(*dbc->env->db);
-		dbc->conn->SetAutoCommit(dbc->autocommit);
+		try {
+			dbc->conn = make_uniq<cxx::Connection>(dbc->db->Connect());
+			for (auto &option : session_options) {
+				dbc->conn->GetConfig().SetOption(option.first, std::string_view(option.second),
+				                                 cxx::SettingScope::SESSION);
+			}
+			if (!dbc->autocommit) {
+				// manual-commit mode: there is always an open transaction
+				dbc->conn->Execute("BEGIN TRANSACTION").Drain();
+			}
+		} catch (std::exception &ex) {
+			dbc->conn.reset();
+			return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ErrorMessage(ex), SQLStateType::ST_IM003,
+			                           "");
+		}
 	}
 
 	SQLRETURN ret = SQL_SUCCESS;
@@ -220,10 +375,9 @@ SQLRETURN Connect::SetConnection() {
 
 Connect::Connect(OdbcHandleDbc *dbc_p, string input_str_p) : dbc(dbc_p), input_str(std::move(input_str_p)) {
 	// Get all the config options
-	auto config_options = DBConfig::GetOptionNames();
-	for (auto &option : config_options) {
+	for (auto &option : GetDuckDBOptions()) {
 		// They are all set to false as they haven't been set yet
-		seen_config_options[option.GetIdentifierName()] = false;
+		seen_config_options[option.first] = false;
 	}
 
 	// Register ODBC-local options
@@ -231,10 +385,6 @@ Connect::Connect(OdbcHandleDbc *dbc_p, string input_str_p) : dbc(dbc_p), input_s
 	seen_config_options["dsn"] = false;
 	seen_config_options[SessionInit::SQL_FILE_OPTION] = false;
 	seen_config_options[SessionInit::SQL_FILE_SHA256_OPTION] = false;
-
-	// Required for settings like 'allowed_directories' that use
-	// file separator when checking the property value.
-	config.file_system = duckdb::make_uniq<duckdb::VirtualFileSystem>();
 }
 
 std::string Connect::GetOptionFromConfigMap(const std::string &option_name, const std::string &default_val) {
@@ -246,7 +396,7 @@ std::string Connect::GetOptionFromConfigMap(const std::string &option_name, cons
 
 	auto it = config_map.find(option_name);
 	D_ASSERT(it != config_map.end());
-	return it->second.GetValue<std::string>();
+	return it->second;
 }
 
 void Connect::NormalizeWindowsPathSeparators(const std::string &option_name) {
@@ -255,7 +405,7 @@ void Connect::NormalizeWindowsPathSeparators(const std::string &option_name) {
 	if (value_str.empty()) {
 		return;
 	}
-	auto value_str_norm = duckdb::StringUtil::Replace(value_str, "\\", "/");
+	auto value_str_norm = duckdb_odbc::StringUtil::Replace(value_str, "\\", "/");
 	config_map.erase(option_name);
 	config_map.emplace(option_name, std::move(value_str_norm));
 #else  // !_WIN32

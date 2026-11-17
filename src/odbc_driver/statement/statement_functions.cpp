@@ -8,38 +8,25 @@
 #include "row_descriptor.hpp"
 #include "widechar.hpp"
 
-#include "duckdb/common/types/timestamp.hpp"
-#include "duckdb/common/types/decimal.hpp"
-#include "duckdb/common/types/string_type.hpp"
-#include "duckdb/common/operator/cast_operators.hpp"
-#include "duckdb/common/operator/decimal_cast_operators.hpp"
-#include "duckdb/common/types/blob.hpp"
-#include "duckdb/common/types/date.hpp"
-#include "duckdb/common/types/time.hpp"
-#include "duckdb/common/types/timestamp.hpp"
-#include "duckdb/common/string.hpp"
-#include "duckdb/common/vector.hpp"
-#include "duckdb/common/enum_util.hpp"
-#include "duckdb/main/prepared_statement_data.hpp"
-
-using duckdb::date_t;
-using duckdb::Decimal;
-using duckdb::DecimalType;
-using duckdb::dtime_t;
-using duckdb::EnumUtil;
-using duckdb::hugeint_t;
-using duckdb::interval_t;
-using duckdb::LogicalType;
-using duckdb::LogicalTypeId;
-using duckdb::Store;
-using duckdb::string_t;
-using duckdb::Timestamp;
-using duckdb::timestamp_t;
-using duckdb::vector;
+using duckdb_odbc::Date;
+using duckdb_odbc::date_t;
+using duckdb_odbc::dtime_t;
+using duckdb_odbc::idx_t;
+using duckdb_odbc::interval_t;
+using duckdb_odbc::LogicalType;
+using duckdb_odbc::LogicalTypeId;
 using duckdb_odbc::OdbcDiagnostic;
 using duckdb_odbc::OdbcInterval;
+using duckdb_odbc::OdbcType;
 using duckdb_odbc::OdbcUtils;
 using duckdb_odbc::SQLStateType;
+using duckdb_odbc::Store;
+using duckdb_odbc::string;
+using duckdb_odbc::Time;
+using duckdb_odbc::Timestamp;
+using duckdb_odbc::timestamp_t;
+using duckdb_odbc::Value;
+using duckdb_odbc::vector;
 
 void duckdb_odbc::PrepareQuery(OdbcHandleStmt *hstmt) {
 	if (hstmt->stmt) {
@@ -49,8 +36,76 @@ void duckdb_odbc::PrepareQuery(OdbcHandleStmt *hstmt) {
 	if (hstmt->res) {
 		hstmt->res.reset();
 	}
+	hstmt->has_result = false;
+	hstmt->result_error.clear();
 
 	hstmt->odbc_fetcher->ClearChunks();
+}
+
+duckdb_odbc::unique_ptr<duckdb_odbc::OdbcPreparedStatement>
+duckdb_odbc::PrepareStatement(OdbcHandleStmt *hstmt, unique_ptr<cxx::SqlStatement> statement,
+                              bool for_repeated_execution) {
+	auto result = make_uniq<OdbcPreparedStatement>();
+	result->statement_type = statement->GetStatementType();
+	result->parameter_count = statement->GetParameterNames().size();
+	result->statement = std::move(statement);
+	auto &conn = *hstmt->dbc->conn;
+	try {
+		// DuckDB runs one statement at a time per connection
+		hstmt->dbc->MaterializeResults(hstmt);
+		if (for_repeated_execution) {
+			result->prepared = make_uniq<cxx::PreparedStatement>(conn.Prepare(*result->statement));
+		}
+	} catch (std::exception &ex) {
+		result->error = ErrorMessage(ex);
+		return result;
+	}
+	if (!for_repeated_execution && result->parameter_count == 0) {
+		// SQLExecDirect: the result columns are taken from the result
+		return result;
+	}
+
+	// Binding learns the result columns and the parameter types. It can only tell when every parameter type can be
+	// inferred, which it cannot for e.g. 'SELECT ?': those are known only once the statement is executed.
+	try {
+		auto signature = conn.Bind(*result->statement);
+		bool all_known = true;
+		// the signature orders the parameters by their key ("1", "10", "2", ...): put them in positional order
+		auto parameter_names = result->statement->GetParameterNames();
+		result->parameter_types.resize(parameter_names.size());
+		for (idx_t i = 0; i < signature.parameters.GetFieldCount(); i++) {
+			OdbcType type(signature.parameters.GetFieldType(i));
+			all_known = all_known && type.id != LogicalTypeId::UNKNOWN && type.id != LogicalTypeId::ANY;
+			auto name = signature.parameters.GetFieldName(i);
+			auto position = std::find(parameter_names.begin(), parameter_names.end(), name) - parameter_names.begin();
+			if (static_cast<idx_t>(position) < result->parameter_types.size()) {
+				result->parameter_types[position] = std::move(type);
+			}
+		}
+		for (idx_t i = 0; i < signature.output.GetFieldCount(); i++) {
+			OdbcType type(signature.output.GetFieldType(i));
+			all_known = all_known && type.id != LogicalTypeId::UNKNOWN;
+			result->types.push_back(std::move(type));
+			result->names.emplace_back(signature.output.GetFieldName(i));
+		}
+		result->bound_all_parameters = all_known;
+		result->warn_unbound_parameters = !all_known;
+		if (!for_repeated_execution) {
+			// SQLExecDirect binds only to tell whether the parameter types are known: the result columns are taken from
+			// the result
+			result->bound_all_parameters = false;
+			return result;
+		}
+		if (!all_known) {
+			result->parameter_types.clear();
+			result->types.clear();
+			result->names.clear();
+		}
+	} catch (std::exception &ex) {
+		// e.g. a statement that expands into several, whose columns are only known once it runs
+		result->bound_all_parameters = false;
+	}
+	return result;
 }
 
 SQLRETURN duckdb_odbc::FinalizeStmt(OdbcHandleStmt *hstmt) {
@@ -61,24 +116,25 @@ SQLRETURN duckdb_odbc::FinalizeStmt(OdbcHandleStmt *hstmt) {
 
 	SQLRETURN ret = SQL_SUCCESS;
 
-	// named_param_map is created on successfull parse stage, does not need to be corrected on rebind
-	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->GetNamedParameterMap().size()));
+	// the parameters are known from parsing, and do not change on rebind
+	hstmt->param_desc->ResetParams(static_cast<SQLSMALLINT>(hstmt->stmt->ParameterCount()));
 
-	// Prepare call may be unable to bind the query when parameter types cannot be determined,
-	// for example: 'SELECT ?'.
-	// In this case the plan is not created at all and resulting columns (their types and names)
-	// in the prepared statement are left in a partially-filled state, so they must not be used.
-	// Bound columns and IRD records depend on resulting columns. When
-	// bound_all_parameters=false, we don't have resulting columns defined, so
-	// bound columns and IRD records are kept empty and are re-filled from the
-	// query result after every execution (they may be different depending on
-	// input parameters supplied for execution).
-	if (hstmt->stmt->GetStatementProperties().bound_all_parameters) {
-		hstmt->FillIRD(hstmt->stmt->GetTypes(), hstmt->stmt->GetNames());
-	} else {
-		hstmt->FillIRD({}, {});
+	// When the parameter types cannot be determined, as for 'SELECT ?', neither can the resulting columns (their types
+	// and names). Bound columns and IRD records depend on resulting columns. When bound_all_parameters=false, we don't
+	// have resulting columns defined, so bound columns and IRD records are kept empty and are re-filled from the query
+	// result after every execution (they may be different depending on input parameters supplied for execution).
+	if (hstmt->stmt->warn_unbound_parameters) {
 		ret = SetDiagnosticRecord(hstmt, SQL_SUCCESS_WITH_INFO, "PrepareStmt", "Not all parameters are bound",
 		                          SQLStateType::ST_01000, hstmt->dbc->GetDataSourceName());
+	}
+	if (!hstmt->stmt->prepared) {
+		// SQLExecDirect: the IRD records are filled from the result, keeping the columns bound so far
+		return ret;
+	}
+	if (hstmt->stmt->bound_all_parameters) {
+		hstmt->FillIRD(hstmt->stmt->types, hstmt->stmt->names);
+	} else {
+		hstmt->FillIRD({}, {});
 	}
 	hstmt->bound_cols.resize(hstmt->row_desc->GetIRD()->GetRecordCount());
 
@@ -104,13 +160,13 @@ SQLRETURN duckdb_odbc::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 		return fetch_ret;
 	}
 
-	// When parameters were not bound (plan was not created) on Prepare call, then
-	// we need to correct IRD records after every execution
-	if (!hstmt->stmt->GetStatementProperties().bound_all_parameters) {
-		D_ASSERT(hstmt->res);
+	// When the result columns were not known when the statement was prepared, we need to correct the IRD records
+	// after every execution
+	if (!hstmt->stmt->bound_all_parameters) {
+		D_ASSERT(hstmt->has_result);
 
 		// Re-fill IRD records from up to date result types and names and correct bound columns
-		hstmt->FillIRD(hstmt->res->GetTypes(), hstmt->res->GetNames());
+		hstmt->FillIRD(hstmt->result_types, hstmt->result_names);
 		hstmt->bound_cols.resize(hstmt->row_desc->GetIRD()->GetRecordCount());
 	}
 
@@ -120,8 +176,14 @@ SQLRETURN duckdb_odbc::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 //! Execute statement only once
 SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 	if (hstmt->res) {
-		hstmt->res.reset();
+		// the previous execution of a parameter array; reading it in full completes it
+		auto ret = hstmt->odbc_fetcher->Materialize(hstmt);
+		if (!SQL_SUCCEEDED(ret)) {
+			return ret;
+		}
 	}
+	hstmt->has_result = false;
+	hstmt->result_error.clear();
 	hstmt->odbc_fetcher->ClearChunks();
 
 	hstmt->open = false;
@@ -129,18 +191,60 @@ SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 		*hstmt->rows_fetched_ptr = 0;
 	}
 
-	duckdb::vector<Value> values;
-	SQLRETURN ret = hstmt->param_desc->GetParamValues(values);
+	SQLRETURN ret = hstmt->param_desc->GetParamValues();
 	if (ret == SQL_NEED_DATA || ret == SQL_ERROR) {
 		return ret;
 	}
 
-	hstmt->res = hstmt->stmt->Execute(values);
+	auto &dbc = *hstmt->dbc;
+	try {
+		// DuckDB runs one statement at a time per connection
+		auto materialize_ret = dbc.MaterializeResults(hstmt);
+		if (!SQL_SUCCEEDED(materialize_ret)) {
+			return materialize_ret;
+		}
+		hstmt->res = hstmt->stmt->Execute(*dbc.conn, hstmt->param_desc->values);
+	} catch (std::exception &ex) {
+		// binding the statement failed
+		hstmt->res.reset();
+		hstmt->result_error = ErrorMessage(ex);
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
+		                                        duckdb_odbc::SQLStateType::ST_42000, hstmt->dbc->GetDataSourceName());
+	}
 
-	if (hstmt->res->HasError()) {
-		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->res->GetError(),
+	// DuckDB executes a statement as its result is read: read the first chunk to run it and to surface its errors
+	auto prefetch_ret = hstmt->odbc_fetcher->Prefetch(hstmt);
+	if (!SQL_SUCCEEDED(prefetch_ret)) {
+		return prefetch_ret;
+	}
+	try {
+		// only known once the result was read from, for a statement that expands into several
+		auto schema = hstmt->res->GetSchema();
+		hstmt->result_types.clear();
+		hstmt->result_names.clear();
+		for (idx_t i = 0; i < schema.GetFieldCount(); i++) {
+			hstmt->result_types.emplace_back(schema.GetFieldType(i));
+			hstmt->result_names.emplace_back(schema.GetFieldName(i));
+		}
+		hstmt->result_type = hstmt->res->GetResultType();
+		hstmt->result_statement_type = hstmt->res->GetStatementType();
+	} catch (std::exception &ex) {
+		hstmt->res.reset();
+		hstmt->odbc_fetcher->ClearChunks();
+		hstmt->result_error = ErrorMessage(ex);
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", hstmt->result_error,
 		                                        duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
 	}
+	hstmt->odbc_fetcher->ReleaseIfExhausted(hstmt);
+	hstmt->has_result = true;
+
+	try {
+		dbc.AfterStatement(*hstmt->stmt->statement);
+	} catch (std::exception &ex) {
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SingleExecuteStmt", ErrorMessage(ex),
+		                                        duckdb_odbc::SQLStateType::ST_HY000, hstmt->dbc->GetDataSourceName());
+	}
+
 	hstmt->open = true;
 	if (ret == SQL_STILL_EXECUTING) {
 		return SQL_STILL_EXECUTING;
@@ -165,59 +269,114 @@ SQLRETURN duckdb_odbc::FetchStmtResult(OdbcHandleStmt *hstmt, SQLSMALLINT fetch_
 
 static SQLRETURN ValidateType(LogicalTypeId input, LogicalTypeId expected, duckdb_odbc::OdbcHandleStmt *hstmt) {
 	if (input != expected) {
-		std::string msg = "Type mismatch error: received " + EnumUtil::ToString(input) + ", but expected " +
-		                  EnumUtil::ToString(expected);
+		std::string msg = "Type mismatch error: received " + duckdb_odbc::TypeIdToString(input) + ", but expected " +
+		                  duckdb_odbc::TypeIdToString(expected);
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "ValidateType", msg, SQLStateType::ST_07006,
 		                                        hstmt->dbc->GetDataSourceName());
 	}
 	return SQL_SUCCESS;
 }
 
-static SQLRETURN ThrowInvalidCast(const std::string &component, const LogicalType &from_type,
-                                  const LogicalType &to_type, duckdb_odbc::OdbcHandleStmt *hstmt) {
-	std::string msg = "Not implemented Error: Unimplemented type for cast (" + from_type.ToString() + " -> " +
-	                  to_type.ToString() + ")";
+static SQLRETURN ThrowInvalidCast(const std::string &component, const Value &from, LogicalTypeId to_type,
+                                  duckdb_odbc::OdbcHandleStmt *hstmt) {
+	std::string msg = "Not implemented Error: Unimplemented type for cast (" + from.GetLogicalType().ToText() + " -> " +
+	                  duckdb_odbc::TypeIdToString(to_type) + ")";
 
 	return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, component, msg, SQLStateType::ST_22007,
 	                                        hstmt->dbc->GetDataSourceName());
 }
 
 template <class SRC, class DEST = SRC>
-static SQLRETURN GetInternalValue(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb::Value &val, const LogicalType &type,
+static SQLRETURN GetInternalValue(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb_odbc::Value &val, LogicalTypeId type,
                                   SQLPOINTER target_value_ptr, SQLLEN *str_len_or_ind_ptr) {
 	// https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlbindcol-function
 	// When the driver returns fixed-length data, such as an integer or a date structure, the driver ignores
 	// BufferLength... D_ASSERT(((size_t)buffer_length) >= sizeof(DEST));
 	try {
-		auto casted_value = val.CastAs(*hstmt->dbc->conn->context, type).GetValue<SRC>();
-		Store<DEST>(casted_value, (duckdb::data_ptr_t)target_value_ptr);
+		auto &factory = hstmt->dbc->conn->GetFactory();
+		auto casted_value = val.Cast(factory, duckdb_odbc::CreateType(factory, type)).Get<SRC>();
+		Store<DEST>(casted_value, (duckdb_odbc::data_ptr_t)target_value_ptr);
 		if (str_len_or_ind_ptr) {
 			*str_len_or_ind_ptr = sizeof(casted_value);
 		}
 		return SQL_SUCCESS;
 	} catch (std::exception &ex) {
-		duckdb::ErrorData parsed_error(ex);
-		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetInternalValue", parsed_error.RawMessage(),
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetInternalValue", duckdb_odbc::RawErrorMessage(ex),
 		                                        SQLStateType::ST_07006, hstmt->dbc->GetDataSourceName());
 	}
 }
 
-template <class CAST_OP, typename TARGET_TYPE, class CAST_FUNC = std::function<timestamp_t(int64_t)>>
-static bool CastTimestampValue(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb::Value &val, TARGET_TYPE &target,
-                               CAST_FUNC cast_timestamp_fun) {
+//! The stored integer of a TIMESTAMP_SEC / TIMESTAMP_MS / TIMESTAMP / TIMESTAMP_NS value, in the type's own unit.
+static int64_t GetTimestampValue(const duckdb_odbc::Value &val, LogicalTypeId type_id) {
+	switch (type_id) {
+	case LogicalTypeId::TIMESTAMP_SEC:
+		return val.Get<duckdb_odbc::timestamp_s_t>().seconds;
+	case LogicalTypeId::TIMESTAMP_MS:
+		return val.Get<duckdb_odbc::timestamp_ms_t>().millis;
+	case LogicalTypeId::TIMESTAMP_NS:
+		return val.Get<duckdb_odbc::timestamp_ns_t>().nanos;
+	default:
+		return val.Get<timestamp_t>().micros;
+	}
+}
+
+//! A TIMESTAMP_SEC / TIMESTAMP_MS / TIMESTAMP / TIMESTAMP_NS value as a TIMESTAMP, infinities included.
+static timestamp_t GetTimestamp(const duckdb_odbc::Value &val, LogicalTypeId type_id) {
+	auto input = GetTimestampValue(val, type_id);
+	timestamp_t timestamp {input};
+	// FIXME: add test for casting infinity/-infinity timestamp values
+	if (!Timestamp::IsFinite(input)) {
+		return timestamp;
+	}
+	switch (type_id) {
+	case LogicalTypeId::TIMESTAMP_SEC:
+		return Timestamp::FromEpochSeconds(input);
+	case LogicalTypeId::TIMESTAMP_MS:
+		return Timestamp::FromEpochMs(input);
+	case LogicalTypeId::TIMESTAMP_NS:
+		return Timestamp::FromEpochNanoSeconds(input);
+	default:
+		return timestamp;
+	}
+}
+
+//! The date part of a timestamp value, false (with a diagnostic) when it does not convert.
+static bool CastTimestampValue(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb_odbc::Value &val, LogicalTypeId type_id,
+                               date_t &target) {
 	try {
-		auto input = val.GetValue<int64_t>();
-		auto timestamp = timestamp_t(input);
-		// FIXME: add test for casting infinity/-infinity timestamp values
-		if (timestamp.IsFinite()) {
-			timestamp = cast_timestamp_fun(input);
-		}
-		target = CAST_OP::template Operation<timestamp_t, TARGET_TYPE>(timestamp);
+		target = Timestamp::GetDate(GetTimestamp(val, type_id));
 		return true;
 	} catch (std::exception &ex) {
-		duckdb::ErrorData parsed_error(ex);
-		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "CastTimestampValue", parsed_error.RawMessage(),
-		                                        SQLStateType::ST_22007, hstmt->dbc->GetDataSourceName());
+		duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "CastTimestampValue", duckdb_odbc::RawErrorMessage(ex),
+		                                 SQLStateType::ST_22007, hstmt->dbc->GetDataSourceName());
+		return false;
+	}
+}
+
+//! The time part of a timestamp value, false (with a diagnostic) when it does not convert.
+static bool CastTimestampValue(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb_odbc::Value &val, LogicalTypeId type_id,
+                               dtime_t &target) {
+	try {
+		target = Timestamp::GetTime(GetTimestamp(val, type_id));
+		return true;
+	} catch (std::exception &ex) {
+		duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "CastTimestampValue", duckdb_odbc::RawErrorMessage(ex),
+		                                 SQLStateType::ST_22007, hstmt->dbc->GetDataSourceName());
+		return false;
+	}
+}
+
+//! Casts a VARCHAR value to `type`, false (with a diagnostic) when it does not convert.
+static bool CastStringValue(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb_odbc::Value &val, LogicalTypeId type,
+                            duckdb_odbc::unique_ptr<Value> &result) {
+	try {
+		auto &factory = hstmt->dbc->conn->GetFactory();
+		result = duckdb_odbc::make_uniq<Value>(val.Cast(factory, duckdb_odbc::CreateType(factory, type)));
+		return true;
+	} catch (std::exception &ex) {
+		duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult", duckdb_odbc::RawErrorMessage(ex),
+		                                 SQLStateType::ST_07006, hstmt->dbc->GetDataSourceName());
+		return false;
 	}
 }
 
@@ -238,7 +397,7 @@ static SQLRETURN GetVariableValue(SQLUSMALLINT col_idx, duckdb_odbc::OdbcHandleS
                                   size_t val_buf_len_bytes, bool null_terminate = true) {
 
 	// Reset stored length if the column has changed
-	hstmt->odbc_fetcher->SetLastFetchedVariableVal(static_cast<duckdb::row_t>(col_idx));
+	hstmt->odbc_fetcher->SetLastFetchedVariableVal(static_cast<duckdb_odbc::row_t>(col_idx));
 
 	// Get the length of the part of the field that was returned previously
 	size_t last_len = hstmt->odbc_fetcher->GetLastFetchedLength();
@@ -391,15 +550,24 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 		return SQL_ERROR;
 	}
 
-	Value val;
 	if (col_or_param_num > 0) {
 		// Prevent underflow
 		col_or_param_num--;
 	}
-	if (hstmt->odbc_fetcher->GetValue(col_or_param_num, val) != SQL_SUCCESS) {
+	if (!hstmt->odbc_fetcher->HasCurrentRow()) {
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetData", "The cursor is not positioned on a row",
 		                                        SQLStateType::ST_24000, hstmt->dbc->GetDataSourceName());
 	}
+	if (col_or_param_num >= hstmt->row_desc->GetIRD()->GetRecordCount()) {
+		// no such column: report it as NULL
+		if (!str_len_or_ind_ptr) {
+			return SQL_ERROR;
+		}
+		*str_len_or_ind_ptr = SQL_NULL_DATA;
+		return SQL_SUCCESS;
+	}
+	auto &factory = hstmt->dbc->conn->GetFactory();
+	Value val = hstmt->odbc_fetcher->GetValue(col_or_param_num);
 	if (val.IsNull()) {
 		if (!str_len_or_ind_ptr) {
 			return SQL_ERROR;
@@ -407,57 +575,63 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 		*str_len_or_ind_ptr = SQL_NULL_DATA;
 		return SQL_SUCCESS;
 	}
-	if (val.type().id() == LogicalType::TIMESTAMP_TZ) {
-		int64_t utc_micros = val.GetValue<int64_t>();
+	auto val_type_id = val.GetLogicalType().GetTypeId();
+	if (val_type_id == LogicalTypeId::TIMESTAMP_TZ) {
+		int64_t utc_micros = val.Get<duckdb_odbc::timestamp_tz_t>().micros;
 		int64_t utc_offset_micros = duckdb_odbc::OdbcUtils::GetUTCOffsetMicrosFromOS(hstmt, utc_micros);
-		val = Value::TIMESTAMP(timestamp_t(utc_micros + utc_offset_micros));
+		val = Value::Create(factory, timestamp_t {utc_micros + utc_offset_micros});
+		val_type_id = LogicalTypeId::TIMESTAMP;
 	}
 
 	SQLSMALLINT target_type_resolved = target_type;
 	if (target_type_resolved == SQL_C_DEFAULT) {
-		target_type_resolved = resolve_default_type(val.type().id(), buffer_length);
+		target_type_resolved = resolve_default_type(val_type_id, buffer_length);
 	}
 
 	switch (target_type_resolved) {
 	case SQL_C_SHORT:
 	case SQL_C_SSHORT:
-		return GetInternalValue<int16_t, SQLSMALLINT>(hstmt, val, LogicalType::SMALLINT, target_value_ptr,
+		return GetInternalValue<int16_t, SQLSMALLINT>(hstmt, val, LogicalTypeId::SMALLINT, target_value_ptr,
 		                                              str_len_or_ind_ptr);
 	case SQL_C_USHORT:
-		return GetInternalValue<uint16_t, SQLUSMALLINT>(hstmt, val, LogicalType::USMALLINT, target_value_ptr,
+		return GetInternalValue<uint16_t, SQLUSMALLINT>(hstmt, val, LogicalTypeId::USMALLINT, target_value_ptr,
 		                                                str_len_or_ind_ptr);
 	case SQL_C_LONG:
 	case SQL_C_SLONG:
-		return GetInternalValue<int32_t, SQLINTEGER>(hstmt, val, LogicalType::INTEGER, target_value_ptr,
+		return GetInternalValue<int32_t, SQLINTEGER>(hstmt, val, LogicalTypeId::INTEGER, target_value_ptr,
 		                                             str_len_or_ind_ptr);
 	case SQL_C_ULONG:
-		return GetInternalValue<uint32_t, SQLUINTEGER>(hstmt, val, LogicalType::UINTEGER, target_value_ptr,
+		return GetInternalValue<uint32_t, SQLUINTEGER>(hstmt, val, LogicalTypeId::UINTEGER, target_value_ptr,
 		                                               str_len_or_ind_ptr);
 	case SQL_C_FLOAT:
-		return GetInternalValue<float, SQLREAL>(hstmt, val, LogicalType::FLOAT, target_value_ptr, str_len_or_ind_ptr);
+		return GetInternalValue<float, SQLREAL>(hstmt, val, LogicalTypeId::FLOAT, target_value_ptr, str_len_or_ind_ptr);
 	case SQL_C_DOUBLE:
-		return GetInternalValue<double, SQLFLOAT>(hstmt, val, LogicalType::DOUBLE, target_value_ptr,
+		return GetInternalValue<double, SQLFLOAT>(hstmt, val, LogicalTypeId::DOUBLE, target_value_ptr,
 		                                          str_len_or_ind_ptr);
 	case SQL_C_BIT: {
-		LogicalType char_type = LogicalType(LogicalTypeId::CHAR);
-		return GetInternalValue<SQLCHAR>(hstmt, val, char_type, target_value_ptr, str_len_or_ind_ptr);
+		// FIXME: the driver has always converted to the CHAR type here, which no value casts to, so SQL_C_BIT is
+		// refused for every column type (see the result_conversion test)
+		std::string msg =
+		    "Conversion Error: Unimplemented type for cast (" + val.GetLogicalType().ToText() + " -> CHAR)";
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetInternalValue", msg, SQLStateType::ST_07006,
+		                                        hstmt->dbc->GetDataSourceName());
 	}
 	case SQL_C_TINYINT:
 	case SQL_C_STINYINT:
-		return GetInternalValue<int8_t, SQLSCHAR>(hstmt, val, LogicalType::TINYINT, target_value_ptr,
+		return GetInternalValue<int8_t, SQLSCHAR>(hstmt, val, LogicalTypeId::TINYINT, target_value_ptr,
 		                                          str_len_or_ind_ptr);
 	case SQL_C_UTINYINT:
-		return GetInternalValue<uint8_t, uint8_t>(hstmt, val, LogicalType::UTINYINT, target_value_ptr,
+		return GetInternalValue<uint8_t, uint8_t>(hstmt, val, LogicalTypeId::UTINYINT, target_value_ptr,
 		                                          str_len_or_ind_ptr);
 	case SQL_C_SBIGINT:
-		return GetInternalValue<int64_t, SQLBIGINT>(hstmt, val, LogicalType::BIGINT, target_value_ptr,
+		return GetInternalValue<int64_t, SQLBIGINT>(hstmt, val, LogicalTypeId::BIGINT, target_value_ptr,
 		                                            str_len_or_ind_ptr);
 	case SQL_C_UBIGINT:
 		// case SQL_C_BOOKMARK: // same ODBC type (\\TODO we don't support bookmark types)
-		return GetInternalValue<uint64_t, SQLUBIGINT>(hstmt, val, LogicalType::UBIGINT, target_value_ptr,
+		return GetInternalValue<uint64_t, SQLUBIGINT>(hstmt, val, LogicalTypeId::UBIGINT, target_value_ptr,
 		                                              str_len_or_ind_ptr);
 	case SQL_C_WCHAR: {
-		std::string val_str = val.GetValue<std::string>();
+		std::string val_str = duckdb_odbc::ValueToString(factory, val);
 		// We need to convert the result to UTF-16 to get its length (in bytes) even if we are not going to return it
 		auto utf16_vec = duckdb_odbc::widechar::utf8_to_utf16_lenient(
 		    reinterpret_cast<const SQLCHAR *>(val_str.c_str()), val_str.length());
@@ -467,55 +641,49 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	// case SQL_C_VARBOOKMARK: // same ODBC type (\\TODO we don't support bookmark types)
 	case SQL_C_BINARY: {
 		// treating binary values as BLOB type
-		std::string blob = duckdb::Blob::ToBlob(duckdb::string_t(val.GetValue<string>().c_str()));
+		std::string blob;
+		if (val_type_id == LogicalTypeId::BLOB) {
+			blob = std::string(val.Get<duckdb_odbc::cxx::blob_t>().view());
+		} else {
+			duckdb_odbc::unique_ptr<Value> blob_val;
+			auto text = duckdb_odbc::CreateVarchar(factory, duckdb_odbc::ValueToString(factory, val));
+			if (!CastStringValue(hstmt, text, LogicalTypeId::BLOB, blob_val)) {
+				return SQL_ERROR;
+			}
+			blob = std::string(blob_val->Get<duckdb_odbc::cxx::blob_t>().view());
+		}
 		return GetVariableValue(col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr,
 		                        blob.c_str(), blob.length(), false);
 	}
 	case SQL_C_CHAR: {
-		std::string val_str = val.GetValue<std::string>();
+		std::string val_str = duckdb_odbc::ValueToString(factory, val);
 		return GetVariableValue(col_or_param_num, hstmt, target_value_ptr, buffer_length, str_len_or_ind_ptr,
 		                        val_str.c_str(), val_str.length());
 	}
 	case SQL_C_NUMERIC: {
-		if (ValidateType(val.type().id(), LogicalTypeId::DECIMAL, hstmt) != SQL_SUCCESS) {
+		if (ValidateType(val_type_id, LogicalTypeId::DECIMAL, hstmt) != SQL_SUCCESS) {
 			return SQL_ERROR;
 		}
 
 		SQL_NUMERIC_STRUCT *numeric = (SQL_NUMERIC_STRUCT *)target_value_ptr;
-		auto dataptr = (duckdb::data_ptr_t)numeric->val;
+		auto dataptr = (duckdb_odbc::data_ptr_t)numeric->val;
 		// reset numeric val to remove some garbage
 		memset(dataptr, '\0', SQL_MAX_NUMERIC_LEN);
 
 		// precision and scale are taken from the column type, val holds the unscaled integer at that scale
-		numeric->precision = static_cast<SQLCHAR>(DecimalType::GetWidth(val.type()));
-		numeric->scale = static_cast<SQLSCHAR>(DecimalType::GetScale(val.type()));
+		auto decimal = val.GetDecimal();
+		numeric->precision = static_cast<SQLCHAR>(decimal.width);
+		numeric->scale = static_cast<SQLSCHAR>(decimal.scale);
 
-		hugeint_t unscaled;
-		switch (val.type().InternalType()) {
-		case PhysicalType::INT16:
-			unscaled = hugeint_t(val.GetValueUnsafe<int16_t>());
-			break;
-		case PhysicalType::INT32:
-			unscaled = hugeint_t(val.GetValueUnsafe<int32_t>());
-			break;
-		case PhysicalType::INT64:
-			unscaled = hugeint_t(val.GetValueUnsafe<int64_t>());
-			break;
-		case PhysicalType::INT128:
-			unscaled = val.GetValueUnsafe<hugeint_t>();
-			break;
-		default:
-			return SQL_ERROR;
-		}
-
-		numeric->sign = unscaled < hugeint_t(0) ? 0 : 1;
+		uint64_t lower = decimal.value.lower;
+		uint64_t upper = static_cast<uint64_t>(decimal.value.upper);
+		numeric->sign = decimal.value.upper < 0 ? 0 : 1;
 		if (numeric->sign == 0) {
-			// cannot overflow, max DECIMAL width is 38 digits
-			unscaled = -unscaled;
+			// two's complement negation; cannot overflow, max DECIMAL width is 38 digits
+			lower = ~lower + 1;
+			upper = ~upper + (lower == 0 ? 1 : 0);
 		}
 		// val is little-endian
-		uint64_t lower = unscaled.lower;
-		uint64_t upper = static_cast<uint64_t>(unscaled.upper);
 		for (idx_t i = 0; i < sizeof(uint64_t); i++) {
 			dataptr[i] = static_cast<uint8_t>(lower >> (i * 8));
 			dataptr[sizeof(uint64_t) + i] = static_cast<uint8_t>(upper >> (i * 8));
@@ -528,47 +696,30 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	}
 	case SQL_C_TYPE_DATE: {
 		date_t date;
-		switch (val.type().id()) {
+		switch (val_type_id) {
 		case LogicalTypeId::DATE:
-			date = val.GetValue<date_t>();
+			date = val.Get<date_t>();
 			break;
-		case LogicalTypeId::TIMESTAMP_SEC: {
-			if (!CastTimestampValue<duckdb::Cast, date_t>(hstmt, val, date, duckdb::Timestamp::FromEpochSeconds)) {
-				return SQL_ERROR;
-			}
-			break;
-		}
-		case LogicalTypeId::TIMESTAMP_MS: {
-			if (!CastTimestampValue<duckdb::Cast, date_t>(hstmt, val, date, duckdb::Timestamp::FromEpochMs)) {
-				return SQL_ERROR;
-			}
-			break;
-		}
-		case LogicalTypeId::TIMESTAMP: {
-			if (!CastTimestampValue<duckdb::Cast, date_t>(hstmt, val, date, duckdb::Timestamp::FromEpochMicroSeconds)) {
-				return SQL_ERROR;
-			}
-			break;
-		}
+		case LogicalTypeId::TIMESTAMP_SEC:
+		case LogicalTypeId::TIMESTAMP_MS:
+		case LogicalTypeId::TIMESTAMP:
 		case LogicalTypeId::TIMESTAMP_NS: {
-			if (!CastTimestampValue<duckdb::Cast, date_t>(hstmt, val, date, duckdb::Timestamp::FromEpochNanoSeconds)) {
+			if (!CastTimestampValue(hstmt, val, val_type_id, date)) {
 				return SQL_ERROR;
 			}
 			break;
 		}
 		case LogicalTypeId::VARCHAR: {
-			string val_str = val.GetValue<string>();
-			auto str_input = string_t(val_str);
-			if (!TryCast::Operation<string_t, date_t>(str_input, date)) {
-				auto msg = CastExceptionText<string_t, date_t>(str_input);
-				return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult", msg,
-				                                        SQLStateType::ST_07006, hstmt->dbc->GetDataSourceName());
+			duckdb_odbc::unique_ptr<Value> date_val;
+			if (!CastStringValue(hstmt, val, LogicalTypeId::DATE, date_val)) {
+				return SQL_ERROR;
 			}
+			date = date_val->Get<date_t>();
 			break;
 		}
 		default:
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::DATE, hstmt);
-		} // end switch "val.type().id()": SQL_C_TYPE_DATE
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::DATE, hstmt);
+		} // end switch "val_type_id": SQL_C_TYPE_DATE
 
 		SQL_DATE_STRUCT *date_struct = (SQL_DATE_STRUCT *)target_value_ptr;
 		int32_t year, month, day;
@@ -583,52 +734,34 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	}
 	case SQL_C_TYPE_TIME: {
 		dtime_t time;
-		switch (val.type().id()) {
+		switch (val_type_id) {
 		case LogicalTypeId::TIME:
-			time = val.GetValue<dtime_t>();
+			time = val.Get<dtime_t>();
 			break;
-		case LogicalTypeId::TIMESTAMP_SEC: {
-			if (!CastTimestampValue<duckdb::Cast, dtime_t>(hstmt, val, time, duckdb::Timestamp::FromEpochSeconds)) {
-				return SQL_ERROR;
-			}
-			break;
-		}
-		case LogicalTypeId::TIMESTAMP_MS: {
-			if (!CastTimestampValue<duckdb::Cast, dtime_t>(hstmt, val, time, duckdb::Timestamp::FromEpochMs)) {
-				return SQL_ERROR;
-			}
-			break;
-		}
-		case LogicalTypeId::TIMESTAMP: {
-			if (!CastTimestampValue<duckdb::Cast, dtime_t>(hstmt, val, time,
-			                                               duckdb::Timestamp::FromEpochMicroSeconds)) {
-				return SQL_ERROR;
-			}
-			break;
-		}
+		case LogicalTypeId::TIMESTAMP_SEC:
+		case LogicalTypeId::TIMESTAMP_MS:
+		case LogicalTypeId::TIMESTAMP:
 		case LogicalTypeId::TIMESTAMP_NS: {
-			if (!CastTimestampValue<duckdb::Cast, dtime_t>(hstmt, val, time, duckdb::Timestamp::FromEpochNanoSeconds)) {
+			if (!CastTimestampValue(hstmt, val, val_type_id, time)) {
 				return SQL_ERROR;
 			}
 			break;
 		}
 		case LogicalTypeId::VARCHAR: {
-			string val_str = val.GetValue<string>();
-			auto str_input = string_t(val_str);
-			if (!TryCast::Operation<string_t, dtime_t>(str_input, time)) {
-				auto msg = CastExceptionText<string_t, dtime_t>(str_input);
-				return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult", msg,
-				                                        SQLStateType::ST_07006, hstmt->dbc->GetDataSourceName());
+			duckdb_odbc::unique_ptr<Value> time_val;
+			if (!CastStringValue(hstmt, val, LogicalTypeId::TIME, time_val)) {
+				return SQL_ERROR;
 			}
+			time = time_val->Get<dtime_t>();
 			break;
 		}
 		default:
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::TIME, hstmt);
-		} // end switch "val.type().id()": SQL_C_TYPE_TIME
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::TIME, hstmt);
+		} // end switch "val_type_id": SQL_C_TYPE_TIME
 
 		SQL_TIME_STRUCT *time_struct = (SQL_TIME_STRUCT *)target_value_ptr;
 		int32_t hour, minute, second, micros;
-		duckdb::Time::Convert(time, hour, minute, second, micros);
+		Time::Convert(time, hour, minute, second, micros);
 
 		time_struct->hour = hour;
 		time_struct->minute = minute;
@@ -640,82 +773,60 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	}
 	case SQL_C_TYPE_TIMESTAMP: {
 		timestamp_t timestamp;
-		switch (val.type().id()) {
-		case LogicalTypeId::TIMESTAMP_SEC: {
-			timestamp = timestamp_t(val.GetValue<int64_t>());
-			// FIXME: add test for casting infinity/-infinity timestamp values
-			if (!timestamp.IsFinite()) {
-				break;
-			}
-			timestamp = duckdb::Timestamp::FromEpochSeconds(timestamp.value);
-			break;
-		}
-		case LogicalTypeId::TIMESTAMP_MS: {
-			timestamp = timestamp_t(val.GetValue<int64_t>());
-			// FIXME: add test for casting infinity/-infinity timestamp values
-			if (!timestamp.IsFinite()) {
-				break;
-			}
-			timestamp = duckdb::Timestamp::FromEpochMs(timestamp.value);
-			break;
-		}
-		case LogicalTypeId::TIMESTAMP: {
-			timestamp = timestamp_t(val.GetValue<int64_t>());
-			timestamp = duckdb::Timestamp::FromEpochMicroSeconds(timestamp.value);
-			break;
-		}
+		switch (val_type_id) {
+		case LogicalTypeId::TIMESTAMP_SEC:
+		case LogicalTypeId::TIMESTAMP_MS:
+		case LogicalTypeId::TIMESTAMP:
 		case LogicalTypeId::TIMESTAMP_NS: {
-			timestamp = timestamp_t(val.GetValue<int64_t>());
-			// FIXME: add test for casting infinity/-infinity timestamp values
-			if (!timestamp.IsFinite()) {
-				break;
+			try {
+				timestamp = GetTimestamp(val, val_type_id);
+			} catch (std::exception &ex) {
+				return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult",
+				                                        duckdb_odbc::RawErrorMessage(ex), SQLStateType::ST_22007,
+				                                        hstmt->dbc->GetDataSourceName());
 			}
-			timestamp = duckdb::Timestamp::FromEpochNanoSeconds(timestamp.value);
 			break;
 		}
 		case LogicalTypeId::DATE: {
-			auto date_input = val.GetValue<date_t>();
-			if (!TryCast::Operation<date_t, timestamp_t>(date_input, timestamp)) {
-				auto msg = CastExceptionText<date_t, timestamp_t>(date_input);
+			auto date_input = val.Get<date_t>();
+			if (!Timestamp::TryFromDate(date_input, timestamp)) {
+				auto msg = "Unimplemented type for cast (DATE -> TIMESTAMP)";
 				return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult", msg,
 				                                        SQLStateType::ST_07006, hstmt->dbc->GetDataSourceName());
 			}
 			break;
 		}
 		case LogicalTypeId::TIME: {
-			auto time_input = val.GetValue<dtime_t>();
+			auto time_input = val.Get<dtime_t>();
 			// PyODBC requests DB TIME field as SQL_TYPE_TIMESTAMP, but the
 			// cast from dtime_t to timestamp_t is not implemented in the
 			// engine, so we create timestamp_t instance manually.
-			timestamp = timestamp_t(time_input.value);
+			timestamp = timestamp_t {time_input.micros};
 			break;
 		}
 		case LogicalTypeId::VARCHAR: {
-			string val_str = val.GetValue<string>();
-			auto str_input = string_t(val_str);
-			if (!TryCast::Operation<string_t, timestamp_t>(str_input, timestamp)) {
-				auto msg = CastExceptionText<string_t, timestamp_t>(str_input);
-				return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult", msg,
-				                                        SQLStateType::ST_07006, hstmt->dbc->GetDataSourceName());
+			duckdb_odbc::unique_ptr<Value> timestamp_val;
+			if (!CastStringValue(hstmt, val, LogicalTypeId::TIMESTAMP, timestamp_val)) {
+				return SQL_ERROR;
 			}
+			timestamp = timestamp_val->Get<timestamp_t>();
 			break;
 		}
 		default:
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::TIMESTAMP, hstmt);
-		} // end switch "val.type().id()"
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::TIMESTAMP, hstmt);
+		} // end switch "val_type_id"
 
+		if (!Timestamp::IsFinite(timestamp.micros)) {
+			return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "GetDataStmtResult",
+			                                        "Can't get TIME of infinite TIMESTAMP", SQLStateType::ST_22007,
+			                                        hstmt->dbc->GetDataSourceName());
+		}
 		SQL_TIMESTAMP_STRUCT *timestamp_struct = (SQL_TIMESTAMP_STRUCT *)target_value_ptr;
-		date_t date = duckdb::Timestamp::GetDate(timestamp);
-
-		int32_t year, month, day;
-		Date::Convert(date, year, month, day);
+		int32_t year, month, day, hour, minute, second, micros;
+		Timestamp::Convert(timestamp, year, month, day, hour, minute, second, micros);
 		timestamp_struct->year = year;
 		timestamp_struct->month = month;
 		timestamp_struct->day = day;
-
-		dtime_t time = duckdb::Timestamp::GetTime(timestamp);
-		int32_t hour, minute, second, micros;
-		duckdb::Time::Convert(time, hour, minute, second, micros);
 		timestamp_struct->hour = hour;
 		timestamp_struct->minute = minute;
 		timestamp_struct->second = second;
@@ -729,7 +840,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_YEAR: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -745,7 +856,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_MONTH: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -761,7 +872,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_DAY: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -777,7 +888,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_HOUR: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -793,7 +904,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_MINUTE: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -809,7 +920,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_SECOND: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -825,13 +936,13 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_YEAR_TO_MONTH: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
 		OdbcInterval::SetYear(interval, interval_struct);
 		// fraction of years stored as months
-		interval_struct->intval.year_month.month = std::abs(interval.months) % duckdb::Interval::MONTHS_PER_YEAR;
+		interval_struct->intval.year_month.month = std::abs(interval.months) % duckdb_odbc::Interval::MONTHS_PER_YEAR;
 		interval_struct->interval_type = SQLINTERVAL::SQL_IS_YEAR_TO_MONTH;
 		OdbcInterval::SetSignal(interval, interval_struct);
 
@@ -844,7 +955,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_DAY_TO_HOUR: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -860,7 +971,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_DAY_TO_MINUTE: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -876,7 +987,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_DAY_TO_SECOND: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -892,7 +1003,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_HOUR_TO_MINUTE: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -908,7 +1019,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_HOUR_TO_SECOND: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -924,7 +1035,7 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 	case SQL_C_INTERVAL_MINUTE_TO_SECOND: {
 		interval_t interval;
 		if (!OdbcInterval::GetInterval(val, interval, hstmt)) {
-			return ThrowInvalidCast("GetDataStmtResult", val.type(), LogicalType::INTERVAL, hstmt);
+			return ThrowInvalidCast("GetDataStmtResult", val, LogicalTypeId::INTERVAL, hstmt);
 		}
 
 		SQL_INTERVAL_STRUCT *interval_struct = (SQL_INTERVAL_STRUCT *)target_value_ptr;
@@ -948,10 +1059,18 @@ SQLRETURN duckdb_odbc::ExecDirectStmt(OdbcHandleStmt *hstmt, const std::string &
 	bool success_with_info = false;
 	PrepareQuery(hstmt);
 
-	// Extract the statements from the query
-	vector<unique_ptr<SQLStatement>> statements;
+	// Parse all the statements before running any of them
+	vector<unique_ptr<cxx::SqlStatement>> statements;
 	try {
-		statements = hstmt->dbc->conn->ExtractStatements(query);
+		hstmt->dbc->MaterializeResults(hstmt);
+		auto iterator = hstmt->dbc->conn->ParseSQL(query);
+		while (true) {
+			auto statement = iterator.Next();
+			if (!statement) {
+				break;
+			}
+			statements.push_back(make_uniq<cxx::SqlStatement>(std::move(statement)));
+		}
 	} catch (std::exception &ex) {
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLExecDirect", ex.what(), SQLStateType::ST_42000,
 		                                        hstmt->dbc->GetDataSourceName());
@@ -959,7 +1078,7 @@ SQLRETURN duckdb_odbc::ExecDirectStmt(OdbcHandleStmt *hstmt, const std::string &
 
 	SQLRETURN ret = SQL_SUCCESS;
 	for (auto &statement : statements) {
-		hstmt->stmt = hstmt->dbc->conn->Prepare(std::move(statement));
+		hstmt->stmt = PrepareStatement(hstmt, std::move(statement), false);
 		ret = FinalizeStmt(hstmt);
 		if (hstmt->stmt->HasError() || !SQL_SUCCEEDED(ret)) {
 			return ret;
@@ -975,6 +1094,34 @@ SQLRETURN duckdb_odbc::ExecDirectStmt(OdbcHandleStmt *hstmt, const std::string &
 		}
 	}
 	return success_with_info ? SQL_SUCCESS_WITH_INFO : ret;
+}
+
+SQLRETURN duckdb_odbc::PrepareStmt(OdbcHandleStmt *hstmt, const std::string &query) {
+	PrepareQuery(hstmt);
+
+	vector<unique_ptr<cxx::SqlStatement>> statements;
+	try {
+		hstmt->dbc->MaterializeResults(hstmt);
+		auto iterator = hstmt->dbc->conn->ParseSQL(query);
+		while (true) {
+			auto statement = iterator.Next();
+			if (!statement) {
+				break;
+			}
+			statements.push_back(make_uniq<cxx::SqlStatement>(std::move(statement)));
+		}
+		if (statements.size() != 1) {
+			throw std::runtime_error(statements.empty() ? "No statement to prepare!"
+			                                            : "Cannot prepare multiple statements at once!");
+		}
+	} catch (std::exception &ex) {
+		hstmt->stmt = make_uniq<OdbcPreparedStatement>();
+		hstmt->stmt->error = ErrorMessage(ex);
+		return FinalizeStmt(hstmt);
+	}
+
+	hstmt->stmt = PrepareStatement(hstmt, std::move(statements[0]), true);
+	return FinalizeStmt(hstmt);
 }
 
 SQLRETURN duckdb_odbc::BindParameterStmt(OdbcHandleStmt *hstmt, SQLUSMALLINT parameter_number,

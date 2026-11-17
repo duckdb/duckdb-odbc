@@ -8,7 +8,7 @@
 
 #include <regex>
 
-using duckdb::LogicalTypeId;
+using duckdb_odbc::LogicalTypeId;
 using duckdb_odbc::OdbcUtils;
 using duckdb_odbc::SQLStateType;
 
@@ -24,10 +24,7 @@ static SQLRETURN PrepareInternal(SQLHSTMT statement_handle, SQLCHAR *statement_t
 	}
 
 	const auto query = OdbcUtils::ConvertSQLCHARToString(statement_text, text_length);
-	PrepareQuery(hstmt);
-	hstmt->stmt = hstmt->dbc->conn->Prepare(query);
-
-	return FinalizeStmt(hstmt);
+	return duckdb_odbc::PrepareStmt(hstmt, query);
 }
 
 /**

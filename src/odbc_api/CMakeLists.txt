@@ -16,8 +16,6 @@ add_library(
   info_api.cpp
   transaction_api.cpp)
 
-target_compile_definitions(odbc_api PRIVATE -DDUCKDB_STATIC_BUILD)
-
 set(ALL_OBJECT_FILES
     ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:odbc_api>
     PARENT_SCOPE)

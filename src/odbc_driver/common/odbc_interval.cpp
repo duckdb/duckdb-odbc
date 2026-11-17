@@ -1,25 +1,25 @@
 #include "odbc_interval.hpp"
-#include "duckdb/common/operator/cast_operators.hpp"
 #include "odbc_diagnostic.hpp"
+#include "handle_functions.hpp"
 #include <sqltypes.h>
 #include <sqlext.h>
 
-using duckdb::interval_t;
-using duckdb::Value;
+using duckdb_odbc::interval_t;
 using duckdb_odbc::OdbcInterval;
 using duckdb_odbc::SQLStateType;
+using duckdb_odbc::Value;
 
-bool OdbcInterval::GetInterval(Value &value, interval_t &interval, duckdb_odbc::OdbcHandleStmt *hstmt) {
-	switch (value.type().id()) {
+bool OdbcInterval::GetInterval(const Value &value, interval_t &interval, duckdb_odbc::OdbcHandleStmt *hstmt) {
+	switch (value.GetLogicalType().GetTypeId()) {
 	case LogicalTypeId::INTERVAL:
-		interval = IntervalValue::Get(value);
+		interval = value.Get<interval_t>();
 		return true;
 	case LogicalTypeId::VARCHAR: {
-		string error_message;
-		CastParameters parameters(false, &error_message);
-		auto &val_str = StringValue::Get(value);
-		if (!TryCastErrorMessage::Operation<string_t, interval_t>(string_t(val_str), interval, parameters)) {
-			error_message = CastExceptionText<string_t, interval_t>(string_t(val_str));
+		try {
+			auto &factory = hstmt->dbc->conn->GetFactory();
+			interval = value.Cast(factory, duckdb_odbc::CreateType(factory, LogicalTypeId::INTERVAL)).Get<interval_t>();
+		} catch (std::exception &ex) {
+			auto error_message = duckdb_odbc::RawErrorMessage(ex);
 			auto data_source = hstmt->dbc->GetDataSourceName();
 			duckdb_odbc::DiagRecord diag_rec(error_message, SQLStateType::ST_22007, data_source);
 			hstmt->odbc_diagnostic->FormatDiagnosticMessage(diag_rec, data_source, "OdbcInterval::GetInterval");
@@ -51,7 +51,7 @@ void OdbcInterval::SetSignal(interval_t &interval, SQL_INTERVAL_STRUCT *interval
 
 void OdbcInterval::SetYear(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_YEAR;
-	interval_struct->intval.year_month.year = std::abs(interval.months) / duckdb::Interval::MONTHS_PER_YEAR;
+	interval_struct->intval.year_month.year = std::abs(interval.months) / duckdb_odbc::Interval::MONTHS_PER_YEAR;
 }
 
 void OdbcInterval::SetMonth(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -63,7 +63,7 @@ void OdbcInterval::SetDay(interval_t &interval, SQL_INTERVAL_STRUCT *interval_st
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_DAY;
 	// set the absolute value of days
 	interval_struct->intval.day_second.day =
-	    static_cast<SQLUINTEGER>(std::abs(interval.days + interval.months * duckdb::Interval::DAYS_PER_MONTH));
+	    static_cast<SQLUINTEGER>(std::abs(interval.days + interval.months * duckdb_odbc::Interval::DAYS_PER_MONTH));
 }
 
 void OdbcInterval::SetHour(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -71,11 +71,12 @@ void OdbcInterval::SetHour(interval_t &interval, SQL_INTERVAL_STRUCT *interval_s
 	SetDay(interval, interval_struct);
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_HOUR;
 
-	interval_struct->intval.day_second.hour = interval_struct->intval.day_second.day * duckdb::Interval::HOURS_PER_DAY;
+	interval_struct->intval.day_second.hour =
+	    interval_struct->intval.day_second.day * duckdb_odbc::Interval::HOURS_PER_DAY;
 	interval_struct->intval.day_second.hour +=
-	    static_cast<SQLUINTEGER>(std::abs(interval.micros) / duckdb::Interval::MICROS_PER_HOUR);
+	    static_cast<SQLUINTEGER>(std::abs(interval.micros) / duckdb_odbc::Interval::MICROS_PER_HOUR);
 	// remaning stores into the fraction
-	interval_struct->intval.day_second.fraction = std::abs(interval.micros) % duckdb::Interval::MICROS_PER_HOUR;
+	interval_struct->intval.day_second.fraction = std::abs(interval.micros) % duckdb_odbc::Interval::MICROS_PER_HOUR;
 }
 
 void OdbcInterval::SetMinute(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -84,12 +85,12 @@ void OdbcInterval::SetMinute(interval_t &interval, SQL_INTERVAL_STRUCT *interval
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_MINUTE;
 
 	interval_struct->intval.day_second.minute =
-	    interval_struct->intval.day_second.hour * duckdb::Interval::MINS_PER_HOUR;
+	    interval_struct->intval.day_second.hour * duckdb_odbc::Interval::MINS_PER_HOUR;
 	interval_struct->intval.day_second.minute +=
-	    interval_struct->intval.day_second.fraction / duckdb::Interval::MICROS_PER_MINUTE;
+	    interval_struct->intval.day_second.fraction / duckdb_odbc::Interval::MICROS_PER_MINUTE;
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    interval_struct->intval.day_second.fraction % duckdb::Interval::MICROS_PER_MINUTE;
+	    interval_struct->intval.day_second.fraction % duckdb_odbc::Interval::MICROS_PER_MINUTE;
 }
 
 void OdbcInterval::SetSecond(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -98,11 +99,11 @@ void OdbcInterval::SetSecond(interval_t &interval, SQL_INTERVAL_STRUCT *interval
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_SECOND;
 
 	interval_struct->intval.day_second.second =
-	    interval_struct->intval.day_second.minute * duckdb::Interval::SECS_PER_MINUTE;
+	    interval_struct->intval.day_second.minute * duckdb_odbc::Interval::SECS_PER_MINUTE;
 	interval_struct->intval.day_second.fraction +=
-	    static_cast<SQLUINTEGER>(std::abs(interval.micros) / duckdb::Interval::MICROS_PER_SEC);
+	    static_cast<SQLUINTEGER>(std::abs(interval.micros) / duckdb_odbc::Interval::MICROS_PER_SEC);
 	// remaning stores into the fraction
-	interval_struct->intval.day_second.fraction = std::abs(interval.micros) % duckdb::Interval::MICROS_PER_SEC;
+	interval_struct->intval.day_second.fraction = std::abs(interval.micros) % duckdb_odbc::Interval::MICROS_PER_SEC;
 }
 
 void OdbcInterval::SetDayToHour(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -110,11 +111,11 @@ void OdbcInterval::SetDayToHour(interval_t &interval, SQL_INTERVAL_STRUCT *inter
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_DAY_TO_HOUR;
 	// set hours
 	interval_struct->intval.day_second.hour =
-	    static_cast<SQLUINTEGER>(std::abs(interval.micros) / duckdb::Interval::MICROS_PER_HOUR);
+	    static_cast<SQLUINTEGER>(std::abs(interval.micros) / duckdb_odbc::Interval::MICROS_PER_HOUR);
 
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    static_cast<SQLUINTEGER>(std::abs(interval.micros) % duckdb::Interval::MICROS_PER_HOUR);
+	    static_cast<SQLUINTEGER>(std::abs(interval.micros) % duckdb_odbc::Interval::MICROS_PER_HOUR);
 }
 
 void OdbcInterval::SetDayToMinute(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -122,11 +123,11 @@ void OdbcInterval::SetDayToMinute(interval_t &interval, SQL_INTERVAL_STRUCT *int
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_DAY_TO_MINUTE;
 	// set minutes
 	interval_struct->intval.day_second.minute =
-	    interval_struct->intval.day_second.fraction / duckdb::Interval::MICROS_PER_MINUTE;
+	    interval_struct->intval.day_second.fraction / duckdb_odbc::Interval::MICROS_PER_MINUTE;
 
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    interval_struct->intval.day_second.fraction % duckdb::Interval::MICROS_PER_MINUTE;
+	    interval_struct->intval.day_second.fraction % duckdb_odbc::Interval::MICROS_PER_MINUTE;
 }
 
 void OdbcInterval::SetDayToSecond(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -134,11 +135,11 @@ void OdbcInterval::SetDayToSecond(interval_t &interval, SQL_INTERVAL_STRUCT *int
 	interval_struct->interval_type = SQLINTERVAL::SQL_IS_DAY_TO_SECOND;
 	// set minutes
 	interval_struct->intval.day_second.second =
-	    interval_struct->intval.day_second.fraction / duckdb::Interval::MICROS_PER_SEC;
+	    interval_struct->intval.day_second.fraction / duckdb_odbc::Interval::MICROS_PER_SEC;
 
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    interval_struct->intval.day_second.fraction % duckdb::Interval::MICROS_PER_SEC;
+	    interval_struct->intval.day_second.fraction % duckdb_odbc::Interval::MICROS_PER_SEC;
 }
 
 void OdbcInterval::SetHourToMinute(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -147,11 +148,11 @@ void OdbcInterval::SetHourToMinute(interval_t &interval, SQL_INTERVAL_STRUCT *in
 
 	// set minutes
 	interval_struct->intval.day_second.minute =
-	    interval_struct->intval.day_second.fraction / duckdb::Interval::MICROS_PER_MINUTE;
+	    interval_struct->intval.day_second.fraction / duckdb_odbc::Interval::MICROS_PER_MINUTE;
 
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    interval_struct->intval.day_second.fraction % duckdb::Interval::MICROS_PER_MINUTE;
+	    interval_struct->intval.day_second.fraction % duckdb_odbc::Interval::MICROS_PER_MINUTE;
 }
 
 void OdbcInterval::SetHourToSecond(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -160,11 +161,11 @@ void OdbcInterval::SetHourToSecond(interval_t &interval, SQL_INTERVAL_STRUCT *in
 
 	// set seconds
 	interval_struct->intval.day_second.second =
-	    interval_struct->intval.day_second.fraction / duckdb::Interval::MICROS_PER_SEC;
+	    interval_struct->intval.day_second.fraction / duckdb_odbc::Interval::MICROS_PER_SEC;
 
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    interval_struct->intval.day_second.fraction % duckdb::Interval::MICROS_PER_SEC;
+	    interval_struct->intval.day_second.fraction % duckdb_odbc::Interval::MICROS_PER_SEC;
 }
 
 void OdbcInterval::SetMinuteToSecond(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct) {
@@ -173,11 +174,11 @@ void OdbcInterval::SetMinuteToSecond(interval_t &interval, SQL_INTERVAL_STRUCT *
 
 	// set seconds
 	interval_struct->intval.day_second.second =
-	    interval_struct->intval.day_second.fraction / duckdb::Interval::MICROS_PER_SEC;
+	    interval_struct->intval.day_second.fraction / duckdb_odbc::Interval::MICROS_PER_SEC;
 
 	// remaning stores into the fraction
 	interval_struct->intval.day_second.fraction =
-	    interval_struct->intval.day_second.fraction % duckdb::Interval::MICROS_PER_SEC;
+	    interval_struct->intval.day_second.fraction % duckdb_odbc::Interval::MICROS_PER_SEC;
 }
 
 bool OdbcInterval::IsIntervalType(SQLSMALLINT value_type) {

@@ -4,6 +4,9 @@
 #include "catch.hpp"
 #include "odbc_utils.hpp"
 
+#include <filesystem>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,7 +20,33 @@
 
 #define STR_EQUAL(a, b) (std::strcmp(a, b) == 0)
 
+#undef CreateDirectory
+#undef RemoveDirectory
+
 namespace odbc_test {
+//! The parts of a local file system the tests use.
+class LocalFileSystem {
+public:
+	static std::unique_ptr<LocalFileSystem> Create() {
+		return std::unique_ptr<LocalFileSystem>(new LocalFileSystem());
+	}
+	std::string GetWorkingDirectory() {
+		return std::filesystem::current_path().string();
+	}
+	std::string JoinPath(const std::string &a, const std::string &b) {
+		return (std::filesystem::path(a) / b).string();
+	}
+	bool FileExists(const std::string &path) {
+		return std::filesystem::is_regular_file(path);
+	}
+	void CreateDirectory(const std::string &path) {
+		std::filesystem::create_directories(path);
+	}
+	void RemoveDirectory(const std::string &path) {
+		std::filesystem::remove_all(path);
+	}
+};
+
 struct MetadataData {
 	std::string col_name;
 	SQLSMALLINT col_type;

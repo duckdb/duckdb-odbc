@@ -104,8 +104,11 @@ jobs:
             cat /etc/os-release
             dnf install -y           \
               ccache                 \
+              git                    \
               ninja-build            \
+              python3                \
               unixODBC-devel
+            git config --global --add safe.directory '*'
             make -C /duckdb release
           "
     
@@ -197,8 +200,11 @@ jobs:
             cat /etc/os-release
             dnf install -y           \
               ccache                 \
+              git                    \
               ninja-build            \
+              python3                \
               unixODBC-devel
+            git config --global --add safe.directory '*'
             make -C /duckdb release
           "
 
@@ -252,7 +258,7 @@ jobs:
   odbc-windows-amd64:
     name: Windows (amd64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-latest' }}
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-2022' }}
     needs: odbc-linux-amd64
     env:
       CC: 'ccache cl'
@@ -293,13 +299,13 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          mkdir build
-          cd build
-          mkdir release
-          cd release
-          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set VS_INSTALL=%%i
+          call "%VS_INSTALL%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python scripts\build_duckdb.py --install-dir build\duckdb\install --generator "NMake Makefiles" || exit /b 1
+          mkdir build\release
+          cd build\release
+          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DDUCKDB_ROOT=%GITHUB_WORKSPACE%\build\duckdb\install || exit /b 1
+          cmake --build . --config Release || exit /b 1
 
       - name: Save Cache
         uses: actions/cache/save@v4
@@ -310,7 +316,8 @@ jobs:
       - name: List Symbols
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set VS_INSTALL=%%i
+          call "%VS_INSTALL%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           dumpbin.exe /imports build\release\bin\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
@@ -411,7 +418,7 @@ jobs:
   odbc-windows-arm64:
     name: Windows (aarch64)
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-latest' }}
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-2022' }}
     needs: odbc-linux-amd64
     env:
       CC: 'ccache cl'
@@ -452,13 +459,13 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
-          mkdir build
-          cd build
-          mkdir release
-          cd release
-          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath`) do set VS_INSTALL=%%i
+          call "%VS_INSTALL%\VC\Auxiliary\Build\vcvarsamd64_arm64.bat" || exit /b 1
+          python scripts\build_duckdb.py --install-dir build\duckdb\install --generator "NMake Makefiles" --cmake-arg=-DDUCKDB_EXPLICIT_PLATFORM=windows_arm64 || exit /b 1
+          mkdir build\release
+          cd build\release
+          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DDUCKDB_ROOT=%GITHUB_WORKSPACE%\build\duckdb\install || exit /b 1
+          cmake --build . --config Release || exit /b 1
 
       - name: Save Cache
         uses: actions/cache/save@v4
@@ -469,7 +476,8 @@ jobs:
       - name: List Symbols
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath`) do set VS_INSTALL=%%i
+          call "%VS_INSTALL%\VC\Auxiliary\Build\vcvarsamd64_arm64.bat" || exit /b 1
           dumpbin.exe /imports build\release\bin\duckdb_odbc.dll
           dumpbin.exe /exports build\release\bin\duckdb_odbc.dll
 
@@ -718,7 +726,7 @@ jobs:
   debug:
     name: Debug Tests
     if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'vendoring-') }}
-    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-x64' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-linux-x64' || 'ubuntu-24.04' }}
     needs: odbc-linux-amd64
     env:
       GEN: ninja

@@ -14,544 +14,54 @@ if(NOT ODBC_FOUND)
   message(FATAL_ERROR "No ODBC found; you need to install unixodbc-dev.")
 endif()
 
-# variables set by vendor.py
+if(OSX_BUILD_AMD64)
+  set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architectures for Mac OS X" FORCE)
+endif()
 
-set(DUCKDB_INCLUDE_DIRS
-  src/duckdb/extension/core_functions/include
-  src/duckdb/extension/icu/collation/include
-  src/duckdb/extension/icu/datetime/include
-  src/duckdb/extension/icu/include
-  src/duckdb/extension/json/include
-  src/duckdb/extension/parquet/include
-  src/duckdb/src/include
-  src/duckdb/third_party/brotli/common
-  src/duckdb/third_party/brotli/common
-  src/duckdb/third_party/brotli/dec
-  src/duckdb/third_party/brotli/dec
-  src/duckdb/third_party/brotli/enc
-  src/duckdb/third_party/brotli/enc
-  src/duckdb/third_party/brotli/include
-  src/duckdb/third_party/brotli/include
-  src/duckdb/third_party/concurrentqueue
-  src/duckdb/third_party/fast_float
-  src/duckdb/third_party/fastpforlib
-  src/duckdb/third_party/fmt/include
-  src/duckdb/third_party/fsst
-  src/duckdb/third_party/httplib
-  src/duckdb/third_party/hyperloglog
-  src/duckdb/third_party/jaro_winkler
-  src/duckdb/third_party/jaro_winkler/details
-  src/duckdb/third_party/lz4
-  src/duckdb/third_party/lz4
-  src/duckdb/third_party/mbedtls
-  src/duckdb/third_party/mbedtls/include
-  src/duckdb/third_party/mbedtls/include
-  src/duckdb/third_party/mbedtls/library
-  src/duckdb/third_party/miniz
-  src/duckdb/third_party/parquet
-  src/duckdb/third_party/pcg
-  src/duckdb/third_party/pdqsort
-  src/duckdb/third_party/re2
-  src/duckdb/third_party/ska_sort
-  src/duckdb/third_party/skiplist
-  src/duckdb/third_party/snappy
-  src/duckdb/third_party/tdigest
-  src/duckdb/third_party/thrift
-  src/duckdb/third_party/utf8proc
-  src/duckdb/third_party/utf8proc/include
-  src/duckdb/third_party/vergesort
-  src/duckdb/third_party/yyjson/include
-  src/duckdb/third_party/zstd/include
-  src/duckdb/third_party/zstd/include)
+# The DuckDB engine. The driver only uses DuckDB through its stable C++ API, vendored in third_party/duckdb_cpp, and
+# statically links an engine built from the same revision. scripts/build_duckdb.py builds one; `make` runs it when
+# DUCKDB_ROOT is not given.
 
-set(JEMALLOC_INCLUDE_DIRS
-  src/duckdb/third_party/jemalloc/include)
+include(${CMAKE_CURRENT_LIST_DIR}/third_party/duckdb_cpp/duckdb_revision.cmake)
 
-set(DUCKDB_DEFINITIONS
-  -DDUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED
-  -DDUCKDB_EXTENSION_PARQUET_LINKED
-  -DDUCKDB_EXTENSION_ICU_LINKED
-  -DDUCKDB_EXTENSION_JSON_LINKED)
+set(DUCKDB_ROOT "" CACHE PATH "Install prefix of the DuckDB engine to link (see scripts/build_duckdb.py)")
+if(NOT DUCKDB_ROOT)
+  message(FATAL_ERROR "DUCKDB_ROOT is not set. Build the DuckDB engine with "
+                      "'python3 scripts/build_duckdb.py --install-dir <dir>' and pass -DDUCKDB_ROOT=<dir>, or use "
+                      "'make', which does both.")
+endif()
 
-set(DUCKDB_SRC_FILES 
-  src/duckdb/extension/core_functions/aggregate/variant/variant_group_object.cpp
-  src/duckdb/extension/core_functions/core_functions_extension.cpp
-  src/duckdb/extension/core_functions/function_list.cpp
-  src/duckdb/extension/core_functions/lambda_functions.cpp
-  src/duckdb/extension/core_functions/scalar/bit/bitstring.cpp
-  src/duckdb/extension/core_functions/scalar/enum/enum_functions.cpp
-  src/duckdb/extension/core_functions/scalar/math/numeric.cpp
-  src/duckdb/extension/core_functions/scalar/operators/bitwise.cpp
-  src/duckdb/extension/icu/collation/collation_collator.cpp
-  src/duckdb/extension/icu/collation/collation_loader.cpp
-  src/duckdb/extension/icu/collation/collation_normalizer.cpp
-  src/duckdb/extension/icu/collation/generated/collation_data.cpp
-  src/duckdb/extension/icu/datetime/astronomy.cpp
-  src/duckdb/extension/icu/datetime/calendar.cpp
-  src/duckdb/extension/icu/datetime/chinese.cpp
-  src/duckdb/extension/icu/datetime/coptic.cpp
-  src/duckdb/extension/icu/datetime/generated/tz_data.cpp
-  src/duckdb/extension/icu/datetime/grego.cpp
-  src/duckdb/extension/icu/datetime/gregorian.cpp
-  src/duckdb/extension/icu/datetime/hebrew.cpp
-  src/duckdb/extension/icu/datetime/islamic.cpp
-  src/duckdb/extension/icu/datetime/japanese.cpp
-  src/duckdb/extension/icu/datetime/persian.cpp
-  src/duckdb/extension/icu/datetime/timezone.cpp
-  src/duckdb/extension/icu/datetime/tz_loader.cpp
-  src/duckdb/extension/icu/icu-current.cpp
-  src/duckdb/extension/icu/icu-dateadd.cpp
-  src/duckdb/extension/icu/icu-datefunc.cpp
-  src/duckdb/extension/icu/icu-datepart.cpp
-  src/duckdb/extension/icu/icu-datesub.cpp
-  src/duckdb/extension/icu/icu-datetrunc.cpp
-  src/duckdb/extension/icu/icu-list-range.cpp
-  src/duckdb/extension/icu/icu-makedate.cpp
-  src/duckdb/extension/icu/icu-strptime.cpp
-  src/duckdb/extension/icu/icu-table-range.cpp
-  src/duckdb/extension/icu/icu-timebucket.cpp
-  src/duckdb/extension/icu/icu-timezone.cpp
-  src/duckdb/extension/icu/icu_extension.cpp
-  src/duckdb/extension/json/json_common.cpp
-  src/duckdb/extension/json/json_deserializer.cpp
-  src/duckdb/extension/json/json_enums.cpp
-  src/duckdb/extension/json/json_extension.cpp
-  src/duckdb/extension/json/json_functions.cpp
-  src/duckdb/extension/json/json_reader.cpp
-  src/duckdb/extension/json/json_scan.cpp
-  src/duckdb/extension/json/json_schema_inference.cpp
-  src/duckdb/extension/json/json_serializer.cpp
-  src/duckdb/extension/json/serialize_json.cpp
-  src/duckdb/extension/loader/static_extension_autoregister.cpp
-  src/duckdb/extension/parquet/column_reader.cpp
-  src/duckdb/extension/parquet/column_writer.cpp
-  src/duckdb/extension/parquet/parquet_column_schema.cpp
-  src/duckdb/extension/parquet/parquet_crypto.cpp
-  src/duckdb/extension/parquet/parquet_extension.cpp
-  src/duckdb/extension/parquet/parquet_field_id.cpp
-  src/duckdb/extension/parquet/parquet_file_metadata_cache.cpp
-  src/duckdb/extension/parquet/parquet_float16.cpp
-  src/duckdb/extension/parquet/parquet_geometry.cpp
-  src/duckdb/extension/parquet/parquet_int96.cpp
-  src/duckdb/extension/parquet/parquet_metadata.cpp
-  src/duckdb/extension/parquet/parquet_multi_file_info.cpp
-  src/duckdb/extension/parquet/parquet_page_index.cpp
-  src/duckdb/extension/parquet/parquet_prefetch_cost_model.cpp
-  src/duckdb/extension/parquet/parquet_reader.cpp
-  src/duckdb/extension/parquet/parquet_shredding.cpp
-  src/duckdb/extension/parquet/parquet_statistics.cpp
-  src/duckdb/extension/parquet/parquet_timestamp.cpp
-  src/duckdb/extension/parquet/parquet_writer.cpp
-  src/duckdb/extension/parquet/read_single_parquet_file.cpp
-  src/duckdb/extension/parquet/reader/variant/parquet_variant_shredding.cpp
-  src/duckdb/extension/parquet/serialize_parquet.cpp
-  src/duckdb/extension/parquet/zstd_file_system.cpp
-  src/duckdb/generated_extension_loader_package_build.cpp
-  src/duckdb/src/common/adbc/adbc.cpp
-  src/duckdb/src/common/crypto/md5.cpp
-  src/duckdb/src/common/util/util_parsed_expression.cpp
-  src/duckdb/src/common/value_operations/comparison_operations.cpp
-  src/duckdb/src/common/vector_operations/boolean_operators.cpp
-  src/duckdb/src/common/vector_operations/comparison_operators.cpp
-  src/duckdb/src/common/vector_operations/generators.cpp
-  src/duckdb/src/common/vector_operations/is_distinct_from.cpp
-  src/duckdb/src/common/vector_operations/null_operations.cpp
-  src/duckdb/src/common/vector_operations/numeric_inplace_operators.cpp
-  src/duckdb/src/common/vector_operations/scalar_executor.cpp
-  src/duckdb/src/common/vector_operations/vector_cast.cpp
-  src/duckdb/src/common/vector_operations/vector_copy.cpp
-  src/duckdb/src/common/vector_operations/vector_hash.cpp
-  src/duckdb/src/common/vector_operations/vector_storage.cpp
-  src/duckdb/src/execution/operator/csv_scanner/encode/csv_encoder.cpp
-  src/duckdb/src/execution/operator/filter/physical_filter.cpp
-  src/duckdb/src/function/aggregate/sorted_aggregate_function.cpp
-  src/duckdb/src/function/cast/union/from_struct.cpp
-  src/duckdb/src/function/scalar/date/strftime.cpp
-  src/duckdb/src/function/scalar/geometry/geometry_functions.cpp
-  src/duckdb/src/function/scalar/map/map_contains.cpp
-  src/duckdb/src/function/scalar/sequence/nextval.cpp
-  src/duckdb/src/function/table/version/pragma_version.cpp
-  src/duckdb/src/function/variant/variant_shredding.cpp
-  src/duckdb/src/main/capi/v1/aggregate_function-c.cpp
-  src/duckdb/src/main/capi/v1/appender-c.cpp
-  src/duckdb/src/main/capi/v1/arrow-c.cpp
-  src/duckdb/src/main/capi/v1/cast/from_decimal-c.cpp
-  src/duckdb/src/main/capi/v1/cast/utils-c.cpp
-  src/duckdb/src/main/capi/v1/cast_function-c.cpp
-  src/duckdb/src/main/capi/v1/catalog-c.cpp
-  src/duckdb/src/main/capi/v1/config-c.cpp
-  src/duckdb/src/main/capi/v1/config_options-c.cpp
-  src/duckdb/src/main/capi/v1/copy_function-c.cpp
-  src/duckdb/src/main/capi/v1/data_chunk-c.cpp
-  src/duckdb/src/main/capi/v1/datetime-c.cpp
-  src/duckdb/src/main/capi/v1/duckdb-c.cpp
-  src/duckdb/src/main/capi/v1/duckdb_value-c.cpp
-  src/duckdb/src/main/capi/v1/error_data-c.cpp
-  src/duckdb/src/main/capi/v1/expression-c.cpp
-  src/duckdb/src/main/capi/v1/file_system-c.cpp
-  src/duckdb/src/main/capi/v1/helper-c.cpp
-  src/duckdb/src/main/capi/v1/hugeint-c.cpp
-  src/duckdb/src/main/capi/v1/logging-c.cpp
-  src/duckdb/src/main/capi/v1/logical_types-c.cpp
-  src/duckdb/src/main/capi/v1/pending-c.cpp
-  src/duckdb/src/main/capi/v1/prepared-c.cpp
-  src/duckdb/src/main/capi/v1/profiling_info-c.cpp
-  src/duckdb/src/main/capi/v1/replacement_scan-c.cpp
-  src/duckdb/src/main/capi/v1/result-c.cpp
-  src/duckdb/src/main/capi/v1/scalar_function-c.cpp
-  src/duckdb/src/main/capi/v1/stream-c.cpp
-  src/duckdb/src/main/capi/v1/table_description-c.cpp
-  src/duckdb/src/main/capi/v1/table_function-c.cpp
-  src/duckdb/src/main/capi/v1/threading-c.cpp
-  src/duckdb/src/main/capi/v1/value-c.cpp
-  src/duckdb/src/main/extension/extension_alias.cpp
-  src/duckdb/src/main/extension/extension_helper.cpp
-  src/duckdb/src/main/extension/extension_install.cpp
-  src/duckdb/src/main/extension/extension_install_dynamic.cpp
-  src/duckdb/src/main/extension/extension_load.cpp
-  src/duckdb/src/main/extension/extension_load_dynamic.cpp
-  src/duckdb/src/main/extension/extension_loader.cpp
-  src/duckdb/src/main/extension/extension_repository_manager.cpp
-  src/duckdb/src/main/extension/external_extension_provider.cpp
-  src/duckdb/src/main/extension/linked_extension_registry.cpp
-  src/duckdb/src/main/http/http_client_httplib.cpp
-  src/duckdb/src/optimizer/matcher/expression_matcher.cpp
-  src/duckdb/third_party/brotli/common/constants.cpp
-  src/duckdb/third_party/brotli/common/context.cpp
-  src/duckdb/third_party/brotli/common/dictionary.cpp
-  src/duckdb/third_party/brotli/common/platform.cpp
-  src/duckdb/third_party/brotli/common/shared_dictionary.cpp
-  src/duckdb/third_party/brotli/common/transform.cpp
-  src/duckdb/third_party/brotli/dec/bit_reader.cpp
-  src/duckdb/third_party/brotli/dec/decode.cpp
-  src/duckdb/third_party/brotli/dec/huffman.cpp
-  src/duckdb/third_party/brotli/dec/state.cpp
-  src/duckdb/third_party/brotli/enc/backward_references.cpp
-  src/duckdb/third_party/brotli/enc/backward_references_hq.cpp
-  src/duckdb/third_party/brotli/enc/bit_cost.cpp
-  src/duckdb/third_party/brotli/enc/block_splitter.cpp
-  src/duckdb/third_party/brotli/enc/brotli_bit_stream.cpp
-  src/duckdb/third_party/brotli/enc/cluster.cpp
-  src/duckdb/third_party/brotli/enc/command.cpp
-  src/duckdb/third_party/brotli/enc/compound_dictionary.cpp
-  src/duckdb/third_party/brotli/enc/compress_fragment.cpp
-  src/duckdb/third_party/brotli/enc/compress_fragment_two_pass.cpp
-  src/duckdb/third_party/brotli/enc/dictionary_hash.cpp
-  src/duckdb/third_party/brotli/enc/encode.cpp
-  src/duckdb/third_party/brotli/enc/encoder_dict.cpp
-  src/duckdb/third_party/brotli/enc/entropy_encode.cpp
-  src/duckdb/third_party/brotli/enc/fast_log.cpp
-  src/duckdb/third_party/brotli/enc/histogram.cpp
-  src/duckdb/third_party/brotli/enc/literal_cost.cpp
-  src/duckdb/third_party/brotli/enc/memory.cpp
-  src/duckdb/third_party/brotli/enc/metablock.cpp
-  src/duckdb/third_party/brotli/enc/static_dict.cpp
-  src/duckdb/third_party/brotli/enc/utf8_util.cpp
-  src/duckdb/third_party/fastpforlib/bitpacking.cpp
-  src/duckdb/third_party/fmt/format.cc
-  src/duckdb/third_party/fsst/libfsst.cpp
-  src/duckdb/third_party/hyperloglog/hyperloglog.cpp
-  src/duckdb/third_party/hyperloglog/sds.cpp
-  src/duckdb/third_party/lz4/lz4.cpp
-  src/duckdb/third_party/mbedtls/library/aes.cpp
-  src/duckdb/third_party/mbedtls/library/asn1parse.cpp
-  src/duckdb/third_party/mbedtls/library/asn1write.cpp
-  src/duckdb/third_party/mbedtls/library/base64.cpp
-  src/duckdb/third_party/mbedtls/library/bignum.cpp
-  src/duckdb/third_party/mbedtls/library/bignum_core.cpp
-  src/duckdb/third_party/mbedtls/library/cipher.cpp
-  src/duckdb/third_party/mbedtls/library/cipher_wrap.cpp
-  src/duckdb/third_party/mbedtls/library/constant_time.cpp
-  src/duckdb/third_party/mbedtls/library/gcm.cpp
-  src/duckdb/third_party/mbedtls/library/md.cpp
-  src/duckdb/third_party/mbedtls/library/oid.cpp
-  src/duckdb/third_party/mbedtls/library/pem.cpp
-  src/duckdb/third_party/mbedtls/library/pk.cpp
-  src/duckdb/third_party/mbedtls/library/pk_wrap.cpp
-  src/duckdb/third_party/mbedtls/library/pkparse.cpp
-  src/duckdb/third_party/mbedtls/library/platform.cpp
-  src/duckdb/third_party/mbedtls/library/platform_util.cpp
-  src/duckdb/third_party/mbedtls/library/rsa.cpp
-  src/duckdb/third_party/mbedtls/library/rsa_alt_helpers.cpp
-  src/duckdb/third_party/mbedtls/library/sha1.cpp
-  src/duckdb/third_party/mbedtls/library/sha256.cpp
-  src/duckdb/third_party/mbedtls/mbedtls_wrapper.cpp
-  src/duckdb/third_party/miniz/miniz.cpp
-  src/duckdb/third_party/parquet/parquet_types.cpp
-  src/duckdb/third_party/re2/re2/bitmap256.cc
-  src/duckdb/third_party/re2/re2/bitstate.cc
-  src/duckdb/third_party/re2/re2/compile.cc
-  src/duckdb/third_party/re2/re2/dfa.cc
-  src/duckdb/third_party/re2/re2/filtered_re2.cc
-  src/duckdb/third_party/re2/re2/mimics_pcre.cc
-  src/duckdb/third_party/re2/re2/nfa.cc
-  src/duckdb/third_party/re2/re2/onepass.cc
-  src/duckdb/third_party/re2/re2/parse.cc
-  src/duckdb/third_party/re2/re2/perl_groups.cc
-  src/duckdb/third_party/re2/re2/prefilter.cc
-  src/duckdb/third_party/re2/re2/prefilter_tree.cc
-  src/duckdb/third_party/re2/re2/prog.cc
-  src/duckdb/third_party/re2/re2/re2.cc
-  src/duckdb/third_party/re2/re2/regexp.cc
-  src/duckdb/third_party/re2/re2/set.cc
-  src/duckdb/third_party/re2/re2/simplify.cc
-  src/duckdb/third_party/re2/re2/stringpiece.cc
-  src/duckdb/third_party/re2/re2/tostring.cc
-  src/duckdb/third_party/re2/re2/unicode_casefold.cc
-  src/duckdb/third_party/re2/re2/unicode_groups.cc
-  src/duckdb/third_party/re2/util/rune.cc
-  src/duckdb/third_party/re2/util/strutil.cc
-  src/duckdb/third_party/skiplist/SkipList.cpp
-  src/duckdb/third_party/snappy/snappy-sinksource.cc
-  src/duckdb/third_party/snappy/snappy.cc
-  src/duckdb/third_party/thrift/thrift/protocol/TProtocol.cpp
-  src/duckdb/third_party/thrift/thrift/transport/TBufferTransports.cpp
-  src/duckdb/third_party/thrift/thrift/transport/TTransportException.cpp
-  src/duckdb/third_party/utf8proc/utf8proc.cpp
-  src/duckdb/third_party/utf8proc/utf8proc_wrapper.cpp
-  src/duckdb/third_party/yyjson/yyjson.cpp
-  src/duckdb/third_party/zstd/common/debug.cpp
-  src/duckdb/third_party/zstd/common/entropy_common.cpp
-  src/duckdb/third_party/zstd/common/error_private.cpp
-  src/duckdb/third_party/zstd/common/fse_decompress.cpp
-  src/duckdb/third_party/zstd/common/pool.cpp
-  src/duckdb/third_party/zstd/common/threading.cpp
-  src/duckdb/third_party/zstd/common/xxhash.cpp
-  src/duckdb/third_party/zstd/common/zstd_common.cpp
-  src/duckdb/third_party/zstd/compress/fse_compress.cpp
-  src/duckdb/third_party/zstd/compress/hist.cpp
-  src/duckdb/third_party/zstd/compress/huf_compress.cpp
-  src/duckdb/third_party/zstd/compress/zstd_compress.cpp
-  src/duckdb/third_party/zstd/compress/zstd_compress_literals.cpp
-  src/duckdb/third_party/zstd/compress/zstd_compress_sequences.cpp
-  src/duckdb/third_party/zstd/compress/zstd_compress_superblock.cpp
-  src/duckdb/third_party/zstd/compress/zstd_double_fast.cpp
-  src/duckdb/third_party/zstd/compress/zstd_fast.cpp
-  src/duckdb/third_party/zstd/compress/zstd_lazy.cpp
-  src/duckdb/third_party/zstd/compress/zstd_ldm.cpp
-  src/duckdb/third_party/zstd/compress/zstd_opt.cpp
-  src/duckdb/third_party/zstd/compress/zstdmt_compress.cpp
-  src/duckdb/third_party/zstd/decompress/huf_decompress.cpp
-  src/duckdb/third_party/zstd/decompress/zstd_ddict.cpp
-  src/duckdb/third_party/zstd/decompress/zstd_decompress.cpp
-  src/duckdb/third_party/zstd/decompress/zstd_decompress_block.cpp
-  src/duckdb/third_party/zstd/deprecated/zbuff_common.cpp
-  src/duckdb/third_party/zstd/deprecated/zbuff_compress.cpp
-  src/duckdb/third_party/zstd/deprecated/zbuff_decompress.cpp
-  src/duckdb/third_party/zstd/dict/cover.cpp
-  src/duckdb/third_party/zstd/dict/divsufsort.cpp
-  src/duckdb/third_party/zstd/dict/fastcover.cpp
-  src/duckdb/third_party/zstd/dict/zdict.cpp
-  src/duckdb/ub_extension_core_functions_aggregate_algebraic.cpp
-  src/duckdb/ub_extension_core_functions_aggregate_distributive.cpp
-  src/duckdb/ub_extension_core_functions_aggregate_holistic.cpp
-  src/duckdb/ub_extension_core_functions_aggregate_nested.cpp
-  src/duckdb/ub_extension_core_functions_aggregate_regression.cpp
-  src/duckdb/ub_extension_core_functions_scalar_array.cpp
-  src/duckdb/ub_extension_core_functions_scalar_blob.cpp
-  src/duckdb/ub_extension_core_functions_scalar_date.cpp
-  src/duckdb/ub_extension_core_functions_scalar_debug.cpp
-  src/duckdb/ub_extension_core_functions_scalar_generic.cpp
-  src/duckdb/ub_extension_core_functions_scalar_list.cpp
-  src/duckdb/ub_extension_core_functions_scalar_map.cpp
-  src/duckdb/ub_extension_core_functions_scalar_random.cpp
-  src/duckdb/ub_extension_core_functions_scalar_string.cpp
-  src/duckdb/ub_extension_core_functions_scalar_struct.cpp
-  src/duckdb/ub_extension_core_functions_scalar_union.cpp
-  src/duckdb/ub_extension_json_json_functions.cpp
-  src/duckdb/ub_extension_parquet_decoder.cpp
-  src/duckdb/ub_extension_parquet_reader.cpp
-  src/duckdb/ub_extension_parquet_writer.cpp
-  src/duckdb/ub_extension_parquet_writer_variant.cpp
-  src/duckdb/ub_src_catalog.cpp
-  src/duckdb/ub_src_catalog_catalog_entry.cpp
-  src/duckdb/ub_src_catalog_catalog_entry_dependency.cpp
-  src/duckdb/ub_src_catalog_default.cpp
-  src/duckdb/ub_src_common.cpp
-  src/duckdb/ub_src_common_adbc_nanoarrow.cpp
-  src/duckdb/ub_src_common_allocator.cpp
-  src/duckdb/ub_src_common_arrow.cpp
-  src/duckdb/ub_src_common_arrow_appender.cpp
-  src/duckdb/ub_src_common_enums.cpp
-  src/duckdb/ub_src_common_exception.cpp
-  src/duckdb/ub_src_common_multi_file.cpp
-  src/duckdb/ub_src_common_operator.cpp
-  src/duckdb/ub_src_common_progress_bar.cpp
-  src/duckdb/ub_src_common_row_operations.cpp
-  src/duckdb/ub_src_common_serializer.cpp
-  src/duckdb/ub_src_common_sort.cpp
-  src/duckdb/ub_src_common_tree_renderer.cpp
-  src/duckdb/ub_src_common_types.cpp
-  src/duckdb/ub_src_common_types_column.cpp
-  src/duckdb/ub_src_common_types_row.cpp
-  src/duckdb/ub_src_common_types_variant.cpp
-  src/duckdb/ub_src_common_vector.cpp
-  src/duckdb/ub_src_execution.cpp
-  src/duckdb/ub_src_execution_expression_executor.cpp
-  src/duckdb/ub_src_execution_index.cpp
-  src/duckdb/ub_src_execution_index_art.cpp
-  src/duckdb/ub_src_execution_nested_loop_join.cpp
-  src/duckdb/ub_src_execution_operator_aggregate.cpp
-  src/duckdb/ub_src_execution_operator_csv_scanner_buffer_manager.cpp
-  src/duckdb/ub_src_execution_operator_csv_scanner_scanner.cpp
-  src/duckdb/ub_src_execution_operator_csv_scanner_sniffer.cpp
-  src/duckdb/ub_src_execution_operator_csv_scanner_state_machine.cpp
-  src/duckdb/ub_src_execution_operator_csv_scanner_table_function.cpp
-  src/duckdb/ub_src_execution_operator_csv_scanner_util.cpp
-  src/duckdb/ub_src_execution_operator_helper.cpp
-  src/duckdb/ub_src_execution_operator_join.cpp
-  src/duckdb/ub_src_execution_operator_order.cpp
-  src/duckdb/ub_src_execution_operator_persistent.cpp
-  src/duckdb/ub_src_execution_operator_projection.cpp
-  src/duckdb/ub_src_execution_operator_scan.cpp
-  src/duckdb/ub_src_execution_operator_schema.cpp
-  src/duckdb/ub_src_execution_operator_set.cpp
-  src/duckdb/ub_src_execution_physical_plan.cpp
-  src/duckdb/ub_src_execution_sample.cpp
-  src/duckdb/ub_src_function.cpp
-  src/duckdb/ub_src_function_aggregate_distributive.cpp
-  src/duckdb/ub_src_function_cast.cpp
-  src/duckdb/ub_src_function_cast_variant.cpp
-  src/duckdb/ub_src_function_pragma.cpp
-  src/duckdb/ub_src_function_scalar.cpp
-  src/duckdb/ub_src_function_scalar_comparison.cpp
-  src/duckdb/ub_src_function_scalar_compressed_materialization.cpp
-  src/duckdb/ub_src_function_scalar_generic.cpp
-  src/duckdb/ub_src_function_scalar_list.cpp
-  src/duckdb/ub_src_function_scalar_operator.cpp
-  src/duckdb/ub_src_function_scalar_string.cpp
-  src/duckdb/ub_src_function_scalar_string_regexp.cpp
-  src/duckdb/ub_src_function_scalar_struct.cpp
-  src/duckdb/ub_src_function_scalar_system.cpp
-  src/duckdb/ub_src_function_scalar_variant.cpp
-  src/duckdb/ub_src_function_table.cpp
-  src/duckdb/ub_src_function_table_arrow.cpp
-  src/duckdb/ub_src_function_table_system.cpp
-  src/duckdb/ub_src_function_window.cpp
-  src/duckdb/ub_src_logging.cpp
-  src/duckdb/ub_src_main.cpp
-  src/duckdb/ub_src_main_buffered_data.cpp
-  src/duckdb/ub_src_main_capi_v2.cpp
-  src/duckdb/ub_src_main_http.cpp
-  src/duckdb/ub_src_main_profiler.cpp
-  src/duckdb/ub_src_main_relation.cpp
-  src/duckdb/ub_src_main_secret.cpp
-  src/duckdb/ub_src_main_settings.cpp
-  src/duckdb/ub_src_optimizer.cpp
-  src/duckdb/ub_src_optimizer_compressed_materialization.cpp
-  src/duckdb/ub_src_optimizer_join_order.cpp
-  src/duckdb/ub_src_optimizer_pullup.cpp
-  src/duckdb/ub_src_optimizer_pushdown.cpp
-  src/duckdb/ub_src_optimizer_relation_statistics.cpp
-  src/duckdb/ub_src_optimizer_rule.cpp
-  src/duckdb/ub_src_optimizer_statistics_expression.cpp
-  src/duckdb/ub_src_optimizer_statistics_operator.cpp
-  src/duckdb/ub_src_parallel.cpp
-  src/duckdb/ub_src_parser.cpp
-  src/duckdb/ub_src_parser_constraints.cpp
-  src/duckdb/ub_src_parser_expression.cpp
-  src/duckdb/ub_src_parser_parsed_data.cpp
-  src/duckdb/ub_src_parser_peg.cpp
-  src/duckdb/ub_src_parser_peg_keyword_helper.cpp
-  src/duckdb/ub_src_parser_peg_tokenizer.cpp
-  src/duckdb/ub_src_parser_peg_transformer.cpp
-  src/duckdb/ub_src_parser_query_node.cpp
-  src/duckdb/ub_src_parser_statement.cpp
-  src/duckdb/ub_src_parser_tableref.cpp
-  src/duckdb/ub_src_planner.cpp
-  src/duckdb/ub_src_planner_binder_expression.cpp
-  src/duckdb/ub_src_planner_binder_query_node.cpp
-  src/duckdb/ub_src_planner_binder_statement.cpp
-  src/duckdb/ub_src_planner_binder_tableref.cpp
-  src/duckdb/ub_src_planner_expression.cpp
-  src/duckdb/ub_src_planner_expression_binder.cpp
-  src/duckdb/ub_src_planner_filter.cpp
-  src/duckdb/ub_src_planner_operator.cpp
-  src/duckdb/ub_src_planner_sql_export.cpp
-  src/duckdb/ub_src_planner_subquery.cpp
-  src/duckdb/ub_src_storage.cpp
-  src/duckdb/ub_src_storage_buffer.cpp
-  src/duckdb/ub_src_storage_checkpoint.cpp
-  src/duckdb/ub_src_storage_compression.cpp
-  src/duckdb/ub_src_storage_compression_alp.cpp
-  src/duckdb/ub_src_storage_compression_chimp.cpp
-  src/duckdb/ub_src_storage_compression_dict_fsst.cpp
-  src/duckdb/ub_src_storage_compression_dictionary.cpp
-  src/duckdb/ub_src_storage_compression_roaring.cpp
-  src/duckdb/ub_src_storage_external_file_cache.cpp
-  src/duckdb/ub_src_storage_metadata.cpp
-  src/duckdb/ub_src_storage_serialization.cpp
-  src/duckdb/ub_src_storage_statistics.cpp
-  src/duckdb/ub_src_storage_table.cpp
-  src/duckdb/ub_src_storage_table_variant.cpp
-  src/duckdb/ub_src_transaction.cpp)
+set(DuckDB_USE_STATIC_LIBS ON)
+find_package(DuckDB CONFIG REQUIRED PATHS "${DUCKDB_ROOT}" NO_DEFAULT_PATH)
+foreach(REQUIRED_EXTENSION core_functions parquet icu json)
+  if(NOT "${REQUIRED_EXTENSION}" IN_LIST DuckDB_EXTENSIONS)
+    message(FATAL_ERROR "The DuckDB engine in ${DUCKDB_ROOT} does not include the ${REQUIRED_EXTENSION} extension "
+                        "(it has: ${DuckDB_EXTENSIONS}); build it with scripts/build_duckdb.py.")
+  endif()
+endforeach()
+message(STATUS "DuckDB: ${DUCKDB_ROOT} (${DUCKDB_GIT_VERSION}, ${DUCKDB_GIT_SHA})")
 
-set(JEMALLOC_SRC_FILES 
-  src/duckdb/third_party/jemalloc/src/arena.c
-  src/duckdb/third_party/jemalloc/src/background_thread.c
-  src/duckdb/third_party/jemalloc/src/base.c
-  src/duckdb/third_party/jemalloc/src/batcher.c
-  src/duckdb/third_party/jemalloc/src/bin.c
-  src/duckdb/third_party/jemalloc/src/bin_info.c
-  src/duckdb/third_party/jemalloc/src/bitmap.c
-  src/duckdb/third_party/jemalloc/src/buf_writer.c
-  src/duckdb/third_party/jemalloc/src/cache_bin.c
-  src/duckdb/third_party/jemalloc/src/ckh.c
-  src/duckdb/third_party/jemalloc/src/counter.c
-  src/duckdb/third_party/jemalloc/src/ctl.c
-  src/duckdb/third_party/jemalloc/src/decay.c
-  src/duckdb/third_party/jemalloc/src/div.c
-  src/duckdb/third_party/jemalloc/src/ecache.c
-  src/duckdb/third_party/jemalloc/src/edata.c
-  src/duckdb/third_party/jemalloc/src/edata_cache.c
-  src/duckdb/third_party/jemalloc/src/ehooks.c
-  src/duckdb/third_party/jemalloc/src/emap.c
-  src/duckdb/third_party/jemalloc/src/eset.c
-  src/duckdb/third_party/jemalloc/src/exp_grow.c
-  src/duckdb/third_party/jemalloc/src/extent.c
-  src/duckdb/third_party/jemalloc/src/extent_dss.c
-  src/duckdb/third_party/jemalloc/src/extent_mmap.c
-  src/duckdb/third_party/jemalloc/src/fxp.c
-  src/duckdb/third_party/jemalloc/src/hook.c
-  src/duckdb/third_party/jemalloc/src/hpa.c
-  src/duckdb/third_party/jemalloc/src/hpa_hooks.c
-  src/duckdb/third_party/jemalloc/src/hpdata.c
-  src/duckdb/third_party/jemalloc/src/inspect.c
-  src/duckdb/third_party/jemalloc/src/jemalloc.c
-  src/duckdb/third_party/jemalloc/src/large.c
-  src/duckdb/third_party/jemalloc/src/log.c
-  src/duckdb/third_party/jemalloc/src/malloc_io.c
-  src/duckdb/third_party/jemalloc/src/mutex.c
-  src/duckdb/third_party/jemalloc/src/nstime.c
-  src/duckdb/third_party/jemalloc/src/pa.c
-  src/duckdb/third_party/jemalloc/src/pa_extra.c
-  src/duckdb/third_party/jemalloc/src/pac.c
-  src/duckdb/third_party/jemalloc/src/pages.c
-  src/duckdb/third_party/jemalloc/src/pai.c
-  src/duckdb/third_party/jemalloc/src/peak_event.c
-  src/duckdb/third_party/jemalloc/src/prof.c
-  src/duckdb/third_party/jemalloc/src/prof_data.c
-  src/duckdb/third_party/jemalloc/src/prof_log.c
-  src/duckdb/third_party/jemalloc/src/prof_recent.c
-  src/duckdb/third_party/jemalloc/src/prof_stats.c
-  src/duckdb/third_party/jemalloc/src/prof_sys.c
-  src/duckdb/third_party/jemalloc/src/psset.c
-  src/duckdb/third_party/jemalloc/src/rtree.c
-  src/duckdb/third_party/jemalloc/src/safety_check.c
-  src/duckdb/third_party/jemalloc/src/san.c
-  src/duckdb/third_party/jemalloc/src/san_bump.c
-  src/duckdb/third_party/jemalloc/src/sc.c
-  src/duckdb/third_party/jemalloc/src/sec.c
-  src/duckdb/third_party/jemalloc/src/stats.c
-  src/duckdb/third_party/jemalloc/src/sz.c
-  src/duckdb/third_party/jemalloc/src/tcache.c
-  src/duckdb/third_party/jemalloc/src/test_hooks.c
-  src/duckdb/third_party/jemalloc/src/thread_event.c
-  src/duckdb/third_party/jemalloc/src/ticker.c
-  src/duckdb/third_party/jemalloc/src/tsd.c
-  src/duckdb/third_party/jemalloc/src/util.c
-  src/duckdb/third_party/jemalloc/src/witness.c
-  src/duckdb/third_party/jemalloc/src/zone.c)
+# The C++ API is compiled into the driver; only the driver's SQL* entry points are exported.
+add_library(odbc_duckdb_cpp_api OBJECT third_party/duckdb_cpp/duckdb_cpp.cpp)
+target_include_directories(odbc_duckdb_cpp_api PUBLIC ${CMAKE_CURRENT_LIST_DIR}/third_party/duckdb_cpp)
+set_target_properties(odbc_duckdb_cpp_api PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+if(WIN32)
+  target_compile_options(odbc_duckdb_cpp_api PRIVATE /bigobj /utf-8)
+endif()
+
+# Registers the statically linked extensions, see duckdb_register_static_extensions. Generated by build_duckdb.py.
+set(DUCKDB_STATIC_EXTENSION_LOADER "${DUCKDB_ROOT}/share/duckdb_odbc/static_extension_loader.c")
+if(NOT EXISTS "${DUCKDB_STATIC_EXTENSION_LOADER}")
+  message(FATAL_ERROR "${DUCKDB_STATIC_EXTENSION_LOADER} not found; build the engine with scripts/build_duckdb.py.")
+endif()
+add_library(odbc_duckdb_extension_loader OBJECT "${DUCKDB_STATIC_EXTENSION_LOADER}")
+# only for duckdb_static_extension.h: the driver itself must not see DuckDB's internal headers
+target_include_directories(odbc_duckdb_extension_loader PRIVATE "${DUCKDB_ROOT}/include")
+set_target_properties(odbc_duckdb_extension_loader PROPERTIES C_VISIBILITY_PRESET hidden)
+
+include_directories(${CMAKE_CURRENT_LIST_DIR}/third_party/duckdb_cpp ${ODBC_INCLUDE_DIRS} include third_party)
+# the engine is linked statically: its C API is not imported from a DLL
+add_definitions(-DDUCKDB_STATIC_BUILD)
 
 set(LINK_LIB_LIST "")
 
@@ -567,10 +77,9 @@ if(ODBC_FOUND)
   endif()
 
   if(WIN32)
-    file(READ src/duckdb/src/function/table/version/pragma_version.cpp PRAGMA_VERSION_CPP_TEXT)
-    string(REGEX MATCH "^.*#define[ \t]+DUCKDB_VERSION[ \t]+\"v([0-9]+)\.([0-9]+)\.([0-9]+).*$" _ ${PRAGMA_VERSION_CPP_TEXT})
+    string(REGEX MATCH "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)" _ "${DUCKDB_GIT_VERSION}")
     set(DUCKDB_ENGINE_VERSION ${CMAKE_MATCH_1}${CMAKE_MATCH_2}${CMAKE_MATCH_3})
-    message(STATUS "Version number parsed out from pragma_version.cpp: ${DUCKDB_ENGINE_VERSION}")
+    message(STATUS "Version number parsed out from the vendored DuckDB revision: ${DUCKDB_ENGINE_VERSION}")
     set(DUCKDB_ODBC_VERSION "00")
     set(DUCKDB_WIN_COMMA_VERSiON "${DUCKDB_ENGINE_VERSION},${DUCKDB_ODBC_VERSION},00,00")
     set(DUCKDB_WIN_DOT_VERSiON "${DUCKDB_ENGINE_VERSION}.${DUCKDB_ODBC_VERSION}.00.00")
@@ -583,43 +92,14 @@ if(ODBC_FOUND)
   endif()
 endif()
 
-set(DUCKDB_SYSTEM_LIBS ${CMAKE_DL_LIBS})
-if(MSVC)
-  set(DUCKDB_SYSTEM_LIBS ${DUCKDB_SYSTEM_LIBS} ws2_32 rstrtmgr bcrypt)
-endif()
-
-if(OSX_BUILD_AMD64)
-  SET(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architectures for Mac OS X" FORCE)
-endif()
-
-add_definitions(-DDUCKDB_BUILD_LIBRARY -DNO_FRAMEWORKS ${DUCKDB_DEFINITIONS})
-
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-  add_definitions(-DD_ASSERT_IS_ENABLED)
+  add_definitions(-DODBC_DEBUG)
 endif()
-
-include_directories(src/duckdb/src/include/ ${DUCKDB_INCLUDE_DIRS} ${ODBC_INCLUDE_DIRS} include third_party)
 
 add_subdirectory(src)
 
-set(CORE_OBJECT_FILES ${DUCKDB_SRC_FILES})
-if(NOT WIN32 AND NOT APPLE)
-  list(APPEND CORE_OBJECT_FILES ${JEMALLOC_SRC_FILES})
-endif()
-
-add_library(duckdb_core_obj OBJECT ${CORE_OBJECT_FILES})
-target_compile_definitions(duckdb_core_obj PRIVATE 
-  -DDUCKDB_STATIC_BUILD
-  -DDUCKDB_EXTENSION_AUTOLOAD_DEFAULT
-  -DDUCKDB_EXTENSION_AUTOINSTALL_DEFAULT )
-if(WIN32)
-  target_compile_options(duckdb_core_obj PRIVATE /bigobj /utf-8)
-elseif(NOT APPLE)
-  target_compile_options(duckdb_core_obj PRIVATE -DDUCKDB_ENABLE_JEMALLOC)
-  target_include_directories(duckdb_core_obj PRIVATE ${JEMALLOC_INCLUDE_DIRS})
-endif()
-
-set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_core_obj>)
+set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:odbc_duckdb_cpp_api>
+                     $<TARGET_OBJECTS:odbc_duckdb_extension_loader>)
 if(WIN32)
   list(APPEND ALL_OBJECT_FILES
     duckdb_odbc.def
@@ -627,19 +107,36 @@ if(WIN32)
 endif()
 
 add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
-target_compile_definitions(duckdb_odbc PRIVATE -DDUCKDB_STATIC_BUILD)
 if(WIN32)
   target_compile_options(duckdb_odbc PRIVATE /bigobj /utf-8)
 endif()
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
-target_link_libraries(duckdb_odbc ${LINK_LIB_LIST} )
-target_link_libraries(duckdb_odbc Threads::Threads ${DUCKDB_SYSTEM_LIBS})
+target_link_libraries(duckdb_odbc ${LINK_LIB_LIST})
+# the extension archives go before the engine, which they depend on
+target_link_libraries(
+  duckdb_odbc
+  core_functions_extension
+  parquet_extension
+  icu_extension
+  json_extension
+  duckdb_loadable_extensions
+  duckdb_httplib
+  duckdb_static
+  Threads::Threads
+  ${CMAKE_DL_LIBS})
 if(NOT WIN32)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(duckdb_odbc PRIVATE
       -fvisibility=hidden
       -fvisibility-inlines-hidden)
+    # The driver exports DuckDB's C API (duckdb_odbc.map). Unlike the Windows and macOS export lists, a version script
+    # does not pull the objects that define the symbols out of the archive: ask for each of them.
+    file(STRINGS ${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.map DUCKDB_ODBC_EXPORTS REGEX "^[ \t]*duckdb_[a-z0-9_]+;")
+    foreach(EXPORT_LINE ${DUCKDB_ODBC_EXPORTS})
+      string(REGEX REPLACE "^[ \t]*(duckdb_[a-z0-9_]+);.*" "\\1" EXPORT_SYMBOL "${EXPORT_LINE}")
+      target_link_options(duckdb_odbc PRIVATE "-Wl,-u,${EXPORT_SYMBOL}")
+    endforeach()
     target_link_options(duckdb_odbc PRIVATE
       -Wl,-Bsymbolic
       -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/duckdb_odbc.map)

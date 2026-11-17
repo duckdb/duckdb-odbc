@@ -143,7 +143,7 @@ static void TestSQLTables(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_ma
 			std::string state, message;
 			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
 			REQUIRE(state == "07006");
-			REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+			REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Invalid Input Error"));
 		} else {
 			ODBC_CHECK(ret, "SQLFetch", hstmt);
 		}
@@ -207,7 +207,7 @@ static void TestSQLTablesSchema(HSTMT &hstmt) {
 			std::string state, message;
 			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
 			REQUIRE(state == "07006");
-			REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+			REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Invalid Input Error"));
 			ret = SQL_SUCCESS;
 		} else {
 			ODBC_CHECK(ret, "SQLFetch", hstmt);
@@ -391,7 +391,7 @@ static void TestSQLColumns(HSTMT &hstmt, std::map<SQLSMALLINT, SQLULEN> &types_m
 			std::string state, message;
 			ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
 			REQUIRE(state == "07006");
-			REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+			REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Invalid Input Error"));
 			ret = SQL_SUCCESS;
 		} else {
 			ODBC_CHECK(ret, "SQLFetch", hstmt);
@@ -582,7 +582,7 @@ TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescrib
 				std::string state, message;
 				ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
 				REQUIRE(state == "07006");
-				REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+				REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Invalid Input Error"));
 				ret = SQL_SUCCESS;
 			} else {
 				ODBC_CHECK(ret, "SQLFetch", nullptr);
@@ -613,7 +613,7 @@ TEST_CASE("Test SQLColumns DATA_TYPE and SQL_DATA_TYPE and compare to SQLDescrib
 				std::string state, message;
 				ACCESS_DIAGNOSTIC(state, message, hstmt, SQL_HANDLE_STMT);
 				REQUIRE(state == "07006");
-				REQUIRE(duckdb::StringUtil::Contains(message, "Invalid Input Error"));
+				REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Invalid Input Error"));
 				ret = SQL_SUCCESS;
 			} else {
 				ODBC_CHECK(ret, "SQLFetch", nullptr);

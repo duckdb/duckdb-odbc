@@ -46,7 +46,7 @@ const std::set<std::string> OdbcDiagnostic::SET_ODBC3_SUBCLASS_ORIGIN = {
     {"HY110"}, {"HY111"}, {"HYT00"}, {"HYT01"}, {"IM001"}, {"IM002"}, {"IM003"}, {"IM004"}, {"IM005"},
     {"IM006"}, {"IM007"}, {"IM008"}, {"IM010"}, {"IM011"}, {"IM012"}};
 
-const std::unordered_map<SQLStateType, SQLState, duckdb::EnumClassHash> OdbcDiagnostic::MAP_ODBC_SQL_STATES = {
+const std::unordered_map<SQLStateType, SQLState, duckdb_odbc::EnumClassHash> OdbcDiagnostic::MAP_ODBC_SQL_STATES = {
     {SQLStateType::ST_01000, {"01000", "General warning"}},
     {SQLStateType::ST_01001, {"01001", "Cursor operation conflict"}},
     {SQLStateType::ST_01002, {"01002", "Disconnect error"}},
@@ -217,7 +217,7 @@ void OdbcDiagnostic::AddDiagRecord(DiagRecord &diag_record) {
 	diag_records.emplace_back(diag_record);
 }
 
-duckdb::idx_t OdbcDiagnostic::GetTotalRecords() {
+duckdb_odbc::idx_t OdbcDiagnostic::GetTotalRecords() {
 	return diag_records.size();
 }
 

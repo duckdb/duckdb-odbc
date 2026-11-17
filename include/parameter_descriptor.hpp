@@ -4,7 +4,6 @@
 #include "duckdb_odbc.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 class ParameterDescriptor {
 public:
 	explicit ParameterDescriptor(OdbcHandleStmt *stmt_ptr);
@@ -18,7 +17,8 @@ public:
 	void ResetParams(SQLSMALLINT count);
 	void ResetCurrentAPD();
 
-	SQLRETURN GetParamValues(vector<Value> &values);
+	//! Reads the values of the current parameter set into `values`.
+	SQLRETURN GetParamValues();
 	void SetParamProcessedPtr(SQLULEN *value_ptr);
 	SQLULEN *GetParamProcessedPtr();
 	void SetArrayStatusPtr(SQLUSMALLINT *value_ptr);
@@ -32,13 +32,13 @@ public:
 
 public:
 	// implicitly allocated descriptors
-	duckdb::unique_ptr<OdbcHandleDesc> apd;
-	duckdb::unique_ptr<OdbcHandleDesc> ipd;
+	duckdb_odbc::unique_ptr<OdbcHandleDesc> apd;
+	duckdb_odbc::unique_ptr<OdbcHandleDesc> ipd;
 
 private:
 	SQLRETURN SetValue(idx_t rec_idx);
-	void SetValue(Value &value, idx_t val_idx);
-	Value GetNextValue(idx_t val_idx);
+	SQLRETURN SetValueInternal(idx_t rec_idx);
+	void SetValue(Value value, idx_t val_idx);
 	SQLRETURN SetParamIndex();
 	SQLRETURN PutCharData(DescRecord &apd_record, DescRecord &ipd_record, SQLPOINTER data_ptr,
 	                      SQLLEN str_len_or_ind_ptr);
@@ -62,11 +62,13 @@ private:
 	OdbcHandleDesc *cur_apd;
 
 	//! a pool of allocated parameters during SQLPutData for character data
-	vector<duckdb::unsafe_unique_array<char>> pool_allocated_ptr;
+	vector<duckdb_odbc::unsafe_unique_array<char>> pool_allocated_ptr;
 	//! Index of the
 	idx_t paramset_idx;
 	idx_t cur_paramset_idx;
 	idx_t cur_param_idx;
+
+public:
 	// duckdb Values for the parameters
 	vector<Value> values;
 };

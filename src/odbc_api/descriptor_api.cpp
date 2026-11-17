@@ -6,15 +6,13 @@
 #include "row_descriptor.hpp"
 #include "handle_functions.hpp"
 
-#include "duckdb/common/vector.hpp"
-
-using duckdb::vector;
 using duckdb_odbc::ApiInfo;
 using duckdb_odbc::DescHeader;
 using duckdb_odbc::DescRecord;
 using duckdb_odbc::OdbcHandleDesc;
 using duckdb_odbc::OdbcInterval;
 using duckdb_odbc::SQLStateType;
+using duckdb_odbc::vector;
 
 template <typename INT_TYPE>
 static SQLRETURN WriteStringDesc(const std::string &caller_name, duckdb_odbc::OdbcHandleDesc *desc,
@@ -134,7 +132,7 @@ static SQLRETURN GetDescFieldInternal(SQLHDESC descriptor_handle, SQLSMALLINT re
 		return duckdb_odbc::SetDiagnosticRecord(desc, SQL_ERROR, "SQLGetDescField", "Invalid descriptor index",
 		                                        duckdb_odbc::SQLStateType::ST_07009, desc->dbc->GetDataSourceName());
 	}
-	duckdb::idx_t rec_idx = rec_number - 1;
+	duckdb_odbc::idx_t rec_idx = rec_number - 1;
 
 	// checking descriptor record fields
 	switch (field_identifier) {
@@ -449,24 +447,25 @@ static SQLRETURN GetDescRecInternal(SQLHDESC descriptor_handle, SQLSMALLINT rec_
 
 	ret = WriteStringDesc("SQLGetDescField", desc, desc_record->sql_desc_name, name, buffer_length, string_length_ptr);
 	if (type_ptr) {
-		duckdb::Store<SQLSMALLINT>(sql_type, (duckdb::data_ptr_t)type_ptr);
+		duckdb_odbc::Store<SQLSMALLINT>(sql_type, (duckdb_odbc::data_ptr_t)type_ptr);
 	}
 	if (sql_type == SQL_DATETIME || sql_type == SQL_INTERVAL) {
 		if (sub_type_ptr) {
-			duckdb::Store<SQLSMALLINT>(desc_record->sql_desc_datetime_interval_code, (duckdb::data_ptr_t)sub_type_ptr);
+			duckdb_odbc::Store<SQLSMALLINT>(desc_record->sql_desc_datetime_interval_code,
+			                                (duckdb_odbc::data_ptr_t)sub_type_ptr);
 		}
 	}
 	if (length_ptr) {
-		duckdb::Store<SQLSMALLINT>(desc_record->sql_desc_octet_length, (duckdb::data_ptr_t)length_ptr);
+		duckdb_odbc::Store<SQLSMALLINT>(desc_record->sql_desc_octet_length, (duckdb_odbc::data_ptr_t)length_ptr);
 	}
 	if (precision_ptr) {
-		duckdb::Store<SQLSMALLINT>(desc_record->sql_desc_precision, (duckdb::data_ptr_t)precision_ptr);
+		duckdb_odbc::Store<SQLSMALLINT>(desc_record->sql_desc_precision, (duckdb_odbc::data_ptr_t)precision_ptr);
 	}
 	if (scale_ptr) {
-		duckdb::Store<SQLSMALLINT>(desc_record->sql_desc_scale, (duckdb::data_ptr_t)scale_ptr);
+		duckdb_odbc::Store<SQLSMALLINT>(desc_record->sql_desc_scale, (duckdb_odbc::data_ptr_t)scale_ptr);
 	}
 	if (nullable_ptr) {
-		duckdb::Store<SQLSMALLINT>(desc_record->sql_desc_nullable, (duckdb::data_ptr_t)nullable_ptr);
+		duckdb_odbc::Store<SQLSMALLINT>(desc_record->sql_desc_nullable, (duckdb_odbc::data_ptr_t)nullable_ptr);
 	}
 	return ret;
 }

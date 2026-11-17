@@ -3,7 +3,6 @@
 #include "handle_functions.hpp"
 #include "odbc_fetch.hpp"
 #include "parameter_descriptor.hpp"
-#include "duckdb/main/prepared_statement_data.hpp"
 
 //===--------------------------------------------------------------------===//
 // SQLFetch
@@ -17,7 +16,7 @@ static SQLRETURN ExecuteBeforeFetch(SQLHSTMT statement_handle) {
 	}
 
 	// case there is a result set, just fetch from it
-	if (hstmt->res && !hstmt->res->HasError()) {
+	if (hstmt->has_result) {
 		return SQL_SUCCESS;
 	}
 	// check if it's needed to execute the stmt before fetch
@@ -135,10 +134,10 @@ SQLRETURN SQL_API SQLRowCount(SQLHSTMT statement_handle, SQLLEN *row_count_ptr) 
 	// TODO row_count doesn't work well yet, fix later
 	*row_count_ptr = hstmt->odbc_fetcher->GetRowCount();
 
-	switch (hstmt->stmt->GetStatementType()) {
-	case duckdb::StatementType::INSERT_STATEMENT:
-	case duckdb::StatementType::UPDATE_STATEMENT:
-	case duckdb::StatementType::DELETE_STATEMENT:
+	switch (hstmt->GetStatementType()) {
+	case duckdb_odbc::cxx::StatementType::INSERT:
+	case duckdb_odbc::cxx::StatementType::UPDATE:
+	case duckdb_odbc::cxx::StatementType::DELETE:
 		break;
 	default:
 		*row_count_ptr = -1;

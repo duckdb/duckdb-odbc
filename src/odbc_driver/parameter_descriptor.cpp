@@ -1,15 +1,14 @@
 #include "parameter_descriptor.hpp"
 
-#include "duckdb/common/types/decimal.hpp"
 #include "handle_functions.hpp"
 #include "odbc_utils.hpp"
 #include "widechar.hpp"
 
-using duckdb::Decimal;
-using duckdb::Value;
-using duckdb::vector;
+using duckdb_odbc::idx_t;
 using duckdb_odbc::OdbcHandleDesc;
 using duckdb_odbc::ParameterDescriptor;
+using duckdb_odbc::Value;
+using duckdb_odbc::vector;
 
 ParameterDescriptor::ParameterDescriptor(OdbcHandleStmt *stmt_ptr)
     : stmt(stmt_ptr), paramset_idx(0), cur_paramset_idx(0), cur_param_idx(0) {
@@ -62,9 +61,9 @@ void ParameterDescriptor::ResetCurrentAPD() {
 	cur_apd = apd.get();
 }
 
-SQLRETURN ParameterDescriptor::GetParamValues(vector<Value> &values) {
-	values.clear();
+SQLRETURN ParameterDescriptor::GetParamValues() {
 	if (ipd->records.empty()) {
+		values.clear();
 		return SQL_SUCCESS;
 	}
 	D_ASSERT((SQLULEN)paramset_idx < cur_apd->header.sql_desc_array_size);
@@ -85,7 +84,14 @@ SQLRETURN ParameterDescriptor::GetParamValues(vector<Value> &values) {
 				return SQL_ERROR;
 			}
 		}
-		values.emplace_back(GetNextValue(rec_idx));
+		if (rec_idx >= values.size()) {
+			// the parameter failed to convert: bind it as NULL
+			auto &factory = stmt->dbc->conn->GetFactory();
+			SetValue(Value::CreateNull(factory, duckdb_odbc::CreateType(factory, LogicalTypeId::SQLNULL)), rec_idx);
+		}
+	}
+	if (values.size() > ipd->records.size()) {
+		values.erase(values.begin() + static_cast<std::ptrdiff_t>(ipd->records.size()), values.end());
 	}
 	return SetParamIndex();
 }
@@ -174,7 +180,7 @@ SQLRETURN ParameterDescriptor::FillParamCharDataBuffer(DescRecord &apd_record, D
 	size_t offset = 0;
 	auto sql_ind_ptr = GetSQLDescIndicatorPtr(apd_record);
 	if (*sql_ind_ptr == SQL_DATA_AT_EXEC) {
-		pool_allocated_ptr.emplace_back(duckdb::make_unsafe_uniq_array<char>(ipd_record.sql_desc_length));
+		pool_allocated_ptr.emplace_back(duckdb_odbc::make_unsafe_uniq_array<char>(ipd_record.sql_desc_length));
 		SetSQLDescDataPtr(apd_record, pool_allocated_ptr.back().get());
 		*sql_ind_ptr = 0;
 	} else {
@@ -206,7 +212,7 @@ SQLRETURN ParameterDescriptor::FillCurParamCharSet(DescRecord &apd_record, DescR
 
 	if (*len_ptr == SQL_DATA_AT_EXEC && pool_allocated_ptr.empty()) {
 		auto alloc_size = col_size * cur_apd->header.sql_desc_array_size;
-		pool_allocated_ptr.emplace_back(duckdb::make_unsafe_uniq_array<char>(alloc_size));
+		pool_allocated_ptr.emplace_back(duckdb_odbc::make_unsafe_uniq_array<char>(alloc_size));
 		SetSQLDescDataPtr(apd_record, pool_allocated_ptr.back().get());
 	}
 
@@ -234,14 +240,34 @@ SQLRETURN ParameterDescriptor::FillCurParamCharSet(DescRecord &apd_record, DescR
 	return SQL_PARAM_SUCCESS;
 }
 
+// The widest DECIMAL that is stored as a 64-bit integer, and the widest DECIMAL.
+static constexpr int MAX_WIDTH_INT64 = 18;
+static constexpr int MAX_WIDTH_DECIMAL = 38;
+
 // A column-wise parameter array holds fixed-length C values back to back, so the value of
 // parameter set `set_idx` is `set_idx` elements into the bound buffer.
 template <class T>
-static T LoadFromSet(duckdb::const_data_ptr_t dataptr, idx_t set_idx) {
-	return duckdb::Load<T>(dataptr + set_idx * sizeof(T));
+static T LoadFromSet(duckdb_odbc::const_data_ptr_t dataptr, idx_t set_idx) {
+	return duckdb_odbc::Load<T>(dataptr + set_idx * sizeof(T));
 }
 
 SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
+	try {
+		return SetValueInternal(rec_idx);
+	} catch (std::exception &ex) {
+		duckdb_odbc::SetDiagnosticRecord(stmt, SQL_SUCCESS_WITH_INFO, "GetParamValues",
+		                                 duckdb_odbc::RawErrorMessage(ex), SQLStateType::ST_22018,
+		                                 stmt->dbc->GetDataSourceName());
+		return SQL_PARAM_ERROR;
+	}
+}
+
+static duckdb_odbc::cxx::int128_t ToInt128(int64_t value) {
+	return duckdb_odbc::cxx::int128_t {static_cast<uint64_t>(value), value < 0 ? -1 : 0};
+}
+
+SQLRETURN ParameterDescriptor::SetValueInternal(idx_t rec_idx) {
+	auto &factory = stmt->dbc->conn->GetFactory();
 	auto val_idx = paramset_idx;
 	auto apd_record = &cur_apd->records[rec_idx];
 	auto sql_data_ptr = GetSQLDescDataPtr(*apd_record);
@@ -253,8 +279,7 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 
 	auto sql_ind_ptr_val_set = GetSQLDescIndicatorPtr(*apd_record, val_idx);
 	if (sql_data_ptr == nullptr || sql_ind_ptr == nullptr || *sql_ind_ptr_val_set == SQL_NULL_DATA) {
-		Value val_null(nullptr);
-		SetValue(val_null, rec_idx);
+		SetValue(Value::CreateNull(factory, duckdb_odbc::CreateType(factory, LogicalTypeId::SQLNULL)), rec_idx);
 		return SQL_SUCCESS;
 	}
 
@@ -263,8 +288,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		return SQL_NEED_DATA;
 	}
 
-	duckdb::Value value;
-	duckdb::const_data_ptr_t dataptr = (duckdb::const_data_ptr_t)sql_data_ptr;
+	duckdb_odbc::unique_ptr<Value> value;
+	duckdb_odbc::const_data_ptr_t dataptr = (duckdb_odbc::const_data_ptr_t)sql_data_ptr;
 
 	// Power BI / .NET System.Data.Odbc bind a string buffer (SQL_C_CHAR/SQL_C_WCHAR)
 	// against non-string SQL types - a DECIMAL slicer arrives as "42.00", a DATE filter
@@ -275,8 +300,8 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	const auto c_type = apd_record->sql_desc_type;
 	const bool binary_target = sql_type == SQL_BINARY || sql_type == SQL_VARBINARY || sql_type == SQL_LONGVARBINARY;
 	if (!binary_target && (c_type == SQL_C_CHAR || c_type == SQL_C_WCHAR)) {
-		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
-		                                  apd->records[rec_idx].sql_desc_octet_length);
+		auto buff_size = duckdb_odbc::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
+		                                       apd->records[rec_idx].sql_desc_octet_length);
 		if (c_type == SQL_C_WCHAR) {
 			auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
@@ -285,16 +310,18 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 			}
 			auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
 			auto utf8_vec = duckdb_odbc::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
-			value = Value(std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size()));
+			value = duckdb_odbc::make_uniq<Value>(duckdb_odbc::CreateVarchar(
+			    factory, std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size())));
 		} else {
 			auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
 			if (*sql_ind_ptr_val_set == SQL_NTS) {
 				*sql_ind_ptr_val_set = strlen(str_data);
 			}
-			value = Value(duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data),
-			                                                             *sql_ind_ptr_val_set));
+			value = duckdb_odbc::make_uniq<Value>(
+			    duckdb_odbc::CreateVarchar(factory, duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(
+			                                            reinterpret_cast<SQLCHAR *>(str_data), *sql_ind_ptr_val_set)));
 		}
-		SetValue(value, rec_idx);
+		SetValue(std::move(*value), rec_idx);
 		return SQL_PARAM_SUCCESS;
 	}
 
@@ -302,21 +329,22 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 	case SQL_CHAR:
 	case SQL_VARCHAR:
 	case SQL_LONGVARCHAR: {
-		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
-		                                  apd->records[rec_idx].sql_desc_octet_length);
+		auto buff_size = duckdb_odbc::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
+		                                       apd->records[rec_idx].sql_desc_octet_length);
 		auto str_data = (char *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
 			*sql_ind_ptr_val_set = strlen(str_data);
 		}
 		auto str_len = *sql_ind_ptr_val_set;
-		value = Value(duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), str_len));
+		value = duckdb_odbc::make_uniq<Value>(duckdb_odbc::CreateVarchar(
+		    factory, duckdb_odbc::OdbcUtils::ConvertSQLCHARToString(reinterpret_cast<SQLCHAR *>(str_data), str_len)));
 		break;
 	}
 	case SQL_WCHAR:
 	case SQL_WVARCHAR:
 	case SQL_WLONGVARCHAR: {
-		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
-		                                  apd->records[rec_idx].sql_desc_octet_length);
+		auto buff_size = duckdb_odbc::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
+		                                       apd->records[rec_idx].sql_desc_octet_length);
 		auto utf16_data = (SQLWCHAR *)sql_data_ptr + (val_idx * buff_size);
 		if (*sql_ind_ptr_val_set == SQL_NTS) {
 			*sql_ind_ptr_val_set =
@@ -325,52 +353,54 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		auto utf16_len = static_cast<size_t>(*sql_ind_ptr_val_set / sizeof(SQLWCHAR));
 		auto utf8_vec = duckdb_odbc::widechar::utf16_to_utf8_lenient(utf16_data, utf16_len);
 		auto utf8_str = std::string(reinterpret_cast<char *>(utf8_vec.data()), utf8_vec.size());
-		value = Value(utf8_str);
+		value = duckdb_odbc::make_uniq<Value>(duckdb_odbc::CreateVarchar(factory, utf8_str));
 		break;
 	}
 	case SQL_BINARY:
 	case SQL_VARBINARY:
 	case SQL_LONGVARBINARY: {
-		auto buff_size = duckdb::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
-		                                  apd->records[rec_idx].sql_desc_octet_length);
-		auto blob_data = (duckdb::const_data_ptr_t)sql_data_ptr + (val_idx * buff_size);
+		auto buff_size = duckdb_odbc::MaxValue((SQLLEN)ipd->records[rec_idx].sql_desc_length,
+		                                       apd->records[rec_idx].sql_desc_octet_length);
+		auto blob_data = (duckdb_odbc::const_data_ptr_t)sql_data_ptr + (val_idx * buff_size);
 		auto blob_len = *sql_ind_ptr_val_set;
-		value = Value::BLOB(blob_data, blob_len);
+		value = duckdb_odbc::make_uniq<Value>(
+		    Value::Create(factory, duckdb_odbc::cxx::blob_t(reinterpret_cast<const char *>(blob_data),
+		                                                    static_cast<uint32_t>(blob_len))));
 		break;
 	}
 	case SQL_TINYINT:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_UTINYINT) {
-			value = Value::UTINYINT(LoadFromSet<uint8_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<uint8_t>(dataptr, val_idx)));
 		} else {
-			value = Value::TINYINT(LoadFromSet<int8_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<int8_t>(dataptr, val_idx)));
 		}
 		break;
 	case SQL_SMALLINT:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_USHORT) {
-			value = Value::USMALLINT(LoadFromSet<uint16_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<uint16_t>(dataptr, val_idx)));
 		} else {
-			value = Value::SMALLINT(LoadFromSet<int16_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<int16_t>(dataptr, val_idx)));
 		}
 		break;
 	case SQL_INTEGER:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_ULONG) {
-			value = Value::UINTEGER(LoadFromSet<uint32_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<uint32_t>(dataptr, val_idx)));
 		} else {
-			value = Value::INTEGER(LoadFromSet<int32_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<int32_t>(dataptr, val_idx)));
 		}
 		break;
 	case SQL_BIGINT:
 		if (cur_apd->records[rec_idx].sql_desc_type == SQL_C_UBIGINT) {
-			value = Value::UBIGINT(LoadFromSet<uint64_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<uint64_t>(dataptr, val_idx)));
 		} else {
-			value = Value::BIGINT(LoadFromSet<int64_t>(dataptr, val_idx));
+			value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<int64_t>(dataptr, val_idx)));
 		}
 		break;
 	case SQL_FLOAT:
-		value = Value::FLOAT(LoadFromSet<float>(dataptr, val_idx));
+		value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<float>(dataptr, val_idx)));
 		break;
 	case SQL_DOUBLE:
-		value = Value::DOUBLE(LoadFromSet<double>(dataptr, val_idx));
+		value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, LoadFromSet<double>(dataptr, val_idx)));
 		break;
 	case SQL_NUMERIC: {
 		auto numeric = (SQL_NUMERIC_STRUCT *)sql_data_ptr + val_idx;
@@ -381,40 +411,47 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		if (ValidateNumeric(precision, scale) == SQL_ERROR) {
 			return SQL_ERROR;
 		}
-		if (precision <= Decimal::MAX_WIDTH_INT64) {
-			int64_t dec_val = Load<int64_t>(dataptr);
+		duckdb_odbc::cxx::int128_t dec_value;
+		if (precision <= MAX_WIDTH_INT64) {
+			int64_t dec_val = duckdb_odbc::Load<int64_t>(dataptr);
 			// Handle sign: 0 = negative, 1 = positive
 			if (numeric->sign == 0) {
 				dec_val = -dec_val;
 			}
-			value = Value::DECIMAL(dec_val, static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
+			dec_value = ToInt128(dec_val);
 		} else {
-			hugeint_t dec_value;
 			memcpy(&dec_value.lower, dataptr, sizeof(dec_value.lower));
 			memcpy(&dec_value.upper, dataptr + sizeof(dec_value.lower), sizeof(dec_value.upper));
 			// Handle sign: 0 = negative, 1 = positive
 			if (numeric->sign == 0) {
-				dec_value = -dec_value;
+				// two's complement negation
+				dec_value.lower = ~dec_value.lower + 1;
+				dec_value.upper =
+				    static_cast<int64_t>(~static_cast<uint64_t>(dec_value.upper) + (dec_value.lower == 0 ? 1 : 0));
 			}
-			value = Value::DECIMAL(dec_value, static_cast<uint8_t>(precision), static_cast<uint8_t>(scale));
 		}
+		value = duckdb_odbc::make_uniq<Value>(
+		    Value::CreateDecimal(factory, dec_value, static_cast<uint8_t>(precision), static_cast<uint8_t>(scale)));
 		break;
 	}
 	case SQL_TYPE_TIMESTAMP: {
 		auto timestamp_struct = LoadFromSet<SQL_TIMESTAMP_STRUCT>(dataptr, val_idx);
-		value =
-		    Value::TIMESTAMP(timestamp_struct.year, timestamp_struct.month, timestamp_struct.day, timestamp_struct.hour,
-		                     timestamp_struct.minute, timestamp_struct.second, timestamp_struct.fraction / 1000);
+		auto date = duckdb_odbc::Date::FromDate(timestamp_struct.year, timestamp_struct.month, timestamp_struct.day);
+		auto time = duckdb_odbc::Time::FromTime(timestamp_struct.hour, timestamp_struct.minute, timestamp_struct.second,
+		                                        static_cast<int32_t>(timestamp_struct.fraction / 1000));
+		value = duckdb_odbc::make_uniq<Value>(Value::Create(factory, duckdb_odbc::Timestamp::FromDatetime(date, time)));
 		break;
 	}
 	case SQL_TYPE_DATE: {
 		auto date_struct = LoadFromSet<SQL_DATE_STRUCT>(dataptr, val_idx);
-		value = Value::DATE(date_struct.year, date_struct.month, date_struct.day);
+		value = duckdb_odbc::make_uniq<Value>(
+		    Value::Create(factory, duckdb_odbc::Date::FromDate(date_struct.year, date_struct.month, date_struct.day)));
 		break;
 	}
 	case SQL_TYPE_TIME: {
 		auto time_struct = LoadFromSet<SQL_TIME_STRUCT>(dataptr, val_idx);
-		value = Value::TIME(time_struct.hour, time_struct.minute, time_struct.second, 0);
+		value = duckdb_odbc::make_uniq<Value>(Value::Create(
+		    factory, duckdb_odbc::Time::FromTime(time_struct.hour, time_struct.minute, time_struct.second, 0)));
 		break;
 	}
 
@@ -424,21 +461,19 @@ SQLRETURN ParameterDescriptor::SetValue(idx_t rec_idx) {
 		return SQL_PARAM_ERROR;
 	}
 
-	SetValue(value, rec_idx);
+	SetValue(std::move(*value), rec_idx);
 	return SQL_PARAM_SUCCESS;
 }
 
-void ParameterDescriptor::SetValue(Value &value, idx_t val_idx) {
+void ParameterDescriptor::SetValue(Value value, idx_t val_idx) {
 	if (val_idx >= values.size()) {
-		values.emplace_back(value);
+		// the parameters are set in order
+		D_ASSERT(val_idx == values.size());
+		values.emplace_back(std::move(value));
 		return;
 	}
 	// replacing value, i.e., reusing parameter in a prepared stmt
-	values[val_idx] = value;
-}
-
-Value ParameterDescriptor::GetNextValue(idx_t val_idx) {
-	return values[val_idx];
+	values[val_idx] = std::move(value);
 }
 
 SQLRETURN ParameterDescriptor::SetParamIndex() {
@@ -453,8 +488,7 @@ SQLRETURN ParameterDescriptor::SetParamIndex() {
 }
 
 SQLRETURN ParameterDescriptor::ValidateNumeric(int precision, int scale) {
-	if (precision < 1 || precision > Decimal::MAX_WIDTH_DECIMAL || scale < 0 || scale > Decimal::MAX_WIDTH_DECIMAL ||
-	    scale > precision) {
+	if (precision < 1 || precision > MAX_WIDTH_DECIMAL || scale < 0 || scale > MAX_WIDTH_DECIMAL || scale > precision) {
 		// TODO we should use SQLGetDiagField to register the error message
 		auto msg = StringUtil::Format("Numeric precision %d and scale %d not supported", precision, scale);
 		return SQL_ERROR;
