@@ -145,3 +145,118 @@ TEST_CASE("Test row-wise block fetch over several rowsets", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+// Rowsets spanning several result chunks. DuckDB returns a result in chunks of arbitrary sizes (2048 rows for this
+// query): a rowset used to end at the end of a chunk, returning fewer rows than the rowset size and more rowsets than
+// needed. Positioning the cursor (SQL_FETCH_PRIOR, SQL_FETCH_ABSOLUTE) used to be relative to the current chunk.
+
+static const SQLULEN SPANNING_ROWSET = 300;
+static const SQLLEN SPANNING_TOTAL_ROWS = 5000;
+static const char *SPANNING_QUERY = "SELECT i::INTEGER AS v FROM range(5000) t(i)";
+
+struct SpanningFetch {
+	std::vector<SQLINTEGER> v = std::vector<SQLINTEGER>(SPANNING_ROWSET);
+	std::vector<SQLLEN> v_ind = std::vector<SQLLEN>(SPANNING_ROWSET);
+	std::vector<SQLUSMALLINT> status = std::vector<SQLUSMALLINT>(SPANNING_ROWSET);
+	SQLULEN rows_fetched = 0;
+
+	void Bind(HSTMT hstmt) {
+		EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_ARRAY_SIZE)", hstmt, SQLSetStmtAttr, hstmt,
+		                  SQL_ATTR_ROW_ARRAY_SIZE, ConvertToSQLPOINTER(SPANNING_ROWSET), 0);
+		EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROWS_FETCHED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+		                  SQL_ATTR_ROWS_FETCHED_PTR, &rows_fetched, 0);
+		EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_ROW_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+		                  SQL_ATTR_ROW_STATUS_PTR, status.data(), 0);
+		EXECUTE_AND_CHECK("SQLBindCol (v)", hstmt, SQLBindCol, hstmt, 1, SQL_C_SLONG, v.data(), 0, v_ind.data());
+	}
+
+	// the rowset holds the rows from first (0-based) on, as many as the rowset size or up to the end of the result
+	void Check(SQLLEN first) {
+		SQLLEN expected = std::min<SQLLEN>(SPANNING_ROWSET, SPANNING_TOTAL_ROWS - first);
+		REQUIRE(rows_fetched == static_cast<SQLULEN>(expected));
+		for (SQLLEN r = 0; r < expected; r++) {
+			REQUIRE(status[r] == SQL_ROW_SUCCESS);
+			REQUIRE(v_ind[r] == static_cast<SQLLEN>(sizeof(SQLINTEGER)));
+			REQUIRE(v[r] == first + r);
+		}
+		for (SQLLEN r = expected; r < static_cast<SQLLEN>(SPANNING_ROWSET); r++) {
+			REQUIRE(status[r] == SQL_ROW_NOROW);
+		}
+	}
+
+	void FetchScroll(HSTMT hstmt, SQLSMALLINT orientation, SQLLEN offset, SQLLEN expected_first) {
+		EXECUTE_AND_CHECK("SQLFetchScroll", hstmt, SQLFetchScroll, hstmt, orientation, offset);
+		Check(expected_first);
+	}
+};
+
+TEST_CASE("Test block fetch with rowsets spanning result chunks", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	CONNECT_TO_DATABASE(env, dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+
+	SpanningFetch fetch;
+	fetch.Bind(hstmt);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(SPANNING_QUERY), SQL_NTS);
+
+	for (SQLLEN first = 0; first < SPANNING_TOTAL_ROWS; first += SPANNING_ROWSET) {
+		EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+		fetch.Check(first);
+	}
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
+
+TEST_CASE("Test scrolling with rowsets spanning result chunks", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	CONNECT_TO_DATABASE(env, dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_CURSOR_TYPE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_CURSOR_TYPE,
+	                  ConvertToSQLPOINTER(SQL_CURSOR_STATIC), 0);
+
+	SpanningFetch fetch;
+	fetch.Bind(hstmt);
+	EXECUTE_AND_CHECK("SQLExecDirect", hstmt, SQLExecDirect, hstmt, ConvertToSQLCHAR(SPANNING_QUERY), SQL_NTS);
+
+	// before the start: there is no prior rowset
+	REQUIRE(SQLFetchScroll(hstmt, SQL_FETCH_PRIOR, 0) == SQL_NO_DATA);
+	fetch.FetchScroll(hstmt, SQL_FETCH_NEXT, 0, 0);
+
+	// 1800 - 2099 and 2100 - 2399 span the first two chunks
+	fetch.FetchScroll(hstmt, SQL_FETCH_ABSOLUTE, 1801, 1800);
+	fetch.FetchScroll(hstmt, SQL_FETCH_NEXT, 0, 2100);
+	fetch.FetchScroll(hstmt, SQL_FETCH_PRIOR, 0, 1800);
+	fetch.FetchScroll(hstmt, SQL_FETCH_PRIOR, 0, 1500);
+
+	// counted from the end: the last 100 rows, the rowset is not full
+	fetch.FetchScroll(hstmt, SQL_FETCH_ABSOLUTE, -100, 4900);
+	fetch.FetchScroll(hstmt, SQL_FETCH_PRIOR, 0, 4600);
+
+	// after the end, the prior rowset is the last full one
+	REQUIRE(SQLFetchScroll(hstmt, SQL_FETCH_ABSOLUTE, SPANNING_TOTAL_ROWS + 1) == SQL_NO_DATA);
+	REQUIRE(SQLFetchScroll(hstmt, SQL_FETCH_NEXT, 0) == SQL_NO_DATA);
+	fetch.FetchScroll(hstmt, SQL_FETCH_PRIOR, 0, SPANNING_TOTAL_ROWS - SPANNING_ROWSET);
+
+	// fewer rows than the rowset size before the current rowset: the first rowset, with a warning
+	fetch.FetchScroll(hstmt, SQL_FETCH_ABSOLUTE, 101, 100);
+	REQUIRE(SQLFetchScroll(hstmt, SQL_FETCH_PRIOR, 0) == SQL_SUCCESS_WITH_INFO);
+	fetch.Check(0);
+	REQUIRE(SQLFetchScroll(hstmt, SQL_FETCH_PRIOR, 0) == SQL_NO_DATA);
+
+	fetch.FetchScroll(hstmt, SQL_FETCH_FIRST, 0, 0);
+	REQUIRE(SQLFetchScroll(hstmt, SQL_FETCH_ABSOLUTE, 0) == SQL_NO_DATA);
+	fetch.FetchScroll(hstmt, SQL_FETCH_NEXT, 0, 0);
+
+	EXECUTE_AND_CHECK("SQLFreeStmt (HSTMT)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}
