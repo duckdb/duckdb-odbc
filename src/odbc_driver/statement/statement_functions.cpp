@@ -118,7 +118,9 @@ SQLRETURN duckdb_odbc::FinalizeStmt(OdbcHandleStmt *hstmt) {
 		                          SQLStateType::ST_01000, hstmt->dbc->GetDataSourceName());
 	}
 	if (!hstmt->stmt->prepared) {
-		// SQLExecDirect: the IRD records are filled from the result, keeping the columns bound so far
+		// SQLExecDirect: the IRD records are filled from the result once the statement ran, keeping the columns bound
+		// so far
+		hstmt->FillIRD({}, {});
 		return ret;
 	}
 	if (hstmt->stmt->bound_all_parameters) {
@@ -553,12 +555,8 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 		                                        SQLStateType::ST_24000, hstmt->dbc->GetDataSourceName());
 	}
 	if (col_or_param_num >= hstmt->row_desc->GetIRD()->GetRecordCount()) {
-		// no such column: report it as NULL
-		if (!str_len_or_ind_ptr) {
-			return SQL_ERROR;
-		}
-		*str_len_or_ind_ptr = SQL_NULL_DATA;
-		return SQL_SUCCESS;
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetData", "Invalid descriptor index",
+		                                        SQLStateType::ST_07009, hstmt->dbc->GetDataSourceName());
 	}
 	auto &factory = hstmt->dbc->conn->GetFactory();
 	Value val = hstmt->odbc_fetcher->GetValue(col_or_param_num);
