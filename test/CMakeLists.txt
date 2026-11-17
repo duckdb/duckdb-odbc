@@ -4,7 +4,6 @@ include_directories(${ODBC_INCLUDE_DIRS})
 
 add_executable(
   test_odbc
-  $<TARGET_OBJECTS:duckdb_core_obj>
   $<TARGET_OBJECTS:odbc_widechar>
   common.cpp
   connect_helpers.cpp
@@ -54,9 +53,8 @@ add_executable(
   tests/col_attribute/utils.cpp)
 
 add_executable(
-  test_connection_odbc
-  $<TARGET_OBJECTS:duckdb_core_obj> $<TARGET_OBJECTS:odbc_widechar> common.cpp
-  tests/connect_with_ini.cpp connect_helpers.cpp)
+  test_connection_odbc $<TARGET_OBJECTS:odbc_widechar> common.cpp
+                       tests/connect_with_ini.cpp connect_helpers.cpp)
 
 if(WIN32)
   target_compile_options(test_odbc PRIVATE /bigobj /utf-8)

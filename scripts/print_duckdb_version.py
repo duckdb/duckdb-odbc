@@ -1,22 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# Prints the short commit hash of the DuckDB revision the driver is built against, see vendor.py.
 
 import re
 from os import path
 import sys
 
-version_regex = re.compile(r"""^\#define DUCKDB_SOURCE_ID "([a-z0-9]+)"$""")
-
 project_dir = path.dirname(path.dirname(path.abspath(__file__)))
-pragma_version_path = path.join(project_dir, "src/duckdb/src/function/table/version/pragma_version.cpp")
+revision_path = path.join(project_dir, "third_party", "duckdb_cpp", "duckdb_revision.cmake")
 
-with open(pragma_version_path, "r") as fd:
-    for line in fd:
-        stripped = line.strip()
-        fm = version_regex.fullmatch(stripped)
-        if fm is not None:
-            print(fm.group(1), end="")
-            sys.exit(0)
+with open(revision_path, "r") as fd:
+    match = re.search(r'set\(DUCKDB_GIT_SHA "([0-9a-f]+)"\)', fd.read())
+    if match is not None:
+        print(match.group(1)[:10], end="")
+        sys.exit(0)
 
     print("ERROR: DuckDB version not found", file=sys.stderr)
     sys.exit(1)

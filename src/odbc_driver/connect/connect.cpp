@@ -10,7 +10,20 @@
 
 using namespace duckdb_odbc;
 
+//! Registers the extensions linked into the driver, generated with the engine (see scripts/build_duckdb.py).
+extern "C" int32_t duckdb_register_static_extensions(void);
+
 namespace {
+
+//! Registers the statically linked extensions, before the first database is opened.
+void RegisterStaticExtensions() {
+	static std::once_flag once;
+	std::call_once(once, [] {
+		if (duckdb_register_static_extensions() != 0) {
+			throw std::runtime_error("Failed to register the extensions linked into the DuckDB ODBC driver");
+		}
+	});
+}
 
 //! A DuckDB option a connection string or DSN can set.
 struct OptionInfo {
@@ -24,6 +37,7 @@ const std::map<std::string, OptionInfo> &GetDuckDBOptions() {
 	static std::once_flag once;
 	static std::map<std::string, OptionInfo> options;
 	std::call_once(once, [] {
+		RegisterStaticExtensions();
 		// an instance with nothing attached, just to describe the options
 		cxx::Instance instance;
 		auto &config = instance.GetConfig();
@@ -289,6 +303,7 @@ SQLRETURN Connect::SetConnection() {
 		configuration += "enable_external_access=" + enable_external_access;
 
 		auto open_instance = [&]() {
+			RegisterStaticExtensions();
 			auto instance = std::make_shared<cxx::Instance>(startup_options);
 			auto &instance_config = instance->GetConfig();
 			for (auto &option : runtime_options) {
