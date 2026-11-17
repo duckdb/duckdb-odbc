@@ -71,6 +71,8 @@ private:
 public:
 	// duckdb Values for the parameters
 	vector<Value> values;
+	//! Whether a value of the current parameter set failed to convert: the set is not executed
+	bool skip_paramset = false;
 };
 } // namespace duckdb_odbc
 #endif

@@ -135,13 +135,19 @@ SQLRETURN duckdb_odbc::FinalizeStmt(OdbcHandleStmt *hstmt) {
 //! the stmt is executed multiple times when there is a bound array of parameters in INSERT and UPDATE statements
 SQLRETURN duckdb_odbc::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 	SQLRETURN ret = SQL_SUCCESS;
+	bool skipped_paramset = false;
 	do {
 		ret = SingleExecuteStmt(hstmt);
+		skipped_paramset = skipped_paramset || hstmt->param_desc->skip_paramset;
 	} while (ret == SQL_STILL_EXECUTING);
 
 	// Early exit on error
 	if (!SQL_SUCCEEDED(ret)) {
 		return ret;
+	}
+	if (skipped_paramset) {
+		// a parameter set that failed to convert was skipped, with a diagnostic
+		ret = SQL_SUCCESS_WITH_INFO;
 	}
 
 	// now, fetching the first chunk to verify constant folding (See: PR #2462 and issue #2452)
@@ -151,9 +157,8 @@ SQLRETURN duckdb_odbc::BatchExecuteStmt(OdbcHandleStmt *hstmt) {
 	}
 
 	// When the result columns were not known when the statement was prepared, we need to correct the IRD records
-	// after every execution
-	if (!hstmt->stmt->bound_all_parameters) {
-		D_ASSERT(hstmt->has_result);
+	// after every execution (unless the last parameter set was skipped)
+	if (!hstmt->stmt->bound_all_parameters && hstmt->has_result) {
 
 		// Re-fill IRD records from up to date result types and names and correct bound columns
 		hstmt->FillIRD(hstmt->result_types, hstmt->result_names);
@@ -215,6 +220,10 @@ SQLRETURN duckdb_odbc::SingleExecuteStmt(OdbcHandleStmt *hstmt) {
 
 	SQLRETURN ret = hstmt->param_desc->GetParamValues();
 	if (ret == SQL_NEED_DATA || ret == SQL_ERROR) {
+		return ret;
+	}
+	if (hstmt->param_desc->skip_paramset) {
+		// reported as SQL_PARAM_ERROR in the parameter status array, with a diagnostic
 		return ret;
 	}
 

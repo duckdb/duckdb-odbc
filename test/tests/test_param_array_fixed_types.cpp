@@ -89,3 +89,64 @@ TEST_CASE("Test parameter array with fixed-length types", "[odbc]") {
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+// A parameter set whose value cannot be converted is reported as failed and not executed
+TEST_CASE("Test parameter array with a value that does not convert", "[odbc]") {
+	SQLHANDLE env;
+	SQLHANDLE dbc;
+	HSTMT hstmt = SQL_NULL_HSTMT;
+
+	CONNECT_TO_DATABASE(env, dbc);
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	EXECUTE_AND_CHECK("SQLExecDirect (CREATE TABLE)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("CREATE TABLE param_array_invalid (i INTEGER, dt DATE)"), SQL_NTS);
+
+	const SQLULEN set_count = 4;
+	SQLINTEGER i_vals[set_count] = {1, 2, 3, 4};
+	// the second set has a date that does not exist, the last one too
+	SQL_DATE_STRUCT dt_vals[set_count] = {{2024, 1, 1}, {2024, 2, 30}, {2024, 3, 1}, {2023, 2, 29}};
+	SQLLEN i_ind[set_count] = {0, 0, 0, 0};
+	SQLLEN dt_ind[set_count] = {0, 0, 0, 0};
+	SQLUSMALLINT status[set_count];
+	SQLULEN processed = 0;
+
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_BIND_TYPE)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_BIND_TYPE, reinterpret_cast<SQLPOINTER>(SQL_PARAM_BIND_BY_COLUMN), 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAMSET_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAMSET_SIZE,
+	                  reinterpret_cast<SQLPOINTER>(set_count), 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_STATUS_PTR, status, 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAMS_PROCESSED_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAMS_PROCESSED_PTR, &processed, 0);
+	// the date is bound first: a set fails even when a later parameter of it converts
+	EXECUTE_AND_CHECK("SQLBindParameter (DATE)", hstmt, SQLBindParameter, hstmt, 1, SQL_PARAM_INPUT, SQL_C_TYPE_DATE,
+	                  SQL_TYPE_DATE, 0, 0, dt_vals, 0, dt_ind);
+	EXECUTE_AND_CHECK("SQLBindParameter (INTEGER)", hstmt, SQLBindParameter, hstmt, 2, SQL_PARAM_INPUT, SQL_C_SLONG,
+	                  SQL_INTEGER, 0, 0, i_vals, 0, i_ind);
+
+	auto ret = SQLExecDirect(hstmt, ConvertToSQLCHAR("INSERT INTO param_array_invalid (dt, i) VALUES (?, ?)"), SQL_NTS);
+	REQUIRE(ret == SQL_SUCCESS_WITH_INFO);
+	REQUIRE(processed == set_count);
+	REQUIRE(status[0] == SQL_PARAM_SUCCESS);
+	REQUIRE(status[1] == SQL_PARAM_ERROR);
+	REQUIRE(status[2] == SQL_PARAM_SUCCESS);
+	REQUIRE(status[3] == SQL_PARAM_ERROR);
+
+	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_RESET_PARAMS)", hstmt, SQLFreeStmt, hstmt, SQL_RESET_PARAMS);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAMSET_SIZE)", hstmt, SQLSetStmtAttr, hstmt, SQL_ATTR_PARAMSET_SIZE,
+	                  reinterpret_cast<SQLPOINTER>(static_cast<SQLULEN>(1)), 0);
+	EXECUTE_AND_CHECK("SQLSetStmtAttr (SQL_ATTR_PARAM_STATUS_PTR)", hstmt, SQLSetStmtAttr, hstmt,
+	                  SQL_ATTR_PARAM_STATUS_PTR, nullptr, 0);
+	EXECUTE_AND_CHECK("SQLExecDirect (SELECT)", hstmt, SQLExecDirect, hstmt,
+	                  ConvertToSQLCHAR("SELECT i, dt FROM param_array_invalid ORDER BY i"), SQL_NTS);
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK(hstmt, 1, "1");
+	DATA_CHECK(hstmt, 2, "2024-01-01");
+	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
+	DATA_CHECK(hstmt, 1, "3");
+	DATA_CHECK(hstmt, 2, "2024-03-01");
+	REQUIRE(SQLFetch(hstmt) == SQL_NO_DATA);
+
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}

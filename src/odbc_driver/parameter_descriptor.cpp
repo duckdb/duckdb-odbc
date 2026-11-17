@@ -62,30 +62,35 @@ void ParameterDescriptor::ResetCurrentAPD() {
 }
 
 SQLRETURN ParameterDescriptor::GetParamValues() {
+	skip_paramset = false;
 	if (ipd->records.empty()) {
 		values.clear();
 		return SQL_SUCCESS;
 	}
 	D_ASSERT((SQLULEN)paramset_idx < cur_apd->header.sql_desc_array_size);
+	auto status_ptr = ipd->header.sql_desc_array_status_ptr;
+	if (status_ptr) {
+		status_ptr[paramset_idx] = SQL_PARAM_SUCCESS;
+	}
 	// Fill values
 	for (idx_t rec_idx = 0; rec_idx < ipd->records.size(); ++rec_idx) {
 		auto ret = SetValue(rec_idx);
-		if (ipd->header.sql_desc_array_status_ptr) {
-			ipd->header.sql_desc_array_status_ptr[paramset_idx] = ret;
-		}
 		if (ret == SQL_NEED_DATA) {
+			if (status_ptr) {
+				status_ptr[paramset_idx] = ret;
+			}
 			return SQL_NEED_DATA;
 		}
 		if (ret != SQL_PARAM_SUCCESS) {
 			duckdb_odbc::SetDiagnosticRecord(this->stmt, SQL_SUCCESS_WITH_INFO, "GetParamValues",
 			                                 "Failed to set parameter value", SQLStateType::ST_01000,
 			                                 this->stmt->dbc->GetDataSourceName());
-			if (!ipd->header.sql_desc_array_status_ptr) {
+			if (!status_ptr) {
 				return SQL_ERROR;
 			}
-		}
-		if (rec_idx >= values.size()) {
-			// the parameter failed to convert: bind it as NULL
+			// the parameter set is reported as failed and not executed; the values are kept in parameter order
+			status_ptr[paramset_idx] = SQL_PARAM_ERROR;
+			skip_paramset = true;
 			auto &factory = stmt->dbc->conn->GetFactory();
 			SetValue(Value::CreateNull(factory, duckdb_odbc::CreateType(factory, LogicalTypeId::SQLNULL)), rec_idx);
 		}
