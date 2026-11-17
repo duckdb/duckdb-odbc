@@ -122,11 +122,14 @@ static void FetchAbsolute(HSTMT &hstmt, ESize S) {
 
 	EXECUTE_AND_CHECK("SQLFetchScroll (ABSOLUTE, 1)", hstmt, SQLFetchScroll, hstmt, SQL_FETCH_ABSOLUTE, 1);
 
-	// Keep fetching until we reach the last row
+	// The cursor is on the first row, which holds 0, keep fetching until we reach the last row
+	SQLINTEGER value;
+	SQLLEN value_ind;
 	int id;
 	for (id = 1; id; id++) {
+		EXECUTE_AND_CHECK("SQLGetData", hstmt, SQLGetData, hstmt, 1, SQL_C_SLONG, &value, 0, &value_ind);
+		REQUIRE(value == id - 1);
 		if (SQLFetchScroll(hstmt, SQL_FETCH_NEXT, 0) == SQL_NO_DATA) {
-			id--;
 			break;
 		}
 	}

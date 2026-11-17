@@ -395,7 +395,10 @@ SQLRETURN duckdb::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col_or_p
 		// Prevent underflow
 		col_or_param_num--;
 	}
-	hstmt->odbc_fetcher->GetValue(col_or_param_num, val);
+	if (hstmt->odbc_fetcher->GetValue(col_or_param_num, val) != SQL_SUCCESS) {
+		return duckdb::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetData", "The cursor is not positioned on a row",
+		                                   SQLStateType::ST_24000, hstmt->dbc->GetDataSourceName());
+	}
 	if (val.IsNull()) {
 		if (!str_len_or_ind_ptr) {
 			return SQL_ERROR;
