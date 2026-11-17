@@ -68,14 +68,13 @@ SQLRETURN SQL_API SQLFetchScroll(SQLHSTMT statement_handle, SQLSMALLINT fetch_or
 	case SQL_FETCH_ABSOLUTE:
 	case SQL_FETCH_PRIOR:
 	case SQL_FETCH_NEXT: {
-		// passing "fetch_offset - 1", the DuckDB's internal row index starts in 0
 		duckdb::OdbcHandleStmt *hstmt = nullptr;
 		SQLRETURN ret = ConvertHSTMTResult(statement_handle, hstmt);
 		if (ret != SQL_SUCCESS) {
 			return ret;
 		}
 
-		return duckdb::FetchStmtResult(hstmt, fetch_orientation, fetch_offset - 1);
+		return duckdb::FetchStmtResult(hstmt, fetch_orientation, fetch_offset);
 	}
 	default:
 		return SQL_ERROR;
