@@ -422,7 +422,8 @@ UserOdbcIni::UserOdbcIni(std::vector<std::pair<std::string, std::string>> entrie
 
 UserOdbcIni::~UserOdbcIni() {
 	for (auto &en : entries) {
-		SQLWritePrivateProfileString("DuckDB", en.first.c_str(), "", "odbc.ini");
+		// a null string deletes the entry, an empty one would leave it in place
+		SQLWritePrivateProfileString("DuckDB", en.first.c_str(), nullptr, "odbc.ini");
 	}
 }
 
