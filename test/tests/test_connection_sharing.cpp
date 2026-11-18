@@ -351,3 +351,66 @@ TEST_CASE("Test connections with equivalent configurations share a database", "[
 		DISCONNECT_FROM_DATABASE(handle.first, handle.second);
 	}
 }
+
+TEST_CASE("Test connecting while the last connection to a database closes it", "[odbc]") {
+	TempDirectory tmpdir;
+	std::string conn_str = "Database=" + tmpdir.path + "/reopen.db";
+	{
+		SQLHANDLE env, dbc;
+		DRIVER_CONNECT_TO_DATABASE(env, dbc, conn_str);
+		HSTMT hstmt = SQL_NULL_HSTMT;
+		EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+		EXEC_SQL(hstmt, "CREATE TABLE t (i INTEGER)");
+		EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+		DISCONNECT_FROM_DATABASE(env, dbc);
+	}
+
+	// every thread opens and closes the database over and over: often, one connects while another one, holding the
+	// last connection, closes it. Catch's assertions are not thread-safe: the threads only count their failures.
+	const size_t thread_count = 4;
+	const size_t iterations = 25;
+	std::vector<size_t> failures(thread_count, 0);
+	std::vector<std::thread> threads;
+	for (size_t t = 0; t < thread_count; t++) {
+		threads.emplace_back([&conn_str, &failures, t, iterations]() {
+			for (size_t i = 0; i < iterations; i++) {
+				SQLHANDLE env = nullptr;
+				SQLHANDLE dbc = nullptr;
+				SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
+				SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+				SQLAllocHandle(SQL_HANDLE_DBC, env, &dbc);
+				SQLCHAR out[1024];
+				SQLSMALLINT out_len;
+				auto ret = SQLDriverConnect(dbc, nullptr, ConvertToSQLCHAR(conn_str), SQL_NTS, out, sizeof(out),
+				                            &out_len, SQL_DRIVER_COMPLETE);
+				if (SQL_SUCCEEDED(ret)) {
+					HSTMT hstmt = SQL_NULL_HSTMT;
+					SQLAllocHandle(SQL_HANDLE_STMT, dbc, &hstmt);
+					ret = SQLExecDirect(hstmt, ConvertToSQLCHAR("INSERT INTO t VALUES (1)"), SQL_NTS);
+					SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
+					SQLDisconnect(dbc);
+				}
+				if (!SQL_SUCCEEDED(ret)) {
+					failures[t]++;
+				}
+				SQLFreeHandle(SQL_HANDLE_DBC, dbc);
+				SQLFreeHandle(SQL_HANDLE_ENV, env);
+			}
+		});
+	}
+	for (auto &thread : threads) {
+		thread.join();
+	}
+	for (auto failure_count : failures) {
+		REQUIRE(failure_count == 0);
+	}
+
+	// every row was written to the one database, and survives it being closed and reopened
+	SQLHANDLE env, dbc;
+	DRIVER_CONNECT_TO_DATABASE(env, dbc, conn_str);
+	HSTMT hstmt = SQL_NULL_HSTMT;
+	EXECUTE_AND_CHECK("SQLAllocHandle (HSTMT)", hstmt, SQLAllocHandle, SQL_HANDLE_STMT, dbc, &hstmt);
+	REQUIRE(FetchCount(hstmt, "SELECT count(*) FROM t") == static_cast<SQLBIGINT>(thread_count * iterations));
+	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
+	DISCONNECT_FROM_DATABASE(env, dbc);
+}

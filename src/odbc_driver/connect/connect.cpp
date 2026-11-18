@@ -1,5 +1,6 @@
 #include "connect.hpp"
 
+#include <condition_variable>
 #include <cstdlib>
 #include <filesystem>
 #include <mutex>
@@ -54,6 +55,11 @@ struct CachedInstance {
 	//! Held while the database is looked up or opened: only connections to the same file wait for each other
 	std::mutex lock;
 	std::weak_ptr<cxx::Instance> instance;
+	//! How many instances of the database exist, including one that is being closed: `instance` expires when its last
+	//! reference is dropped, before it is destroyed
+	idx_t open_count = 0;
+	//! Notified when an instance has been destroyed
+	std::condition_variable closed;
 	//! The database-wide options it was opened with: their canonical names, and their values as given
 	std::map<std::string, std::string> configuration;
 };
@@ -395,17 +401,28 @@ SQLRETURN Connect::SetConnection() {
 			shared_ptr<cxx::Instance> instance;
 			bool configuration_differs = false;
 			{
-				std::lock_guard<std::mutex> guard(entry->lock);
-				instance = entry->instance.lock();
+				std::unique_lock<std::mutex> guard(entry->lock);
+				while (true) {
+					instance = entry->instance.lock();
+					if (instance || entry->open_count == 0) {
+						break;
+					}
+					// the last connection is closing the database: wait for it to be closed, rather than opening the
+					// file a second time while it is still open
+					entry->closed.wait(guard);
+				}
 				if (instance) {
 					configuration_differs = !IsSameConfiguration(*instance, entry->configuration, configuration);
 				} else {
-					// The database is closed holding the entry's lock, when its last connection is: a connection to the
-					// same file waits for it to be closed, rather than opening the file while it is still closing.
 					instance = shared_ptr<cxx::Instance>(open_instance().release(), [entry](cxx::Instance *closing) {
-						std::lock_guard<std::mutex> close_guard(entry->lock);
 						delete closing;
+						{
+							std::lock_guard<std::mutex> close_guard(entry->lock);
+							entry->open_count--;
+						}
+						entry->closed.notify_all();
 					});
+					entry->open_count++;
 					entry->instance = instance;
 					entry->configuration = configuration;
 				}
