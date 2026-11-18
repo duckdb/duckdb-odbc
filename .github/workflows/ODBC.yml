@@ -255,8 +255,8 @@ jobs:
     runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-latest' }}
     needs: odbc-linux-amd64
     env:
-      CC: 'ccache cl'
-      CXX: 'ccache cl'
+      CC: cl
+      CXX: cl
       CCACHE_DIR: ${{ github.workspace }}/ccache
       AZURE_CODESIGN_ENDPOINT: https://eus.codesigning.azure.net/
       AZURE_CODESIGN_ACCOUNT: duckdb-signing-2
@@ -272,6 +272,7 @@ jobs:
         run: |
           choco install \
             ccache \
+            ninja \
             wget \
             zip \
             -y --force --no-progress
@@ -298,7 +299,9 @@ jobs:
           cd build
           mkdir release
           cd release
-          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake ../.. -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build . --config Release
 
       - name: Save Cache
@@ -414,8 +417,8 @@ jobs:
     runs-on: ${{ github.repository_owner == 'duckdb' && 'namespace-profile-windows-x64' || 'windows-latest' }}
     needs: odbc-linux-amd64
     env:
-      CC: 'ccache cl'
-      CXX: 'ccache cl'
+      CC: cl
+      CXX: cl
       CCACHE_DIR: ${{ github.workspace }}/ccache
       AZURE_CODESIGN_ENDPOINT: https://eus.codesigning.azure.net/
       AZURE_CODESIGN_ACCOUNT: duckdb-signing-2
@@ -431,6 +434,7 @@ jobs:
         run: |
           choco install \
             ccache \
+            ninja \
             wget \
             zip \
             -y --force --no-progress
@@ -457,7 +461,9 @@ jobs:
           cd build
           mkdir release
           cd release
-          cmake ../.. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake ../.. -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build . --config Release
 
       - name: Save Cache
@@ -780,6 +786,9 @@ jobs:
       - name: Build
         shell: bash
         run: make debug
+
+      - name: Test prebuilt DuckDB lookup
+        run: python3 ./scripts/test_prebuilt_duckdb.py
 
       - name: Save Cache
         uses: actions/cache/save@v4

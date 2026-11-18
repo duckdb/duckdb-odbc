@@ -135,19 +135,20 @@ TEST_CASE("Test General SQLColAttribute (descriptor information for a column)", 
 		// Get the column type name
 		EXECUTE_AND_CHECK("SQLColAttribute", hstmt, SQLColAttribute, hstmt, i, SQL_DESC_TYPE_NAME, buffer,
 		                  sizeof(buffer), nullptr, nullptr);
+		CAPTURE(i, std::string(col_name));
 		switch (i) {
 		case 1:
-			REQUIRE(STR_EQUAL(buffer, "INT32"));
+			REQUIRE(std::string(buffer) == "INT32");
 			break;
 		case 2:
 		case 3:
 		case 4:
 		case 5:
 		case 6:
-			REQUIRE(STR_EQUAL(buffer, "VARCHAR"));
+			REQUIRE(std::string(buffer) == "VARCHAR");
 			break;
 		case 7:
-			REQUIRE(STR_EQUAL(buffer, "INTERVAL"));
+			REQUIRE(std::string(buffer) == "INTERVAL");
 			break;
 		}
 	}
