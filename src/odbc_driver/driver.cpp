@@ -1,7 +1,5 @@
 #include "driver.hpp"
 
-#include "duckdb/main/config.hpp"
-#include "duckdb/main/db_instance_cache.hpp"
 #include "duckdb_odbc.hpp"
 #include "handle_functions.hpp"
 #include "odbc_diagnostic.hpp"

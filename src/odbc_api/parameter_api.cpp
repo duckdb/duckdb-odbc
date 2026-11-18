@@ -3,13 +3,10 @@
 #include "api_info.hpp"
 #include "parameter_descriptor.hpp"
 
-#include "duckdb/main/prepared_statement_data.hpp"
-
-using duckdb::hugeint_t;
-using duckdb::idx_t;
-using duckdb::Load;
-using duckdb::LogicalType;
-using duckdb::Value;
+using duckdb_odbc::idx_t;
+using duckdb_odbc::Load;
+using duckdb_odbc::LogicalType;
+using duckdb_odbc::Value;
 
 //===--------------------------------------------------------------------===//
 // SQLDescribeParam
@@ -28,34 +25,34 @@ SQLRETURN SQL_API SQLDescribeParam(SQLHSTMT statement_handle, SQLUSMALLINT param
 		return ret;
 	}
 
-	if (parameter_number <= 0 || parameter_number > hstmt->stmt->GetNamedParameterMap().size()) {
+	if (parameter_number <= 0 || parameter_number > hstmt->stmt->ParameterCount()) {
 		return SQL_ERROR;
 	}
 	// TODO make global maps with type mappings for duckdb <> odbc
 	auto odbc_type = SQL_UNKNOWN_TYPE;
 	auto odbc_size = 0;
-	auto identifier = duckdb::Identifier(std::to_string(parameter_number));
-	LogicalType param_type;
-	hstmt->stmt->TryGetParameterType(identifier, param_type);
-	auto param_type_id = param_type.id();
+	auto param_type_id = duckdb_odbc::LogicalTypeId::INVALID;
+	if (parameter_number <= hstmt->stmt->parameter_types.size()) {
+		param_type_id = hstmt->stmt->parameter_types[parameter_number - 1].id;
+	}
 	switch (param_type_id) {
-	case duckdb::LogicalTypeId::VARCHAR:
+	case duckdb_odbc::LogicalTypeId::VARCHAR:
 		odbc_type = SQL_VARCHAR;
 		odbc_size = SQL_NO_TOTAL;
 		break;
-	case duckdb::LogicalTypeId::FLOAT:
+	case duckdb_odbc::LogicalTypeId::FLOAT:
 		odbc_type = SQL_FLOAT;
 		odbc_size = sizeof(float);
 		break;
-	case duckdb::LogicalTypeId::DOUBLE:
+	case duckdb_odbc::LogicalTypeId::DOUBLE:
 		odbc_type = SQL_DOUBLE;
 		odbc_size = sizeof(double);
 		break;
-	case duckdb::LogicalTypeId::SMALLINT:
+	case duckdb_odbc::LogicalTypeId::SMALLINT:
 		odbc_type = SQL_SMALLINT;
 		odbc_size = sizeof(int16_t);
 		break;
-	case duckdb::LogicalTypeId::INTEGER:
+	case duckdb_odbc::LogicalTypeId::INTEGER:
 		odbc_type = SQL_INTEGER;
 		odbc_size = sizeof(int32_t);
 		break;
@@ -94,7 +91,7 @@ SQLRETURN SQL_API SQLNumParams(SQLHSTMT statement_handle, SQLSMALLINT *parameter
 	if (!parameter_count_ptr) {
 		return SQL_ERROR;
 	}
-	*parameter_count_ptr = (SQLSMALLINT)hstmt->stmt->GetNamedParameterMap().size();
+	*parameter_count_ptr = (SQLSMALLINT)hstmt->stmt->ParameterCount();
 	return SQL_SUCCESS;
 }
 

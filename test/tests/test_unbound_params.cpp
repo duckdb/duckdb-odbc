@@ -24,9 +24,9 @@ TEST_CASE("Test 'bound_all_parameters=false' case with SQLExecDirect", "[odbc]")
 	EXECUTE_AND_CHECK("SQLBindParameter (param)", hstmt, SQLBindParameter, hstmt, 2, SQL_PARAM_INPUT, SQL_C_CHAR,
 	                  SQL_VARCHAR, param2_len, 0, const_cast<char *>(param2.c_str()), param2_len, &param2_len);
 
-	// Run the query
+	// Run the query: direct execution infers the parameter types from the supplied values, without a warning
 	SQLRETURN ret_exec = SQLExecDirect(hstmt, ConvertToSQLCHAR("SELECT ?, ?"), SQL_NTS);
-	REQUIRE(ret_exec == SQL_SUCCESS_WITH_INFO);
+	REQUIRE(ret_exec == SQL_SUCCESS);
 
 	// Check that IRD was re-filled correctly
 	SQLLEN ctype = -1;

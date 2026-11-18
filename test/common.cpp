@@ -2,6 +2,7 @@
 #include "include/odbc_test_common.h"
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <vector>
 #include <odbcinst.h>
 #include "widechar.hpp"
@@ -391,7 +392,7 @@ std::string ConvertHexToString(SQLCHAR val[16], int precision) {
 }
 
 std::string GetTesterDirectory() {
-	duckdb::unique_ptr<duckdb::FileSystem> fs = duckdb::FileSystem::CreateLocal();
+	auto fs = LocalFileSystem::Create();
 	auto cwd = fs->GetWorkingDirectory();
 	std::string current_directory = cwd + "/test/sql/storage_version/storage_version.db";
 	if (!fs->FileExists(current_directory)) {

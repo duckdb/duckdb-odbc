@@ -1,17 +1,14 @@
 #ifndef ODBC_FETCH_HPP
 #define ODBC_FETCH_HPP
 
-#include "duckdb.hpp"
-#include "duckdb/common/windows.hpp"
+#include "odbc_common.hpp"
+
+#include <deque>
 
 #include <sqltypes.h>
 #include <sqlext.h>
 
-#include "duckdb/common/vector.hpp"
-#include "duckdb/common/stack.hpp"
-
 namespace duckdb_odbc {
-using namespace duckdb;
 
 struct OdbcHandleStmt;
 
@@ -32,16 +29,18 @@ public:
 private:
 	OdbcHandleStmt *hstmt_ref;
 	// main structure to hold the fetched chunks, as DuckDB returns them: their sizes are arbitrary
-	vector<duckdb::unique_ptr<DataChunk>> chunks;
+	vector<unique_ptr<DataChunk>> chunks;
+	// the chunks of the result that were read when the statement was executed (see Prefetch) but not fetched yet
+	std::deque<unique_ptr<DataChunk>> pending_chunks;
 	// position in the result set of the first row of each chunk in chunks; a forward-only cursor drops the chunks it
 	// has moved past, so the first one does not need to start at 0
-	vector<duckdb::idx_t> chunk_begins;
+	vector<idx_t> chunk_begins;
 	// number of rows of the result set fetched from DuckDB so far
-	duckdb::idx_t fetched_rows;
+	idx_t fetched_rows;
 
 	// the current row, the one SQLGetData reads: its chunk and its index in that chunk
-	duckdb::idx_t current_chunk_idx;
-	duckdb::DataChunk *current_chunk;
+	idx_t current_chunk_idx;
+	DataChunk *current_chunk;
 	row_t chunk_row;
 	// position in the result set of the current row, -1 when there is none
 	row_t current_row;
@@ -68,7 +67,7 @@ public:
 	~OdbcFetch();
 
 	inline void AssertCurrentChunk() {
-		D_ASSERT(chunk_row <= ((row_t)current_chunk->size()));
+		D_ASSERT(chunk_row <= ((row_t)current_chunk->GetRowCount()));
 	}
 
 	SQLRETURN Fetch(OdbcHandleStmt *hstmt, SQLULEN fetch_orientation, SQLLEN fetch_offset);
@@ -77,11 +76,19 @@ public:
 
 	SQLRETURN DummyFetch();
 
-	SQLRETURN GetValue(SQLUSMALLINT col_idx, Value &value);
+	//! Whether the cursor is positioned on a row, the one GetValue reads
+	bool HasCurrentRow() const {
+		return current_chunk && chunk_row >= 0;
+	}
+	//! The value of a column in the current row
+	Value GetValue(SQLUSMALLINT col_idx);
 
 	void ClearChunks();
 
-	SQLRETURN Materialize(OdbcHandleStmt *hstmt);
+	//! Reads the whole result of a statement that was just executed, whose chunks are then fetched: DuckDB runs a
+	//! statement as its result is read, so this is what executes it and reports its errors, and the connection is
+	//! free for the next statement afterwards.
+	SQLRETURN Prefetch(OdbcHandleStmt *hstmt, QueryResult &result);
 
 	void ResetLastFetchedVariableVal();
 	void SetLastFetchedVariableVal(row_t col_idx);

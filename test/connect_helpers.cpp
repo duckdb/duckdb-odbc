@@ -14,7 +14,7 @@ void CheckConfig(SQLHANDLE &dbc, const std::string &setting, const std::string &
 
 	// Fetch the first row
 	EXECUTE_AND_CHECK("SQLFetch", hstmt, SQLFetch, hstmt);
-	DATA_CHECK(hstmt, 1, duckdb::StringUtil::Lower(expected_content));
+	DATA_CHECK(hstmt, 1, duckdb_odbc::StringUtil::Lower(expected_content));
 
 	// Free the statement handle
 	EXECUTE_AND_CHECK("SQLFreeStmt (SQL_CLOSE)", hstmt, SQLFreeStmt, hstmt, SQL_CLOSE);

@@ -1,20 +1,13 @@
 #ifndef ODBC_DIAGNOSTIC_HPP
 #define ODBC_DIAGNOSTIC_HPP
 
-#include "duckdb.hpp"
-#include "duckdb/common/windows.hpp"
-#include "duckdb/common/enum_class_hash.hpp"
+#include "odbc_common.hpp"
 
 #include "sqlext.h"
 #include "sqltypes.h"
 
-#include "duckdb/common/string.hpp"
-#include "duckdb/common/vector.hpp"
-#include "duckdb/common/set.hpp"
-#include "duckdb/common/unordered_map.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 enum class SQLStateType : uint8_t {
 	ST_01000, // {"01000", "General warning"},
 	ST_01001, // {"01001", "Cursor operation conflict"},
@@ -190,14 +183,14 @@ public:
 	vector<DiagRecord> diag_records;
 	static const std::unordered_map<SQLINTEGER, std::string> MAP_DYNAMIC_FUNCTION;
 	static const std::set<std::string> SET_ODBC3_SUBCLASS_ORIGIN;
-	static const std::unordered_map<SQLStateType, SQLState, duckdb::EnumClassHash> MAP_ODBC_SQL_STATES;
+	static const std::unordered_map<SQLStateType, SQLState, duckdb_odbc::EnumClassHash> MAP_ODBC_SQL_STATES;
 
 public:
 	static bool IsDiagRecordField(SQLSMALLINT diag_identifier);
 
 	void FormatDiagnosticMessage(DiagRecord &diag_record, const std::string &data_source, const std::string &component);
 	void AddDiagRecord(DiagRecord &diag_record);
-	duckdb::idx_t GetTotalRecords();
+	duckdb_odbc::idx_t GetTotalRecords();
 
 	void Clean();
 

@@ -136,7 +136,7 @@ TEST_CASE("Test SQLGetDiagRec with a truncated message", "[odbc]") {
 	std::string full_message = ConvertToString(full_buf.data());
 	REQUIRE(full_message.length() == static_cast<size_t>(text_length));
 	REQUIRE(full_message.compare(0, truncated_message.length(), truncated_message) == 0);
-	REQUIRE(duckdb::StringUtil::Contains(full_message, "No function matches"));
+	REQUIRE(duckdb_odbc::StringUtil::Contains(full_message, "No function matches"));
 	REQUIRE(ConvertToString(sqlstate) == "42000");
 
 	ret = SQLGetDiagRec(SQL_HANDLE_STMT, hstmt, 2, sqlstate, &native_error, full_buf.data(),

@@ -4,15 +4,14 @@
 #include "odbc_utils.hpp"
 #include "parameter_descriptor.hpp"
 #include "row_descriptor.hpp"
-#include "duckdb/common/vector.hpp"
 #include "handle_functions.hpp"
 
-using duckdb::vector;
 using duckdb_odbc::ApiInfo;
 using duckdb_odbc::DescHeader;
 using duckdb_odbc::DescRecord;
 using duckdb_odbc::OdbcHandleDesc;
 using duckdb_odbc::OdbcInterval;
+using duckdb_odbc::vector;
 
 //! OdbcHandleDesc functions ********************************
 
@@ -39,7 +38,7 @@ void OdbcHandleDesc::CopyFieldByField(const OdbcHandleDesc &other) {
 	// TODO
 }
 
-duckdb_odbc::DescRecord *OdbcHandleDesc::GetDescRecord(duckdb::idx_t param_idx) {
+duckdb_odbc::DescRecord *OdbcHandleDesc::GetDescRecord(duckdb_odbc::idx_t param_idx) {
 	if (param_idx >= records.size()) {
 		records.resize(param_idx + 1);
 		header.sql_desc_count = static_cast<SQLSMALLINT>(records.size());
@@ -375,10 +374,10 @@ SQLRETURN DescRecord::SetSqlDescType(SQLSMALLINT type) {
 	return SQL_SUCCESS;
 }
 
-void DescRecord::SetDescUnsignedField(const duckdb::LogicalType &type) {
+void DescRecord::SetDescUnsignedField(const OdbcType &type) {
 	// TRUE if the column is unsigned, or non-numeric or
 	// UTINYINT, USMALLINT, UINTEGER, UBIGINT
-	if (sql_desc_unsigned == -1 || (type.id() >= LogicalTypeId::UTINYINT && type.id() <= LogicalTypeId::UBIGINT)) {
+	if (sql_desc_unsigned == -1 || (type.id >= LogicalTypeId::UTINYINT && type.id <= LogicalTypeId::UBIGINT)) {
 		sql_desc_unsigned = SQL_TRUE;
 	}
 }

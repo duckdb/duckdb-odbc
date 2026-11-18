@@ -102,8 +102,8 @@ void ConnectWithIncorrectParam(std::string param) {
 	std::string state;
 	std::string message;
 	ACCESS_DIAGNOSTIC(state, message, dbc, SQL_HANDLE_DBC);
-	REQUIRE(duckdb::StringUtil::Contains(message, "Invalid keyword"));
-	REQUIRE(duckdb::StringUtil::Contains(message, "Did you mean: "));
+	REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Invalid keyword"));
+	REQUIRE(duckdb_odbc::StringUtil::Contains(message, "Did you mean: "));
 
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }

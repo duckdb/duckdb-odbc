@@ -32,6 +32,7 @@ add_executable(
   tests/result_conversion.cpp
   tests/test_allowed_paths.cpp
   tests/test_connect.cpp
+  tests/test_connection_sharing.cpp
   tests/test_long_data.cpp
   tests/test_num_result_cols.cpp
   tests/test_param_array_fixed_types.cpp

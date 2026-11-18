@@ -3,13 +3,10 @@
 #include "handle_functions.hpp"
 #include "api_info.hpp"
 
-#include "duckdb/main/prepared_statement_data.hpp"
-
-using duckdb::hugeint_t;
-using duckdb::idx_t;
-using duckdb::Load;
-using duckdb::LogicalType;
-using duckdb::Value;
+using duckdb_odbc::idx_t;
+using duckdb_odbc::Load;
+using duckdb_odbc::LogicalType;
+using duckdb_odbc::Value;
 
 //===--------------------------------------------------------------------===//
 // SQLBindCol

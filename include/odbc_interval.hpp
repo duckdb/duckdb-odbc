@@ -2,14 +2,11 @@
 #define ODBC_INTERVAL_HPP
 
 #include "duckdb_odbc.hpp"
-#include "duckdb/common/types.hpp"
-#include "duckdb/common/types/value.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 struct OdbcInterval {
 public:
-	static bool GetInterval(Value &value, interval_t &interval, OdbcHandleStmt *hstmt);
+	static bool GetInterval(const Value &value, interval_t &interval, OdbcHandleStmt *hstmt);
 
 	static void SetSignal(interval_t &interval, SQL_INTERVAL_STRUCT *interval_struct);
 

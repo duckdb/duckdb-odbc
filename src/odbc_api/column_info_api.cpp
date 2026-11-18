@@ -5,14 +5,11 @@
 #include "odbc_diagnostic.hpp"
 #include "row_descriptor.hpp"
 
-#include "duckdb/main/prepared_statement_data.hpp"
-
-using duckdb::hugeint_t;
-using duckdb::idx_t;
-using duckdb::Load;
-using duckdb::LogicalType;
-using duckdb::Value;
+using duckdb_odbc::idx_t;
+using duckdb_odbc::Load;
+using duckdb_odbc::LogicalType;
 using duckdb_odbc::SQLStateType;
+using duckdb_odbc::Value;
 
 static SQLRETURN WriteStringCol(const std::string &caller_name, duckdb_odbc::OdbcHandleStmt *hstmt,
                                 const std::string &str, SQLCHAR *character_attribute_ptr, SQLSMALLINT buffer_length,
@@ -82,28 +79,28 @@ static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT col
 		return SQL_ERROR;
 	}
 
-	duckdb::idx_t col_idx = column_number - 1;
+	duckdb_odbc::idx_t col_idx = column_number - 1;
 	auto desc_record = ird->GetDescRecord(col_idx);
 
 	ret = WriteStringCol("SQLDescribeCol", hstmt, desc_record->sql_desc_name, column_name, buffer_length,
 	                     name_length_ptr);
 
-	const LogicalType &col_type = desc_record->logical_type;
+	const duckdb_odbc::OdbcType &col_type = desc_record->logical_type;
 
 	if (data_type_ptr) {
-		*data_type_ptr = duckdb_odbc::ApiInfo::FindRelatedSQLType(col_type.id());
+		*data_type_ptr = duckdb_odbc::ApiInfo::FindRelatedSQLType(col_type.id);
 	}
 	if (column_size_ptr) {
 		*column_size_ptr = duckdb_odbc::ApiInfo::GetColumnSize(col_type);
 	}
 	if (decimal_digits_ptr) {
 		*decimal_digits_ptr = 0;
-		if (col_type.id() == duckdb::LogicalTypeId::DECIMAL) {
-			*decimal_digits_ptr = duckdb::DecimalType::GetScale(col_type);
+		if (col_type.id == duckdb_odbc::LogicalTypeId::DECIMAL) {
+			*decimal_digits_ptr = col_type.decimal_scale;
 		} else {
-			auto sql_type = duckdb_odbc::ApiInfo::FindRelatedSQLType(col_type.id());
+			auto sql_type = duckdb_odbc::ApiInfo::FindRelatedSQLType(col_type.id);
 			if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
-				*decimal_digits_ptr = duckdb_odbc::ApiInfo::GetTemporalPrecision(col_type.id());
+				*decimal_digits_ptr = duckdb_odbc::ApiInfo::GetTemporalPrecision(col_type.id);
 			}
 		}
 	}
@@ -145,7 +142,7 @@ template <typename T>
 static SQLRETURN SetNumericAttributePtr(duckdb_odbc::OdbcHandleStmt *hstmt, const T &val,
                                         SQLLEN *numeric_attribute_ptr) {
 	if (numeric_attribute_ptr) {
-		duckdb::Store<SQLLEN>(val, reinterpret_cast<duckdb::data_ptr_t>(numeric_attribute_ptr));
+		duckdb_odbc::Store<SQLLEN>(val, reinterpret_cast<duckdb_odbc::data_ptr_t>(numeric_attribute_ptr));
 		return SQL_SUCCESS;
 	}
 	return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLColAttribute(s)",
@@ -165,9 +162,8 @@ static SQLRETURN ColAttributeInternal(SQLHSTMT statement_handle, SQLUSMALLINT co
 		return ret;
 	}
 
-	if (field_identifier != SQL_DESC_COUNT && hstmt->res &&
-	    hstmt->res->GetStatementProperties().return_type != duckdb::StatementReturnType::QUERY_RESULT &&
-	    hstmt->res->GetStatementProperties().return_type != duckdb::StatementReturnType::CHANGED_ROWS) {
+	if (field_identifier != SQL_DESC_COUNT && hstmt->has_result &&
+	    hstmt->result_type == duckdb_odbc::cxx::ResultType::NOTHING) {
 		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLColAttribute(s)",
 		                                        "Prepared statement not a cursor-specification", SQLStateType::ST_07005,
 		                                        hstmt->dbc->GetDataSourceName());
@@ -180,7 +176,7 @@ static SQLRETURN ColAttributeInternal(SQLHSTMT statement_handle, SQLUSMALLINT co
 		                                        SQLStateType::ST_07009, hstmt->dbc->GetDataSourceName());
 	}
 
-	duckdb::idx_t col_idx = column_number - 1;
+	duckdb_odbc::idx_t col_idx = column_number - 1;
 	auto desc_record = hstmt->row_desc->GetIRD()->GetDescRecord(col_idx);
 
 	switch (field_identifier) {
@@ -351,14 +347,7 @@ SQLRETURN SQL_API SQLNumResultCols(SQLHSTMT statement_handle, SQLSMALLINT *colum
 	}
 	*column_count_ptr = (SQLSMALLINT)hstmt->row_desc->GetIRD()->GetRecordCount();
 
-	switch (hstmt->stmt->GetStatementType()) {
-	case duckdb::StatementType::CALL_STATEMENT:
-	case duckdb::StatementType::EXECUTE_STATEMENT:
-	case duckdb::StatementType::EXPLAIN_STATEMENT:
-	case duckdb::StatementType::EXTENSION_STATEMENT:
-	case duckdb::StatementType::SELECT_STATEMENT:
-		break;
-	default:
+	if (!hstmt->ReturnsRows()) {
 		*column_count_ptr = 0;
 	}
 	return SQL_SUCCESS;

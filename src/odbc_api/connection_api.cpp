@@ -153,6 +153,12 @@ SQLRETURN SQL_API SQLDisconnect(SQLHDBC connection_handle) {
 		return ret;
 	}
 
+	// what the statements hold of the connection must not outlive it
+	for (auto stmt : dbc->vec_stmt_ref) {
+		stmt->Close();
+		stmt->stmt.reset();
+	}
 	dbc->conn.reset();
+	dbc->db.reset();
 	return SQL_SUCCESS;
 }

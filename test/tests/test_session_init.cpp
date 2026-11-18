@@ -292,3 +292,32 @@ INSERT INTO tab1 VALUES(NULL);
 	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_ENV)", nullptr, SQLFreeHandle, SQL_HANDLE_ENV, env);
 	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_DBC)", nullptr, SQLFreeHandle, SQL_HANDLE_DBC, dbc);
 }
+
+TEST_CASE("Test session init failure releases the database", "[odbc]") {
+	TempDirectory tmpdir;
+	std::string db_path = tmpdir.path + "/session_init_failure.db";
+	std::string path = tmpdir.path + "/session_init.sql";
+	WriteStringToFile(path, "SELECT * FROM table_that_does_not_exist;");
+	UserOdbcIni odbc_ini({
+	    {"database", db_path},
+	    {"session_init_sql_file", path},
+	});
+
+	SQLHANDLE env = nullptr;
+	SQLHANDLE dbc = nullptr;
+	EXECUTE_AND_CHECK("SQLAllocHandle", nullptr, SQLAllocHandle, SQL_HANDLE_ENV, nullptr, &env);
+	EXECUTE_AND_CHECK("SQLSetEnvAttr (SQL_ATTR_ODBC_VERSION ODBC3)", nullptr, SQLSetEnvAttr, env, SQL_ATTR_ODBC_VERSION,
+	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env, &dbc);
+	REQUIRE(SQLDriverConnect(dbc, nullptr, ConvertToSQLCHAR("DSN=DuckDB"), SQL_NTS, nullptr, SQL_NTS, nullptr,
+	                         SQL_DRIVER_COMPLETE) == SQL_ERROR);
+
+	// while the handle of the failed connection is still allocated, the database can be opened with another
+	// configuration: the failed connection does not keep it open
+	SQLHANDLE env2, dbc2;
+	DRIVER_CONNECT_TO_DATABASE(env2, dbc2, "Database=" + db_path + ";threads=1");
+	DISCONNECT_FROM_DATABASE(env2, dbc2);
+
+	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_DBC)", nullptr, SQLFreeHandle, SQL_HANDLE_DBC, dbc);
+	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_ENV)", nullptr, SQLFreeHandle, SQL_HANDLE_ENV, env);
+}

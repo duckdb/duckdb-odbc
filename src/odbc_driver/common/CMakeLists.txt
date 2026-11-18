@@ -1,6 +1,7 @@
 add_library(
   odbc_common OBJECT
   duckdb_odbc.cpp
+  odbc_common.cpp
   file_io.cpp
   handle_functions.cpp
   odbc_diagnostic.cpp

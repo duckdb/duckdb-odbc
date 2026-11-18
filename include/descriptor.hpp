@@ -2,17 +2,12 @@
 #define DESCRIPTOR_HPP
 
 // needs to be first because BOOL
-#include "duckdb.hpp"
-
-#ifdef _WIN32
-#include <Windows.h>
-#endif
+#include "odbc_common.hpp"
 
 #include "sqlext.h"
 #include <sqltypes.h>
 
 namespace duckdb_odbc {
-using namespace duckdb;
 
 struct DescRecord {
 public:
@@ -20,7 +15,7 @@ public:
 	DescRecord(const DescRecord &other);
 	SQLRETURN SetSqlDescType(SQLSMALLINT type);
 	SQLRETURN SetSqlDataType(SQLSMALLINT type);
-	void SetDescUnsignedField(const duckdb::LogicalType &type);
+	void SetDescUnsignedField(const OdbcType &type);
 
 public:
 	SQLSMALLINT sql_desc_auto_unique_value = SQL_FALSE; // DuckDB doesn't support auto unique value
@@ -60,7 +55,7 @@ public:
 
 	// driver-internal (not exposed through the ODBC API), only set for IRD records:
 	// engine type of the result column the record describes
-	duckdb::LogicalType logical_type;
+	OdbcType logical_type;
 };
 
 struct DescHeader {

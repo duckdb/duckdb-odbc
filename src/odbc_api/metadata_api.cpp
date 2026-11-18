@@ -6,11 +6,9 @@
 #include "handle_functions.hpp"
 #include "widechar.hpp"
 
-#include "duckdb/common/constants.hpp"
-
 #include <regex>
 
-using duckdb::LogicalTypeId;
+using duckdb_odbc::LogicalTypeId;
 using duckdb_odbc::OdbcUtils;
 using duckdb_odbc::SQLStateType;
 
@@ -168,7 +166,7 @@ static SQLRETURN ColumnsInternal(SQLHSTMT statement_handle, SQLCHAR *catalog_nam
 	// String search pattern for schema name
 	auto schema_n = OdbcUtils::ConvertSQLCHARToString(schema_name, name_length2);
 	std::string schema_filter = OdbcUtils::ParseStringFilter(
-	    "\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id, std::string(DEFAULT_SCHEMA));
+	    "\"TABLE_SCHEM\"", schema_n, hstmt->dbc->sql_attr_metadata_id, std::string(duckdb_odbc::DEFAULT_SCHEMA));
 
 	// String search pattern for table name
 	auto table_n = OdbcUtils::ConvertSQLCHARToString(table_name, name_length3);

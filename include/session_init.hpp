@@ -6,7 +6,6 @@
 #include "duckdb_odbc.hpp"
 
 namespace duckdb_odbc {
-using namespace duckdb;
 
 class SessionInitSQLFile {
 public:
