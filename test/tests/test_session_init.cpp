@@ -2,6 +2,10 @@
 
 #include "temp_directory.hpp"
 
+#include <atomic>
+#include <thread>
+#include <vector>
+
 using namespace odbc_test;
 
 TEST_CASE("Test session init for DB only", "[odbc]") {
@@ -320,4 +324,62 @@ TEST_CASE("Test session init failure releases the database", "[odbc]") {
 
 	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_DBC)", nullptr, SQLFreeHandle, SQL_HANDLE_DBC, dbc);
 	EXECUTE_AND_CHECK("SQLFreeHandle(SQL_HANDLE_ENV)", nullptr, SQLFreeHandle, SQL_HANDLE_ENV, env);
+}
+
+TEST_CASE("Test session init for DB runs before the database is shared", "[odbc]") {
+	TempDirectory tmpdir;
+	std::string db_path = tmpdir.path + "/session_init_shared.db";
+	std::string path = tmpdir.path + "/session_init.sql";
+	// fails when run a second time on the same database
+	WriteStringToFile(path, "CREATE TABLE tab1 AS SELECT 42 AS col1;");
+	UserOdbcIni odbc_ini({
+	    {"database", db_path},
+	    {"session_init_sql_file", path},
+	});
+
+	// every thread connects at once, and keeps its connection until all have connected: the db init SQL runs once,
+	// and every connection sees what it created. Catch's assertions are not thread-safe: the threads only count their
+	// failures.
+	const size_t thread_count = 8;
+	std::vector<size_t> failures(thread_count, 0);
+	std::atomic<size_t> connected {0};
+	std::vector<std::thread> threads;
+	for (size_t t = 0; t < thread_count; t++) {
+		threads.emplace_back([&, t]() {
+			SQLHANDLE env = nullptr;
+			SQLHANDLE dbc = nullptr;
+			SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env);
+			SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+			SQLAllocHandle(SQL_HANDLE_DBC, env, &dbc);
+			if (!SQL_SUCCEEDED(SQLDriverConnect(dbc, nullptr, ConvertToSQLCHAR("DSN=DuckDB"), SQL_NTS, nullptr, SQL_NTS,
+			                                    nullptr, SQL_DRIVER_COMPLETE))) {
+				failures[t]++;
+				connected++;
+			} else {
+				HSTMT hstmt = nullptr;
+				SQLAllocHandle(SQL_HANDLE_STMT, dbc, &hstmt);
+				int32_t fetched = -1;
+				if (!SQL_SUCCEEDED(SQLExecDirect(hstmt, ConvertToSQLCHAR("SELECT col1 FROM tab1"), SQL_NTS)) ||
+				    !SQL_SUCCEEDED(SQLFetch(hstmt)) ||
+				    !SQL_SUCCEEDED(SQLGetData(hstmt, 1, SQL_C_SLONG, &fetched, sizeof(fetched), nullptr)) ||
+				    fetched != 42) {
+					failures[t]++;
+				}
+				SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
+				connected++;
+				while (connected < thread_count) {
+					std::this_thread::yield();
+				}
+				SQLDisconnect(dbc);
+			}
+			SQLFreeHandle(SQL_HANDLE_DBC, dbc);
+			SQLFreeHandle(SQL_HANDLE_ENV, env);
+		});
+	}
+	for (auto &thread : threads) {
+		thread.join();
+	}
+	for (auto failure_count : failures) {
+		REQUIRE(failure_count == 0);
+	}
 }

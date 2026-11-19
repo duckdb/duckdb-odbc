@@ -119,13 +119,15 @@ static SQLRETURN RunQueryWithStmt(OdbcHandleDbc *dbc, const std::string &query) 
 	return exec_ret;
 }
 
-SQLRETURN SessionInit::Run(OdbcHandleDbc *dbc, const SessionInitSQLFile &sql_file, bool db_created) {
-	if (db_created && !sql_file.db_init_sql.empty()) {
-		SQLRETURN ret = RunQueryWithStmt(dbc, sql_file.db_init_sql);
-		if (!SQL_SUCCEEDED(ret)) {
-			return ret;
-		}
+void SessionInit::RunDBInit(cxx::Instance &instance, const std::string &db_init_sql) {
+	auto conn = instance.Connect();
+	auto statements = conn.ParseSQL(db_init_sql);
+	for (auto statement = statements.Next(); statement; statement = statements.Next()) {
+		conn.Execute(statement).Drain();
 	}
+}
+
+SQLRETURN SessionInit::Run(OdbcHandleDbc *dbc, const SessionInitSQLFile &sql_file) {
 	if (!sql_file.conn_init_sql.empty()) {
 		SQLRETURN ret = RunQueryWithStmt(dbc, sql_file.conn_init_sql);
 		if (!SQL_SUCCEEDED(ret)) {
