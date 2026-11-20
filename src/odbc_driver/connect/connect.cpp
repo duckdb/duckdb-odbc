@@ -1,10 +1,7 @@
 #include "connect.hpp"
 
-#include <condition_variable>
-#include <cstdlib>
-#include <filesystem>
+#include <memory>
 #include <mutex>
-#include <set>
 #include <unordered_set>
 #include <utility>
 
@@ -50,116 +47,42 @@ const std::unordered_set<std::string> &GetRuntimeOptions() {
 	return options;
 }
 
-//! A database shared by the connections to the same file, and the configuration it was opened with.
-struct CachedInstance {
-	//! Held while the database is looked up or opened: only connections to the same file wait for each other
-	std::mutex lock;
-	std::weak_ptr<cxx::Instance> instance;
-	//! How many instances of the database exist, including one that is being closed: `instance` expires when its last
-	//! reference is dropped, before it is destroyed
-	idx_t open_count = 0;
-	//! Notified when an instance has been destroyed
-	std::condition_variable closed;
-	//! The database-wide options it was opened with: their canonical names, and their values as given
-	std::map<std::string, std::string> configuration;
-};
-
-//! Whether a connection asking for the database-wide options `requested` can share a database opened with `opened`,
-//! which runs as `instance`. An option given differently, or left out by one of them, must result in the setting the
-//! database runs with: e.g. "READ_WRITE" and "read_write", or "4" and "04", are the same.
-bool IsSameConfiguration(cxx::Instance &instance, const std::map<std::string, std::string> &opened,
-                         const std::map<std::string, std::string> &requested) {
-	std::set<std::string> names;
-	for (auto &option : opened) {
-		names.insert(option.first);
+//! Whether `instance` runs with the settings `options` give, as DuckDB stores them: e.g. "READ_WRITE" and
+//! "read_write", or a directory with and without a trailing separator, are the same setting.
+bool HasSettings(cxx::Instance &instance, const std::vector<std::pair<std::string, std::string>> &options) {
+	if (options.empty()) {
+		return true;
 	}
-	for (auto &option : requested) {
-		names.insert(option.first);
-	}
-	auto &config = instance.GetConfig();
-	// only for its factory, to convert the requested values
-	unique_ptr<cxx::Connection> conn;
-	for (auto &name : names) {
-		auto opened_entry = opened.find(name);
-		auto requested_entry = requested.find(name);
-		if (opened_entry != opened.end() && requested_entry != requested.end() &&
-		    opened_entry->second == requested_entry->second) {
-			continue;
-		}
-		try {
-			auto current = config.TryGetOption(name);
-			if (!current) {
-				// e.g. an option of an extension that is not loaded
+	try {
+		// an instance with nothing attached, to see the settings the options give
+		cxx::Instance requested;
+		auto &requested_config = requested.GetConfig();
+		auto requested_conn = requested.Connect();
+		auto &config = instance.GetConfig();
+		auto conn = instance.Connect();
+		for (auto &option : options) {
+			requested_config.SetOption(option.first, std::string_view(option.second), cxx::SettingScope::GLOBAL);
+			auto wanted = requested_config.TryGetOption(option.first);
+			auto current = config.TryGetOption(option.first);
+			if (!wanted || !current) {
 				return false;
 			}
-			if (!conn) {
-				conn = make_uniq<cxx::Connection>(instance.Connect());
-			}
-			auto &factory = conn->GetFactory();
-			auto type = current->value.GetLogicalType();
-			auto value = requested_entry != requested.end()
-			                 ? CreateVarchar(factory, requested_entry->second).Cast(factory, type)
-			                 : config.DescribeOption(name).GetDefaultValue();
-			if (value.IsNull() || current->value.IsNull()) {
-				if (value.IsNull() != current->value.IsNull()) {
+			if (wanted->value.IsNull() || current->value.IsNull()) {
+				if (wanted->value.IsNull() != current->value.IsNull()) {
 					return false;
 				}
 				continue;
 			}
-			auto value_str = ValueToString(factory, value);
-			auto current_str = ValueToString(factory, current->value);
-			// a textual setting compares as DuckDB stores it, e.g. lower-cased for an enumeration
-			if (type.GetTypeId() == LogicalTypeId::VARCHAR ? !StringUtil::CIEquals(value_str, current_str)
-			                                               : value_str != current_str) {
+			if (ValueToString(requested_conn.GetFactory(), wanted->value) !=
+			    ValueToString(conn.GetFactory(), current->value)) {
 				return false;
 			}
-		} catch (std::exception &) {
-			// e.g. a value that does not convert to the setting's type
-			return false;
 		}
+	} catch (std::exception &) {
+		// e.g. a value the option does not accept
+		return false;
 	}
 	return true;
-}
-
-//! The database instance cache, used so that multiple connections to the same file point to the same database object.
-//! instance_cache_lock guards the map only, not the opening of a database.
-std::mutex instance_cache_lock;
-std::unordered_map<std::string, std::shared_ptr<CachedInstance>> instance_cache;
-
-//! The cache entry of a database file, created on first use.
-std::shared_ptr<CachedInstance> GetCachedInstance(const std::string &key) {
-	std::lock_guard<std::mutex> guard(instance_cache_lock);
-	auto &entry = instance_cache[key];
-	if (!entry) {
-		entry = std::make_shared<CachedInstance>();
-	}
-	return entry;
-}
-
-//! The key a database file is cached under: its absolute path, or the path as given for e.g. "md:" databases.
-std::string GetInstanceCacheKey(const std::string &database) {
-	auto colon = database.find(':');
-	if (colon != std::string::npos && colon > 1) {
-		// a database type or URL prefix, e.g. "md:" or "s3://"
-		return database;
-	}
-	std::string path = database;
-	if (path.size() >= 1 && path[0] == '~' && (path.size() == 1 || path[1] == '/' || path[1] == '\\')) {
-		const char *home = std::getenv("HOME");
-#ifdef _WIN32
-		if (!home) {
-			home = std::getenv("USERPROFILE");
-		}
-#endif
-		if (home) {
-			path = std::string(home) + path.substr(1);
-		}
-	}
-	try {
-		return std::filesystem::absolute(std::filesystem::path(path)).lexically_normal().string();
-	} catch (std::exception &) {
-		return path;
-	}
 }
 
 } // namespace
@@ -330,6 +253,8 @@ SQLRETURN Connect::SetConnection() {
 	config_map.erase("enable_external_access");
 
 	bool db_created = false;
+	// the error of the db init SQL, which fails the connection like an error of the SQL itself
+	std::string db_init_error;
 	// options to set on the connection, as they cannot be set database-wide
 	std::vector<std::pair<std::string, std::string>> session_options;
 	try {
@@ -363,23 +288,16 @@ SQLRETURN Connect::SetConnection() {
 			}
 		}
 
-		// The database-wide options, which a cached database must have been opened with to be shared
-		std::map<std::string, std::string> configuration;
-		for (auto &option : sorted_options) {
-			auto entry = duckdb_options.find(StringUtil::Lower(option.first));
-			if (entry == duckdb_options.end()) {
-				configuration[StringUtil::Lower(option.first)] = option.second;
-			} else if (entry->second.global) {
-				configuration[entry->second.name] = option.second;
-			}
-		}
-		if (!enable_external_access.empty()) {
-			configuration["enable_external_access"] = enable_external_access;
+		// the options set once the database runs, which a shared database must run with too
+		auto instance_settings = runtime_options;
+		if (disable_external_access) {
+			instance_settings.emplace_back("enable_external_access", enable_external_access);
 		}
 
-		auto open_instance = [&]() {
-			auto instance = make_uniq<cxx::Instance>(startup_options);
-			auto &instance_config = instance->GetConfig();
+		// runs before another connection can share the database: connections to the same file wait for it
+		cxx::Instance::InitCallback init = [&](cxx::Instance &instance) {
+			db_created = true;
+			auto &instance_config = instance.GetConfig();
 			for (auto &option : runtime_options) {
 				instance_config.SetOption(option.first, std::string_view(option.second), cxx::SettingScope::GLOBAL);
 			}
@@ -387,53 +305,31 @@ SQLRETURN Connect::SetConnection() {
 				instance_config.SetOption("enable_external_access", std::string_view(enable_external_access),
 				                          cxx::SettingScope::GLOBAL);
 			}
-			instance->Attach(database == IN_MEMORY_PATH ? std::string() : database, true);
-			db_created = true;
-			return instance;
+			if (!session_init_content.db_init_sql.empty()) {
+				try {
+					SessionInit::RunDBInit(instance, session_init_content.db_init_sql);
+				} catch (std::exception &ex) {
+					db_init_error = ErrorMessage(ex);
+					throw;
+				}
+			}
 		};
 
-		if (database == IN_MEMORY_PATH) {
-			// every in-memory database is its own
-			dbc->db = shared_ptr<cxx::Instance>(open_instance());
-		} else {
-			auto entry = GetCachedInstance(GetInstanceCacheKey(database));
-			// declared before the guard: the last reference to a database must not be dropped while holding the lock
-			shared_ptr<cxx::Instance> instance;
-			bool configuration_differs = false;
-			{
-				std::unique_lock<std::mutex> guard(entry->lock);
-				while (true) {
-					instance = entry->instance.lock();
-					if (instance || entry->open_count == 0) {
-						break;
-					}
-					// the last connection is closing the database: wait for it to be closed, rather than opening the
-					// file a second time while it is still open
-					entry->closed.wait(guard);
-				}
-				if (instance) {
-					configuration_differs = !IsSameConfiguration(*instance, entry->configuration, configuration);
-				} else {
-					instance = shared_ptr<cxx::Instance>(open_instance().release(), [entry](cxx::Instance *closing) {
-						delete closing;
-						{
-							std::lock_guard<std::mutex> close_guard(entry->lock);
-							entry->open_count--;
-						}
-						entry->closed.notify_all();
-					});
-					entry->open_count++;
-					entry->instance = instance;
-					entry->configuration = configuration;
-				}
-			}
-			if (configuration_differs) {
-				throw std::runtime_error("Can't open a connection to same database file with a different "
-				                         "configuration than existing connections");
-			}
-			dbc->db = std::move(instance);
+		// a file is shared by the connections to it; every in-memory database is its own
+		auto instance = std::make_shared<cxx::Instance>(
+		    cxx::Instance::OpenShared(database == IN_MEMORY_PATH ? std::string() : database, startup_options, init));
+		if (!db_created && !HasSettings(*instance, instance_settings)) {
+			throw std::runtime_error("Can't open a connection to same database file with a different configuration "
+			                         "than existing connections");
 		}
+		dbc->db = std::move(instance);
 	} catch (std::exception &ex) {
+		if (!db_init_error.empty()) {
+			return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect",
+			                           "Connection init error:\n" + db_init_error + "\n" +
+			                               session_init_content.db_init_sql,
+			                           SQLStateType::ST_42000, "");
+		}
 		return SetDiagnosticRecord(dbc, SQL_ERROR, "SQLDriverConnect", ErrorMessage(ex), SQLStateType::ST_IM003, "");
 	}
 
@@ -455,7 +351,7 @@ SQLRETURN Connect::SetConnection() {
 	SQLRETURN ret = SQL_SUCCESS;
 
 	if (!session_init_content.IsEmpty()) {
-		ret = SessionInit::Run(dbc, session_init_content, db_created);
+		ret = SessionInit::Run(dbc, session_init_content);
 		if (!SQL_SUCCEEDED(ret)) {
 			dbc->conn.reset();
 			dbc->db.reset();

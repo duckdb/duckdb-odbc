@@ -30,7 +30,11 @@ public:
 
   static SessionInitSQLFile ReadSQLFile(const std::string &session_init_sql_file, const std::string &session_init_sql_file_sha256);
 
-  static SQLRETURN Run(OdbcHandleDbc *dbc, const SessionInitSQLFile &sql_file, bool db_created);
+  //! Runs the db init SQL on a new database. Throws when a statement fails.
+  static void RunDBInit(cxx::Instance &instance, const std::string &db_init_sql);
+
+  //! Runs the connection init SQL on the connection of `dbc`.
+  static SQLRETURN Run(OdbcHandleDbc *dbc, const SessionInitSQLFile &sql_file);
 };
 
 } // namespace duckdb_odbc
