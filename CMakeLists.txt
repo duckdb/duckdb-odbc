@@ -629,7 +629,10 @@ endif()
 add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
 target_compile_definitions(duckdb_odbc PRIVATE -DDUCKDB_STATIC_BUILD)
 if(WIN32)
-  target_compile_options(duckdb_odbc PRIVATE /bigobj /utf-8)
+  target_compile_options(duckdb_odbc PRIVATE
+    /bigobj
+    /utf-8
+    /Zc:__cplusplus)
 endif()
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
