@@ -10,6 +10,13 @@ set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+if(MSVC)
+  # Report the real C++ standard in __cplusplus instead of 199711L, otherwise
+  # vendored code that checks __cplusplus (e.g. skiplist Node.h redefining
+  # nullptr as NULL) takes its pre-C++11 code paths.
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>)
+endif()
+
 if(NOT ODBC_FOUND)
   message(FATAL_ERROR "No ODBC found; you need to install unixodbc-dev.")
 endif()
@@ -629,10 +636,7 @@ endif()
 add_library(duckdb_odbc SHARED ${ALL_OBJECT_FILES})
 target_compile_definitions(duckdb_odbc PRIVATE -DDUCKDB_STATIC_BUILD)
 if(WIN32)
-  target_compile_options(duckdb_odbc PRIVATE
-    /bigobj
-    /utf-8
-    /Zc:__cplusplus)
+  target_compile_options(duckdb_odbc PRIVATE /bigobj /utf-8)
 endif()
 
 set_target_properties(duckdb_odbc PROPERTIES DEFINE_SYMBOL "DUCKDB_ODBC_API")
