@@ -243,7 +243,11 @@ test("SELECT '0.00003'::DECIMAL(38,10)::VARCHAR;", out='0.0000300000')
 test("SELECT '0.1'::DECIMAL(3, 4);", err="[ISQL]ERROR")
 test("SELECT '0.1'::DECIMAL('hello');", err="[ISQL]ERROR")
 test("SELECT '0.1'::DECIMAL(-17);", err="[ISQL]ERROR")
-test("SELECT '0.1'::DECIMAL(1000);", err="[ISQL]ERROR")
+# a DECIMAL wider than 38 digits is a valid type, up to the max_decimal_width setting
+test("SELECT '0.1'::DECIMAL(1000, 3)::VARCHAR;", out='0.100')
+test("SELECT '0.1'::DECIMAL(1000, 3);", out='0.100')
+test("SELECT typeof(1::DECIMAL(38, 2) + 1::DECIMAL(38, 2));", out='DECIMAL(39,2)')
+test("SELECT '0.1'::DECIMAL(1000001);", err="[ISQL]ERROR")
 test("SELECT '0.1'::DECIMAL(1, 2, 3);", err="[ISQL]ERROR")
 test("SELECT '1'::INTEGER(1000);", err="[ISQL]ERROR")
 
