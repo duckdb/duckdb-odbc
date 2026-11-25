@@ -245,7 +245,8 @@ SQLRETURN ParameterDescriptor::FillCurParamCharSet(DescRecord &apd_record, DescR
 	return SQL_PARAM_SUCCESS;
 }
 
-// The widest DECIMAL that is stored as a 64-bit integer, and the widest DECIMAL.
+// The widest DECIMAL that is stored as a 64-bit integer, and the widest DECIMAL that SQL_NUMERIC_STRUCT holds. The
+// engine has wider DECIMALs, which are bound as characters.
 static constexpr int MAX_WIDTH_INT64 = 18;
 static constexpr int MAX_WIDTH_DECIMAL = 38;
 
@@ -494,8 +495,13 @@ SQLRETURN ParameterDescriptor::SetParamIndex() {
 
 SQLRETURN ParameterDescriptor::ValidateNumeric(int precision, int scale) {
 	if (precision < 1 || precision > MAX_WIDTH_DECIMAL || scale < 0 || scale > MAX_WIDTH_DECIMAL || scale > precision) {
-		// TODO we should use SQLGetDiagField to register the error message
-		auto msg = StringUtil::Format("Numeric precision %d and scale %d not supported", precision, scale);
+		// SQL_NUMERIC_STRUCT holds 38 digits; a wider DECIMAL parameter is bound as characters
+		auto msg = StringUtil::Format("Numeric precision %d and scale %d not supported for a SQL_C_NUMERIC parameter: "
+		                              "the precision must be between 1 and %d and the scale between 0 and the "
+		                              "precision. Bind a DECIMAL of more digits as SQL_C_CHAR",
+		                              precision, scale, MAX_WIDTH_DECIMAL);
+		duckdb_odbc::SetDiagnosticRecord(stmt, SQL_ERROR, "SQLBindParameter", msg, SQLStateType::ST_HY104,
+		                                 stmt->dbc->GetDataSourceName());
 		return SQL_ERROR;
 	}
 	return SQL_SUCCESS;
