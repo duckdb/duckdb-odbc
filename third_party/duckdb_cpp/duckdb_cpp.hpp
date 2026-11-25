@@ -195,7 +195,7 @@ private:
 /// ownership release from inside a member of the consuming wrapper.
 struct HandleFactory {
 	template <class T, class... ARGS>
-	static auto Make(ARGS &&... args) -> T {
+	static auto Make(ARGS &&...args) -> T {
 		return T(std::forward<ARGS>(args)...);
 	}
 };
@@ -620,7 +620,7 @@ public:
 	/// the update callback via `UpdateInput::GetUserData<T>`. Consumed by registration: set it again before
 	/// re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> CustomOption & {
+	auto SetUserData(ARGS &&...args) & -> CustomOption & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -1251,6 +1251,38 @@ public:
 	/// @param options The options that can only be chosen at startup.
 	Instance(Environment &env, const std::string &path, const StartupOptions &options = {});
 
+	/// Opens the database file `path` in an instance shared through the default environment: a new handle to the
+	/// instance that already has the file open, or else to a new instance with the file attached as its default
+	/// database. Every handle for the same file sees the same database; it is closed once the last handle and the last
+	/// connection on it are destroyed, and opening it meanwhile waits for that rather than opening it twice. See
+	/// `duckdb_v2_instance_open_shared` for the details.
+	/// @param path The database file, or ":memory:" / the empty string for a new in-memory database, which is never
+	/// shared.
+	/// @param options The options that can only be chosen at startup. An instance that is already open is shared only
+	/// when it was created with options that give the same settings: an alias counts as its option, and a value
+	/// counts as equal once converted to the option's type, text regardless of case.
+	/// @throws Exception When the file is open in an instance created with other options, or attached to an instance
+	/// that is not shared.
+	static auto OpenShared(const std::string &path, const StartupOptions &options = {}) -> Instance;
+
+	/// `OpenShared` through `env`, which must outlive the instance.
+	static auto OpenShared(Environment &env, const std::string &path, const StartupOptions &options = {}) -> Instance;
+
+	/// Initializes an instance that `OpenShared` has just created. The instance is borrowed for the duration of the
+	/// call, and must not be moved from: configure it, or connect to it and run SQL.
+	using InitCallback = std::function<void(Instance &instance)>;
+
+	/// `OpenShared`, calling `init` when this call creates the instance, before another call can share it: calls for
+	/// the same file wait for `init` to return. When `init` throws, the instance is destroyed and the exception
+	/// propagates; the next call for the file creates an instance again. `init` is not called when the call shares
+	/// an existing instance, and must not open the same file with `OpenShared`.
+	static auto OpenShared(const std::string &path, const StartupOptions &options, const InitCallback &init)
+	    -> Instance;
+
+	/// `OpenShared` through `env`, which must outlive the instance, calling `init` when this call creates it.
+	static auto OpenShared(Environment &env, const std::string &path, const StartupOptions &options,
+	                       const InitCallback &init) -> Instance;
+
 	~Instance() override;
 	Instance(Instance &&) noexcept = default;
 	Instance &operator=(Instance &&) noexcept = default;
@@ -1554,11 +1586,11 @@ public:
 	// kind they misread that type's parameters or throw, so check the kind first. Names and dictionary entries come
 	// back as owned strings.
 
-	/// The total number of digits a DECIMAL holds.
-	auto GetDecimalWidth() const -> uint8_t;
+	/// The total number of digits a DECIMAL holds; any `uint32_t`, widths above 38 are BIGNUM-backed.
+	auto GetDecimalWidth() const -> uint32_t;
 
 	/// The number of digits a DECIMAL keeps after the point.
-	auto GetDecimalScale() const -> uint8_t;
+	auto GetDecimalScale() const -> uint32_t;
 
 	/// How many entries an ENUM's dictionary holds.
 	auto GetEnumSize() const -> idx_t;
@@ -1604,8 +1636,8 @@ public:
 	/// @param index Member index in [0, GetUnionMemberCount()).
 	auto GetUnionMemberType(idx_t index) const -> LogicalType;
 
-	/// The integer type a DECIMAL's digits are stored in, which is what its vector elements are; determined by the
-	/// width.
+	/// The type a DECIMAL's digits are stored in, which is what its vector elements are; determined by the width:
+	/// SMALLINT, INTEGER, BIGINT or HUGEINT up to 38 digits, BIGNUM (`bignum_t` elements) beyond.
 	auto GetDecimalInternalTypeId() const -> LogicalTypeId;
 
 	/// The unsigned integer type an ENUM's dictionary indices are stored in, which is what its vector elements are;
@@ -1789,10 +1821,11 @@ struct list_entry_t {
 
 /// DECIMAL(WIDTH, SCALE): an exact number, kept as an integer of WIDTH digits with the point SCALE digits from the
 /// right. The width picks the storage integer, so DECIMAL(9, 2) and DECIMAL(18, 2) are different C++ types and their
-/// payloads are not interchangeable.
+/// payloads are not interchangeable. This covers the fixed-size decimals of up to 38 digits; a wider DECIMAL stores
+/// its digits as a `bignum_t`, see `LogicalType::GetDecimalInternalTypeId`.
 template <int8_t WIDTH, uint8_t SCALE>
 struct decimal_t {
-	static_assert(WIDTH >= 1 && WIDTH <= 38, "DECIMAL type width must be between 1 and 38");
+	static_assert(WIDTH >= 1 && WIDTH <= 38, "decimal_t covers fixed-size decimals, with a width between 1 and 38");
 	static_assert(SCALE <= WIDTH, "DECIMAL scale must be less than or equal to width");
 	using storage_type = std::conditional_t<
 	    (WIDTH <= 4), int16_t,
@@ -3492,7 +3525,7 @@ public:
 	/// `GetBindData<T>`. The engine compares bind data when it compares expressions: by `operator==` when `T` has one,
 	/// by identity otherwise.
 	template <class T, class... ARGS>
-	void SetBindData(ARGS &&... args) {
+	void SetBindData(ARGS &&...args) {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetBindDataInternal(ptr, detail::SelectEquals<T>(), detail::TypedDelete<T>);
 	}
@@ -3640,6 +3673,20 @@ public:
 	/// @throws InvalidInputException When the statistics are read-only, such as those of an argument.
 	auto SetCanHaveValid(bool value) -> void;
 
+	/// The statistics as a STRUCT value with one field per known statistic, the shape of the SQL function `stats()`:
+	/// `min` and `max` (values of the column's type), `has_null`, `has_no_null`, `approx_unique`, `child_stats` for
+	/// nested types, ... A field is absent when that statistic is unknown. Unstable API.
+	auto GetValue() const -> Value;
+
+	/// Narrows the statistics from a STRUCT value in the shape `GetValue` returns: a field that is set replaces that
+	/// statistic, a NULL or absent field leaves it unchanged. `{'min': 20, 'max': 30, 'has_null': false}` on an
+	/// INTEGER column reports exactly those bounds and the absence of NULLs. A bound is a value of the column's type,
+	/// or one that casts to it. Every statistic states what can occur: a bound that excludes a value the scan then
+	/// produces, or `has_null: false` for a column with NULLs, produces wrong query results. Unstable API.
+	/// @throws InvalidInputException When the value is not a STRUCT, a field does not exist for the type or does not
+	/// convert, or the statistics are read-only, such as those of an argument.
+	auto SetValue(const Value &value) -> void;
+
 private:
 	explicit Stats(void *impl);
 };
@@ -3723,7 +3770,7 @@ public:
 	/// any callback via the inputs' `GetUserData<T>`. Consumed by registration: set it again before
 	/// re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> ScalarFunction & {
+	auto SetUserData(ARGS &&...args) & -> ScalarFunction & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -3799,7 +3846,7 @@ public:
 		/// callbacks via `GetBindData<T>`. The engine compares bind data when it compares expressions: by
 		/// `operator==` when `T` has one, by identity otherwise.
 		template <class T, class... ARGS>
-		void SetBindData(ARGS &&... args) {
+		void SetBindData(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetBindDataInternal(ptr, detail::SelectEquals<T>(), detail::TypedDelete<T>);
 		}
@@ -3829,7 +3876,7 @@ public:
 		/// Constructs init data of type `T`, owned by this execution thread's function state and readable from the
 		/// exec callback via `GetInitData<T>`.
 		template <class T, class... ARGS>
-		void SetInitData(ARGS &&... args) {
+		void SetInitData(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetInitDataInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -4080,7 +4127,7 @@ public:
 	/// any callback via the inputs' `GetUserData<T>`. Consumed by registration: set it again before
 	/// re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> AggregateFunction & {
+	auto SetUserData(ARGS &&...args) & -> AggregateFunction & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -4581,6 +4628,8 @@ public:
 	class ClaimBatchInput;
 	class GetBindInfoInput;
 	class StatsInput;
+	class MetricsInput;
+	class ToStringInput;
 
 	/// Whether, and how, the scan is partitioned by a set of columns. Reported from the partitioning callback.
 	enum class PartitionInfo : uint8_t {
@@ -4627,6 +4676,36 @@ public:
 	/// Called while the query is optimized, once per declared column the query reads, to narrow that column's
 	/// statistics. Optional; without it the engine knows nothing about the columns. Unstable API.
 	using StatsCallback = void (*)(StatsInput &input);
+	/// Called when the engine collects the metrics of the scan, possibly while the scan is still running, to report
+	/// what the scan did. Optional; unstable API.
+	using MetricsCallback = void (*)(MetricsInput &input);
+	/// Called with the bind data of a bound call when the engine renders a query plan that scans the function, e.g.
+	/// for `EXPLAIN`, possibly more than once; reports the key-value pairs the plan shows for the scan. They replace
+	/// the `Function` entry the physical plan shows by default. With profiling enabled (including `EXPLAIN ANALYZE`)
+	/// it is also called while the query executes, once per worker thread and possibly concurrently, so it must not
+	/// modify shared state without synchronization, and an error it throws there fails the query. Optional; unstable
+	/// API.
+	using ToStringCallback = void (*)(ToStringInput &input);
+
+	/// A column a function can produce next to the columns it declares in bind: a query asks for it by name.
+	enum class VirtualColumn : uint8_t {
+		/// `file_row_number`, a BIGINT holding the position of the row within the file it was read from, counting
+		/// from 0. Produced by a function that reads a single file when it is wrapped in a `MultiFileFunction`.
+		FILE_ROW_NUMBER = 0,
+	};
+
+	/// The first column index that stands for a virtual column rather than a declared one. The index the inputs'
+	/// `GetColumnIndex` reports for a virtual column is this plus its value in `VirtualColumn`.
+	static constexpr idx_t VIRTUAL_COLUMN_START = static_cast<idx_t>(1) << 63;
+
+	/// Whether a column index reported by `GetColumnIndex` stands for a virtual column.
+	static auto IsVirtualColumn(idx_t column_index) -> bool {
+		return column_index >= VIRTUAL_COLUMN_START;
+	}
+
+	/// The virtual column a column index reported by `GetColumnIndex` stands for.
+	/// @throws InvalidInputException When the index stands for a declared column.
+	static auto GetVirtualColumn(idx_t column_index) -> VirtualColumn;
 
 	TableFunction(TableFunction &&) noexcept = default;
 	TableFunction &operator=(TableFunction &&) noexcept = default;
@@ -4667,7 +4746,7 @@ public:
 	/// any callback via the inputs' `GetUserData<T>`. Consumed by registration: set it again before
 	/// re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> TableFunction & {
+	auto SetUserData(ARGS &&...args) & -> TableFunction & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -4696,6 +4775,17 @@ public:
 	/// output chunk always holds every declared column, and the engine drops the unused ones itself.
 	auto SetProjectionPushdown(bool enable) & -> TableFunction &;
 
+	/// Declares that the function can produce a virtual column, which a query asks for by name. It then takes up a
+	/// vector of the exec callback's output chunk, whose column index (see `GetColumnIndex`) is
+	/// `VIRTUAL_COLUMN_START` plus the value of the column. Requires projection pushdown. Unstable API.
+	auto AddVirtualColumn(VirtualColumn column) & -> TableFunction &;
+
+	/// Lets the function report what the scan did: see `MetricsCallback`. Unstable API.
+	auto SetMetricsCallback(MetricsCallback callback) & -> TableFunction &;
+
+	/// Lets the function describe a bound call in query plans: see `ToStringCallback`. Unstable API.
+	auto SetToStringCallback(ToStringCallback callback) & -> TableFunction &;
+
 private:
 	explicit TableFunction(void *impl);
 	//! Moves what the callbacks need into the C handle, right before it is registered.
@@ -4714,6 +4804,8 @@ private:
 	ClaimBatchCallback claim_batch_callback = nullptr;
 	GetBindInfoCallback get_bind_info_callback = nullptr;
 	StatsCallback stats_callback = nullptr;
+	MetricsCallback metrics_callback = nullptr;
+	ToStringCallback to_string_callback = nullptr;
 	detail::UserData user_data;
 
 public:
@@ -4766,7 +4858,7 @@ public:
 		/// local init, exec and progress callbacks. Since every thread sees the same object, the function must
 		/// synchronize its own access to it.
 		template <class T, class... ARGS>
-		void SetGlobalState(ARGS &&... args) {
+		void SetGlobalState(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetGlobalStateInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -4822,7 +4914,7 @@ public:
 		/// Constructs local state of type `T`, owned by this scanning thread and readable from the exec callback via
 		/// `ExecInput::GetLocalState<T>`. No other thread observes it, so it needs no synchronization.
 		template <class T, class... ARGS>
-		void SetLocalState(ARGS &&... args) {
+		void SetLocalState(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetLocalStateInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -4954,6 +5046,14 @@ public:
 			return *static_cast<T *>(GetGlobalStateInternal());
 		}
 
+		/// The global state set via `InitGlobalInput::SetGlobalState`, or nullptr when the scan has not been
+		/// initialized yet -- which is the case when a `MultiFileFunction` asks about a file it has not started on. The
+		/// state must be read in a thread-safe way.
+		template <class T>
+		auto TryGetGlobalState() const -> T * {
+			return static_cast<T *>(TryGetGlobalStateInternal());
+		}
+
 		/// The user data set via `TableFunction::SetUserData`.
 		/// @throws InvalidInputException When none was set.
 		template <class T>
@@ -4978,6 +5078,7 @@ public:
 
 		void *GetBindDataInternal() const;
 		void *GetGlobalStateInternal() const;
+		void *TryGetGlobalStateInternal() const;
 		void *GetUserDataInternal() const;
 	};
 
@@ -4989,6 +5090,13 @@ public:
 	/// the engine as usual, so a callback that recognizes nothing can simply return. The optimizer may run the
 	/// callback more than once for the same query, each time with the predicates not yet accepted, and never with
 	/// none.
+	///
+	/// A function that also has projection pushdown is offered the predicates that apply to a single column of it
+	/// once more when a scan starts, just before the global init callback. That is how the callback of a function
+	/// wrapped in a `MultiFileFunction` sees them, since the optimizer only offers them to the wrapper; the bind data
+	/// is then the one of the file being scanned. The engine applies these predicates to the rows the function
+	/// produces itself, so the function may use them to skip what the query can never use (e.g. the parts of a file
+	/// whose statistics rule them out), and accepting one has no effect. Unstable API.
 	class FilterPushdownInput {
 		friend detail::HandleFactory;
 
@@ -5022,7 +5130,7 @@ public:
 		/// `Expression::GetColumnIndex` indexes.
 		auto GetColumnCount() const -> idx_t;
 		/// Resolves the index a column reference node reports to the declared column (in `BindInput::AddResultColumn`
-		/// order) it refers to.
+		/// order) it refers to, or to the index of a virtual column (see `IsVirtualColumn`).
 		/// @throws InvalidInputException When the index is out of bounds.
 		auto GetColumnIndex(idx_t index) const -> idx_t;
 
@@ -5318,6 +5426,91 @@ public:
 		void *GetBindDataInternal() const;
 		void *GetUserDataInternal() const;
 	};
+
+	/// What the metrics callback works with. Borrowed, valid only for the callback duration. Unstable API.
+	///
+	/// The callback runs when the engine collects the metrics of the scan, which can be while the scan is still
+	/// running, and possibly more than once: it adds up what it is told.
+	class MetricsInput {
+		friend detail::HandleFactory;
+
+	public:
+		/// The bind data set via `BindInput::SetBindData`.
+		/// @throws InvalidInputException When none was set.
+		template <class T>
+		auto GetBindData() const -> const T & {
+			return *static_cast<const T *>(GetBindDataInternal());
+		}
+
+		/// The user data set via `TableFunction::SetUserData`.
+		/// @throws InvalidInputException When none was set.
+		template <class T>
+		auto GetUserData() const -> T & {
+			return *static_cast<T *>(GetUserDataInternal());
+		}
+
+		/// The global state set via `InitGlobalInput::SetGlobalState`, or nullptr when the scan has not been
+		/// initialized or set none. The scan can be running, so the state must be read in a thread-safe way.
+		template <class T>
+		auto GetGlobalState() const -> T * {
+			return static_cast<T *>(GetGlobalStateInternal());
+		}
+
+		/// Reports an operator metric of the scan by its profiler name, e.g. "operator.row_groups_scanned" or
+		/// "operator.total_row_groups_to_scan". See `duckdb_v2_table_function_metrics_set` for the accepted names.
+		/// @param name The name of the metric.
+		/// @param value The value since the metrics were last collected ("operator.total_row_groups_to_scan": in all).
+		/// @throws InvalidInputException When the name is not a metric a table function can report.
+		auto SetMetric(std::string_view name, uint64_t value) -> void;
+
+		/// The query's context. Borrowed, valid only for the callback duration.
+		auto GetContext() -> Context &;
+
+	private:
+		MetricsInput(void *args, void *context) : args(args), context(detail::HandleFactory::Make<Context>(context)) {
+		}
+
+		void *args;
+		Context context;
+
+		void *GetBindDataInternal() const;
+		void *GetGlobalStateInternal() const;
+		void *GetUserDataInternal() const;
+	};
+
+	/// What the to string callback works with. Borrowed, valid only for the callback duration. Unstable API.
+	class ToStringInput {
+		friend detail::HandleFactory;
+
+	public:
+		/// The bind data set via `BindInput::SetBindData` for the bound call being described.
+		/// @throws InvalidInputException When none was set.
+		template <class T>
+		auto GetBindData() const -> const T & {
+			return *static_cast<const T *>(GetBindDataInternal());
+		}
+
+		/// The user data set via `TableFunction::SetUserData`.
+		/// @throws InvalidInputException When none was set.
+		template <class T>
+		auto GetUserData() const -> T & {
+			return *static_cast<T *>(GetUserDataInternal());
+		}
+
+		/// Reports a key-value pair the plan shows for the scan. The pairs are shown in the order they were first
+		/// reported; setting a key again replaces its value.
+		/// @throws InvalidInputException When the key is empty.
+		auto Set(std::string_view key, std::string_view value) -> void;
+
+	private:
+		explicit ToStringInput(void *args) : args(args) {
+		}
+
+		void *args;
+
+		void *GetBindDataInternal() const;
+		void *GetUserDataInternal() const;
+	};
 };
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -5504,7 +5697,7 @@ public:
 	/// any callback via the inputs' `GetUserData<T>`. Consumed by registration: set it again before
 	/// re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> CopyFunction & {
+	auto SetUserData(ARGS &&...args) & -> CopyFunction & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -5555,7 +5748,7 @@ public:
 		/// callback via `GetBindData<T>`. The engine compares bind data when it compares statements: by `operator==`
 		/// when `T` has one, by identity otherwise.
 		template <class T, class... ARGS>
-		void SetBindData(ARGS &&... args) {
+		void SetBindData(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetBindDataInternal(ptr, detail::SelectEquals<T>(), detail::TypedDelete<T>);
 		}
@@ -5664,7 +5857,7 @@ public:
 		/// finalize callbacks of that file via `GetInitData<T>`. Batches may be prepared on several threads at once, so
 		/// the batch callback must synchronize its own access to it.
 		template <class T, class... ARGS>
-		void SetInitData(ARGS &&... args) {
+		void SetInitData(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetInitDataInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -5711,7 +5904,7 @@ public:
 		/// Constructs batch data of type `T`: the prepared form of the batch, handed to the flush callback via
 		/// `CopyToFlushInput::GetBatchData<T>` and freed once the batch has been flushed.
 		template <class T, class... ARGS>
-		void SetBatchData(ARGS &&... args) {
+		void SetBatchData(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetBatchDataInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -5911,7 +6104,7 @@ public:
 		/// `COPY ... FROM` callback via `GetBindData<T>`. The engine compares bind data when it compares statements:
 		/// by `operator==` when `T` has one, by identity otherwise.
 		template <class T, class... ARGS>
-		void SetBindData(ARGS &&... args) {
+		void SetBindData(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetBindDataInternal(ptr, detail::SelectEquals<T>(), detail::TypedDelete<T>);
 		}
@@ -5986,7 +6179,7 @@ public:
 		/// init, exec and progress callbacks. Since every thread sees the same object, the function must synchronize
 		/// its own access to it.
 		template <class T, class... ARGS>
-		void SetGlobalState(ARGS &&... args) {
+		void SetGlobalState(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetGlobalStateInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -6034,7 +6227,7 @@ public:
 		/// Constructs local state of type `T`, owned by this reading thread and readable from the exec callback via
 		/// `CopyFromExecInput::GetLocalState<T>`. No other thread observes it, so it needs no synchronization.
 		template <class T, class... ARGS>
-		void SetLocalState(ARGS &&... args) {
+		void SetLocalState(ARGS &&...args) {
 			auto ptr = new T(std::forward<ARGS>(args)...);
 			SetLocalStateInternal(ptr, detail::TypedDelete<T>);
 		}
@@ -6244,7 +6437,7 @@ public:
 	/// exec callback via `ExecInput::GetUserData<T>`. Consumed by registration: set it again before
 	/// re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> CastFunction & {
+	auto SetUserData(ARGS &&...args) & -> CastFunction & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -6370,7 +6563,7 @@ public:
 	/// Constructs user data of type `T`, carried by the registered pragma and freed at engine teardown; read it from
 	/// the callback via the input's `GetUserData<T>`. Consumed by registration: set it again before re-registering.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> PragmaFunction & {
+	auto SetUserData(ARGS &&...args) & -> PragmaFunction & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -6518,7 +6711,7 @@ enum class LogScope : uint8_t {
 /// Code of your own that receives DuckDB's log entries. Create one through a `Factory` of the database it will be
 /// registered in, give it a name and a write callback, then register it with `Instance::Register` or
 /// `Extension::Register`, which makes it available to the logging configuration under its name; once the
-/// configuration directs entries to it (currently with `SET logging_storage = '<name>'`), the write callback receives
+/// configuration directs entries to it (currently with `SET logging_sink = '<name>'`), the write callback receives
 /// them. A log sink only receives entries: they cannot be read back through `duckdb_logs`.
 ///
 /// Which entries a sink receives, and when and on which thread its callbacks run, are up to DuckDB: the callbacks must
@@ -6554,7 +6747,7 @@ public:
 	/// Constructs user data of type `T`, carried by the registered sink and freed at database teardown; read it
 	/// from the callbacks via `GetUserData<T>`. Consumed by registration.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> LogSink & {
+	auto SetUserData(ARGS &&...args) & -> LogSink & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;
@@ -7059,7 +7252,7 @@ public:
 	/// Constructs user data of type `T`, carried by the registered scan and freed when its scope ends; read it from
 	/// the callback via `Input::GetUserData<T>`. Consumed by registration.
 	template <class T, class... ARGS>
-	auto SetUserData(ARGS &&... args) & -> ReplacementScan & {
+	auto SetUserData(ARGS &&...args) & -> ReplacementScan & {
 		auto ptr = new T(std::forward<ARGS>(args)...);
 		SetUserDataInternal(ptr, detail::TypedDelete<T>);
 		return *this;

@@ -243,7 +243,8 @@ test("SELECT '0.00003'::DECIMAL(38,10)::VARCHAR;", out='0.0000300000')
 test("SELECT '0.1'::DECIMAL(3, 4);", err="[ISQL]ERROR")
 test("SELECT '0.1'::DECIMAL('hello');", err="[ISQL]ERROR")
 test("SELECT '0.1'::DECIMAL(-17);", err="[ISQL]ERROR")
-test("SELECT '0.1'::DECIMAL(1000);", err="[ISQL]ERROR")
+# widths up to max_decimal_width (1000000 by default) are allowed
+test("SELECT '0.1'::DECIMAL(1000001);", err="[ISQL]ERROR")
 test("SELECT '0.1'::DECIMAL(1, 2, 3);", err="[ISQL]ERROR")
 test("SELECT '1'::INTEGER(1000);", err="[ISQL]ERROR")
 

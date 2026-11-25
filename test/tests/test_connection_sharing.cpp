@@ -414,3 +414,36 @@ TEST_CASE("Test connecting while the last connection to a database closes it", "
 	EXECUTE_AND_CHECK("SQLFreeHandle (HSTMT)", hstmt, SQLFreeHandle, SQL_HANDLE_STMT, hstmt);
 	DISCONNECT_FROM_DATABASE(env, dbc);
 }
+
+TEST_CASE("Test sharing a database requires the same runtime options", "[odbc]") {
+	TempDirectory tmpdir;
+	std::string database = "Database=" + tmpdir.path + "/runtime_options.db";
+
+	SQLHANDLE env1, dbc1;
+	DRIVER_CONNECT_TO_DATABASE(env1, dbc1, database + ";allowed_directories=['" + tmpdir.path + "']");
+	// the same option, set once the database runs: shared
+	SQLHANDLE env2, dbc2;
+	DRIVER_CONNECT_TO_DATABASE(env2, dbc2, database + ";allowed_directories=['" + tmpdir.path + "']");
+
+	// another value: refused
+	SQLHANDLE env3 = nullptr;
+	SQLHANDLE dbc3 = nullptr;
+	REQUIRE(SQLAllocHandle(SQL_HANDLE_ENV, nullptr, &env3) == SQL_SUCCESS);
+	EXECUTE_AND_CHECK("SQLSetEnvAttr", nullptr, SQLSetEnvAttr, env3, SQL_ATTR_ODBC_VERSION,
+	                  ConvertToSQLPOINTER(SQL_OV_ODBC3), 0);
+	EXECUTE_AND_CHECK("SQLAllocHandle (DBC)", nullptr, SQLAllocHandle, SQL_HANDLE_DBC, env3, &dbc3);
+	std::string conn_str = database + ";allowed_directories=['" + tmpdir.path + "/other']";
+	SQLCHAR out[1024];
+	SQLSMALLINT out_len;
+	REQUIRE(SQLDriverConnect(dbc3, nullptr, ConvertToSQLCHAR(conn_str), SQL_NTS, out, sizeof(out), &out_len,
+	                         SQL_DRIVER_COMPLETE) == SQL_ERROR);
+	std::string state;
+	std::string message;
+	ACCESS_DIAGNOSTIC(state, message, dbc3, SQL_HANDLE_DBC);
+	REQUIRE(message.find("different configuration") != std::string::npos);
+	EXECUTE_AND_CHECK("SQLFreeHandle (DBC)", nullptr, SQLFreeHandle, SQL_HANDLE_DBC, dbc3);
+	EXECUTE_AND_CHECK("SQLFreeHandle (ENV)", nullptr, SQLFreeHandle, SQL_HANDLE_ENV, env3);
+
+	DISCONNECT_FROM_DATABASE(env1, dbc1);
+	DISCONNECT_FROM_DATABASE(env2, dbc2);
+}
