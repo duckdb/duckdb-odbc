@@ -52,6 +52,11 @@ const std::unordered_set<SQLUSMALLINT> ApiInfo::ODBC3_EXTRA_SUPPORTED_FUNCTIONS 
  * 17. SQL_DATETIME_SUB
  * 18. NUM_PREC_RADIX
  * 19. INTERVAL_PRECISION
+ *
+ * DECIMAL and NUMERIC report a COLUMN_SIZE and MAXIMUM_SCALE of 38 although the engine has wider DECIMALs: 38 digits is
+ * what SQL_NUMERIC_STRUCT, the C type of these SQL types, transfers, so it is the precision an application can use with
+ * every C type. A wider DECIMAL column reports its own width (SQLDescribeCol, SQLColAttribute, SQLColumns) and is
+ * transferred as characters.
  */
 const vector<duckdb_odbc::OdbcTypeInfo> ApiInfo::ODBC_SUPPORTED_SQL_TYPES = {
 // |          1               |               2              |            3            |    4   |   5   |          6         |      7      |     8    |       9       |     10   |    11    |    12    |      13    | 14| 15|      16      |            17            | 18| 19|
@@ -492,7 +497,9 @@ SQLINTEGER ApiInfo::GetColumnSize(const OdbcType &logical_type) {
 		case LogicalTypeId::UHUGEINT:
 			return 38;
 		default:
-			return logical_type.decimal_width;
+			// the width of a DECIMAL wider than 38 digits is a uint32_t
+			return static_cast<SQLINTEGER>(
+			    duckdb_odbc::MinValue<uint32_t>(logical_type.decimal_width, std::numeric_limits<SQLINTEGER>::max()));
 		}
 	case SQL_BIT:
 		return 1;
@@ -539,7 +546,9 @@ SQLINTEGER ApiInfo::GetDisplaySize(const OdbcType &logical_type) {
 		case LogicalTypeId::UHUGEINT:
 			return 40;
 		default:
-			return logical_type.decimal_width + 2;
+			// the digits, a sign and a decimal point
+			return static_cast<SQLINTEGER>(duckdb_odbc::MinValue<uint64_t>(
+			    static_cast<uint64_t>(logical_type.decimal_width) + 2, std::numeric_limits<SQLINTEGER>::max()));
 		}
 	case SQL_BIT:
 		return 1;

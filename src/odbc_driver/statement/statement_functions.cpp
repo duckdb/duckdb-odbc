@@ -1,4 +1,5 @@
 #include "statement_functions.hpp"
+#include "api_info.hpp"
 #include "handle_functions.hpp"
 #include "odbc_interval.hpp"
 #include "odbc_fetch.hpp"
@@ -280,6 +281,66 @@ static SQLRETURN ThrowInvalidCast(const std::string &component, const Value &fro
 
 	return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, component, msg, SQLStateType::ST_22007,
 	                                        hstmt->dbc->GetDataSourceName());
+}
+
+// SQL_NUMERIC_STRUCT holds the unscaled value in SQL_MAX_NUMERIC_LEN (16) bytes, which ODBC defines as a precision of
+// at most 38 digits.
+static constexpr uint32_t MAX_NUMERIC_STRUCT_PRECISION = 38;
+
+// Returns a DECIMAL wider than 38 digits as a SQL_NUMERIC_STRUCT. The type does not fit the struct, but a value may:
+// it is returned exactly when its unscaled value has at most 38 digits, at the scale of the column where that is
+// possible, and else at the largest scale that keeps every digit (only trailing zeros of the fraction are dropped). A
+// value that needs more digits is SQLSTATE 22003, it is never truncated or rounded.
+static SQLRETURN GetWideDecimalAsNumeric(duckdb_odbc::OdbcHandleStmt *hstmt, const duckdb_odbc::Value &val,
+                                         SQL_NUMERIC_STRUCT *numeric, SQLLEN *str_len_or_ind_ptr) {
+	auto &factory = hstmt->dbc->conn->GetFactory();
+	auto type = val.GetLogicalType();
+	auto scale = type.GetDecimalScale();
+	// the text of a DECIMAL is its digits, with a sign when negative and a decimal point when the scale is not zero
+	auto text = duckdb_odbc::ValueToString(factory, val);
+
+	bool negative = false;
+	std::string digits;
+	for (auto c : text) {
+		if (c == '-') {
+			negative = true;
+		} else if (c >= '0' && c <= '9') {
+			if (c != '0' || !digits.empty()) {
+				digits += c;
+			}
+		}
+	}
+	while ((digits.size() > MAX_NUMERIC_STRUCT_PRECISION || scale > MAX_NUMERIC_STRUCT_PRECISION) && scale > 0 &&
+	       (digits.empty() || digits.back() == '0')) {
+		if (!digits.empty()) {
+			digits.pop_back();
+		}
+		scale--;
+	}
+	if (digits.size() > MAX_NUMERIC_STRUCT_PRECISION || scale > MAX_NUMERIC_STRUCT_PRECISION) {
+		std::string msg = "Numeric value out of range: the " + type.ToText() +
+		                  " value does not fit the 38 digits of SQL_NUMERIC_STRUCT, fetch it as SQL_C_CHAR instead";
+		return duckdb_odbc::SetDiagnosticRecord(hstmt, SQL_ERROR, "SQLGetData", msg, SQLStateType::ST_22003,
+		                                        hstmt->dbc->GetDataSourceName());
+	}
+
+	// val is the little-endian magnitude: 38 digits always fit its 16 bytes
+	memset(numeric->val, '\0', SQL_MAX_NUMERIC_LEN);
+	for (auto c : digits) {
+		uint32_t carry = static_cast<uint32_t>(c - '0');
+		for (idx_t i = 0; i < SQL_MAX_NUMERIC_LEN; i++) {
+			uint32_t cur = static_cast<uint32_t>(numeric->val[i]) * 10 + carry;
+			numeric->val[i] = static_cast<SQLCHAR>(cur & 0xFF);
+			carry = cur >> 8;
+		}
+	}
+	numeric->precision = static_cast<SQLCHAR>(MAX_NUMERIC_STRUCT_PRECISION);
+	numeric->scale = static_cast<SQLSCHAR>(scale);
+	numeric->sign = negative ? 0 : 1;
+	if (str_len_or_ind_ptr) {
+		*str_len_or_ind_ptr = sizeof(SQL_NUMERIC_STRUCT);
+	}
+	return SQL_SUCCESS;
 }
 
 template <class SRC, class DEST = SRC>
@@ -661,6 +722,11 @@ SQLRETURN duckdb_odbc::GetDataStmtResult(OdbcHandleStmt *hstmt, SQLUSMALLINT col
 		auto dataptr = (duckdb_odbc::data_ptr_t)numeric->val;
 		// reset numeric val to remove some garbage
 		memset(dataptr, '\0', SQL_MAX_NUMERIC_LEN);
+
+		if (val.GetLogicalType().GetDecimalWidth() > MAX_NUMERIC_STRUCT_PRECISION) {
+			// a DECIMAL wider than SQL_NUMERIC_STRUCT: exact when the value fits the struct, an error when not
+			return GetWideDecimalAsNumeric(hstmt, val, numeric, str_len_or_ind_ptr);
+		}
 
 		// precision and scale are taken from the column type, val holds the unscaled integer at that scale
 		auto decimal = val.GetDecimal();
@@ -1136,12 +1202,10 @@ SQLRETURN duckdb_odbc::BindParameterStmt(OdbcHandleStmt *hstmt, SQLUSMALLINT par
 
 	ipd_record->sql_desc_parameter_type = input_output_type;
 	ipd_record->sql_desc_length = column_size;
-	ipd_record->sql_desc_precision = static_cast<SQLSMALLINT>(column_size);
+	// the precision field is a SQLSMALLINT: a column size that does not fit, such as the width of a wide DECIMAL, must
+	// not wrap around to a small precision
+	ipd_record->sql_desc_precision = ApiInfo::SaturateToSmallInt(column_size);
 	ipd_record->sql_desc_scale = decimal_digits;
-	if (value_type == SQL_DECIMAL || value_type == SQL_NUMERIC || value_type == SQL_FLOAT || value_type == SQL_REAL ||
-	    value_type == SQL_DOUBLE) {
-		ipd_record->sql_desc_precision = static_cast<SQLSMALLINT>(column_size);
-	}
 
 	if (ipd_record->SetSqlDataType(parameter_type) == SQL_ERROR ||
 	    apd_record->SetSqlDataType(value_type) == SQL_ERROR) {

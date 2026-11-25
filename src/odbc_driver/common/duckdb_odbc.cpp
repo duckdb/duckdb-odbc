@@ -267,8 +267,10 @@ void OdbcHandleStmt::FillIRD(const vector<OdbcType> &types, const vector<std::st
 			// SetSqlDescType initializes precision=38, scale=0 for both types.
 			// Only DECIMAL types need custom precision/scale from DecimalType.
 			if (col_type.id == LogicalTypeId::DECIMAL) {
-				new_record.sql_desc_precision = col_type.decimal_width;
-				new_record.sql_desc_scale = col_type.decimal_scale;
+				// the descriptor fields are SQLSMALLINT: the width and scale of a wide DECIMAL saturate there, while
+				// SQLDescribeCol and SQLColAttribute report them from the type
+				new_record.sql_desc_precision = duckdb_odbc::ApiInfo::SaturateToSmallInt(col_type.decimal_width);
+				new_record.sql_desc_scale = duckdb_odbc::ApiInfo::SaturateToSmallInt(col_type.decimal_scale);
 			}
 		} else if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
 			uint8_t precision = duckdb_odbc::ApiInfo::GetTemporalPrecision(col_type.id);
