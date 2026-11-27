@@ -371,8 +371,11 @@ static string PhysicalTypeName(const LogicalType &type) {
 			return "INT32";
 		} else if (width <= 18) {
 			return "INT64";
+		} else if (width <= 38) {
+			return "INT128";
 		}
-		return "INT128";
+		// a wider DECIMAL stores its digits as a BIGNUM
+		return "BIGNUM";
 	}
 	case LogicalTypeId::ENUM: {
 		auto size = type.GetEnumSize();

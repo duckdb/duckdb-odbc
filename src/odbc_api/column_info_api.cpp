@@ -96,7 +96,7 @@ static SQLRETURN DescribeColInternal(SQLHSTMT statement_handle, SQLUSMALLINT col
 	if (decimal_digits_ptr) {
 		*decimal_digits_ptr = 0;
 		if (col_type.id == duckdb_odbc::LogicalTypeId::DECIMAL) {
-			*decimal_digits_ptr = col_type.decimal_scale;
+			*decimal_digits_ptr = duckdb_odbc::ApiInfo::SaturateToSmallInt(col_type.decimal_scale);
 		} else {
 			auto sql_type = duckdb_odbc::ApiInfo::FindRelatedSQLType(col_type.id);
 			if (sql_type == SQL_TYPE_TIME || sql_type == SQL_TYPE_TIMESTAMP) {
@@ -248,11 +248,17 @@ static SQLRETURN ColAttributeInternal(SQLHSTMT statement_handle, SQLUSMALLINT co
 	case SQL_DESC_OCTET_LENGTH:
 		return SetNumericAttributePtr(hstmt, desc_record->sql_desc_octet_length, numeric_attribute_ptr);
 	case SQL_COLUMN_PRECISION:
-		return SetNumericAttributePtr(hstmt, desc_record->sql_desc_precision, numeric_attribute_ptr);
 	case SQL_DESC_PRECISION:
+		if (desc_record->logical_type.id == duckdb_odbc::LogicalTypeId::DECIMAL) {
+			// the attribute is a SQLLEN, which holds the width of a wide DECIMAL that the SQLSMALLINT field does not
+			return SetNumericAttributePtr(hstmt, desc_record->logical_type.decimal_width, numeric_attribute_ptr);
+		}
 		return SetNumericAttributePtr(hstmt, desc_record->sql_desc_precision, numeric_attribute_ptr);
 	case SQL_COLUMN_SCALE:
 	case SQL_DESC_SCALE: {
+		if (desc_record->logical_type.id == duckdb_odbc::LogicalTypeId::DECIMAL) {
+			return SetNumericAttributePtr(hstmt, desc_record->logical_type.decimal_scale, numeric_attribute_ptr);
+		}
 		if (desc_record->sql_desc_scale == -1) {
 			ret = SetNumericAttributePtr(hstmt, SQL_NO_TOTAL, numeric_attribute_ptr);
 			if (SQL_SUCCEEDED(ret)) {

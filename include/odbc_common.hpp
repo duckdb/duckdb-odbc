@@ -248,9 +248,10 @@ struct OdbcType {
 	}
 
 	LogicalTypeId id = LogicalTypeId::INVALID;
-	//! Width and scale, for DECIMAL only.
-	uint8_t decimal_width = 0;
-	uint8_t decimal_scale = 0;
+	//! Width and scale, for DECIMAL only. A DECIMAL wider than 38 digits is stored as a BIGNUM, and its width is
+	//! bounded only by the uint32_t range.
+	uint32_t decimal_width = 0;
+	uint32_t decimal_scale = 0;
 	//! The type as DuckDB renders it, e.g. "DECIMAL(18,3)" or "INTEGER[]".
 	string name;
 	//! The name of the type's in-memory representation, e.g. "INT32" for INTEGER and DATE, which is what the driver

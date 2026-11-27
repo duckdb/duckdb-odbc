@@ -84,6 +84,13 @@ public:
 
 	static SQLINTEGER GetDisplaySize(const OdbcType &logical_type);
 
+	//! A width or scale as the SQLSMALLINT that ODBC gives the precision and scale fields: one that does not fit, as
+	//! that of a wide DECIMAL can, is reported as the largest SQLSMALLINT instead of wrapping around.
+	static SQLSMALLINT SaturateToSmallInt(SQLULEN value) {
+		const SQLULEN limit = static_cast<SQLULEN>(std::numeric_limits<SQLSMALLINT>::max());
+		return static_cast<SQLSMALLINT>(value > limit ? limit : value);
+	}
+
 }; // end ApiInfo struct
 
 } // namespace duckdb_odbc
